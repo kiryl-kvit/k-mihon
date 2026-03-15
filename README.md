@@ -1,6 +1,9 @@
 ## Fork that adds some features and changes that I miss in the official version and are convenient for me personally
 
-## Features
+## Changes from the original
+- Removed third-party integrations (TODO)
+- Added startup screen configuration (TODO)
+- Removed telemetry
 
 ### Credits
 

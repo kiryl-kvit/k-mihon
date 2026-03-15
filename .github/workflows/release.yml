@@ -56,13 +56,13 @@ jobs:
         run: |
           set -e
 
-          mv app/build/outputs/apk/foss/app-universal-foss-unsigned-signed.apk mihon-${{ needs.get_tag.outputs.tag }}.apk
+          mv app/build/outputs/apk/foss/app-universal-foss-unsigned-signed.apk mihon-${{ needs.get_tag.outputs.tag }}-foss.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: mihon
-          path: mihon-${{ needs.get_tag.outputs.tag }}.apk
+          path: mihon-${{ needs.get_tag.outputs.tag }}-foss.apk
 
   release:
     name: Create GitHub Release
@@ -90,6 +90,6 @@ jobs:
           name: Mihon ${{ needs.get_tag.outputs.tag }}
           body: |
             Release ${{ needs.get_tag.outputs.tag }}
-          files: mihon-${{ needs.get_tag.outputs.tag }}.apk
+          files: mihon-${{ needs.get_tag.outputs.tag }}-foss.apk
           draft: true
           prerelease: false
