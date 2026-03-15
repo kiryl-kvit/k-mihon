@@ -1,5 +1,7 @@
 <div align="center">
 
+## Fork that adds some features and changes that I miss in the official version and are convenient for me personally
+
 <a href="https://mihon.app">
     <img src="./.github/assets/logo.png" alt="Mihon logo" title="Mihon logo" width="80"/>
 </a>
