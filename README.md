@@ -1,10 +1,13 @@
 ## Fork that adds some features and changes that I miss in the official version and are convenient for me personally
 
+## Original app version base
+### 0.19.5
+
 ## Changes from the original
 - Removed third-party integrations (TODO)
 - Added startup screen configuration (TODO)
 - Removed telemetry
-- Library -> Group -> Source
+- Library -> Group -> Source (TODO)
 
 ### Disclaimer
 
