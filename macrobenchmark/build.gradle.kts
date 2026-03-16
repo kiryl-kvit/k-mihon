@@ -1,5 +1,6 @@
 plugins {
     id("mihon.benchmark")
+    kotlin("android")
 }
 
 android {

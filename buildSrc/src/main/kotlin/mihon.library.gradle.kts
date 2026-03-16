@@ -1,5 +1,7 @@
+import com.android.build.api.dsl.LibraryExtension
 import mihon.buildlogic.configureAndroid
 import mihon.buildlogic.configureTest
+import org.gradle.kotlin.dsl.configure
 
 plugins {
     id("com.android.library")
@@ -7,7 +9,7 @@ plugins {
     id("mihon.code.lint")
 }
 
-android {
+extensions.configure<LibraryExtension> {
     configureAndroid(this)
     configureTest()
 }

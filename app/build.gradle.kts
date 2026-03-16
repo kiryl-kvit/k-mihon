@@ -1,3 +1,4 @@
+import mihon.buildlogic.tasks.GenerateShortcutsXmlTask
 import mihon.buildlogic.Config
 import mihon.buildlogic.getBuildTime
 import mihon.buildlogic.getCommitCount
@@ -6,12 +7,10 @@ import mihon.buildlogic.getGitSha
 plugins {
     id("mihon.android.application")
     id("mihon.android.application.compose")
-    id("com.github.zellius.shortcut-helper")
+    kotlin("android")
     kotlin("plugin.serialization")
     alias(libs.plugins.aboutLibraries)
 }
-
-shortcutHelper.setFilePath("./shortcuts.xml")
 
 android {
     namespace = "eu.kanade.tachiyomi"
@@ -286,6 +285,20 @@ dependencies {
 }
 
 androidComponents {
+    onVariants(selector().all()) { variant ->
+        val generateShortcutsTask = tasks.register<GenerateShortcutsXmlTask>(
+            "generate${variant.name.replaceFirstChar(Char::titlecase)}ShortcutsXml",
+        ) {
+            sourceFile.set(layout.projectDirectory.file("shortcuts.xml"))
+            applicationId.set(variant.applicationId)
+        }
+
+        variant.sources.res?.addGeneratedSourceDirectory(
+            generateShortcutsTask,
+            GenerateShortcutsXmlTask::outputDirectory,
+        )
+    }
+
     onVariants(selector().withFlavor("default" to "standard")) {
         // Only excluding in standard flavor because this breaks
         // Layout Inspector's Compose tree

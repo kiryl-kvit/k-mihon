@@ -1,12 +1,13 @@
+import com.android.build.api.dsl.ApplicationExtension
 import mihon.buildlogic.configureCompose
+import org.gradle.kotlin.dsl.configure
 
 plugins {
     id("com.android.application")
-    kotlin("android")
 
     id("mihon.code.lint")
 }
 
-android {
+extensions.configure<ApplicationExtension> {
     configureCompose(this)
 }
