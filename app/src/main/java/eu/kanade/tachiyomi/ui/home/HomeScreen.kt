@@ -23,6 +23,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
@@ -48,6 +49,8 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import mihon.core.common.CustomPreferences
+import mihon.core.common.HomeScreenTabs
 import soup.compose.material.motion.animation.materialFadeThroughIn
 import soup.compose.material.motion.animation.materialFadeThroughOut
 import tachiyomi.domain.library.service.LibraryPreferences
@@ -81,9 +84,18 @@ object HomeScreen : Screen() {
 
     @Composable
     override fun Content() {
+        val basePreferences = remember { Injekt.get<CustomPreferences>() }
+        val configuredTab = basePreferences.homeScreenStartupTab().get()
+        val launchTab = when (configuredTab) {
+            HomeScreenTabs.Library -> LibraryTab
+            HomeScreenTabs.Updates -> UpdatesTab
+            HomeScreenTabs.History -> HistoryTab
+            HomeScreenTabs.Browse -> BrowseTab
+            HomeScreenTabs.More -> MoreTab
+        }
         val navigator = LocalNavigator.currentOrThrow
         TabNavigator(
-            tab = LibraryTab,
+            tab = launchTab,
             key = TabNavigatorKey,
         ) { tabNavigator ->
             // Provide usable navigator to content screen
