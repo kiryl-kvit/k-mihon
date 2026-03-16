@@ -34,7 +34,6 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import cafe.adriel.voyager.navigator.tab.TabNavigator
-import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.presentation.util.Screen
 import eu.kanade.presentation.util.isTabletUi
@@ -50,6 +49,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import mihon.core.common.CustomPreferences
 import mihon.core.common.HomeScreenTabs
 import soup.compose.material.motion.animation.materialFadeThroughIn
 import soup.compose.material.motion.animation.materialFadeThroughOut
@@ -84,7 +84,7 @@ object HomeScreen : Screen() {
 
     @Composable
     override fun Content() {
-        val basePreferences = remember { Injekt.get<BasePreferences>() }
+        val basePreferences = remember { Injekt.get<CustomPreferences>() }
         val configuredTab = basePreferences.homeScreenStartupTab().get()
         val launchTab = when (configuredTab) {
             HomeScreenTabs.Library -> LibraryTab
