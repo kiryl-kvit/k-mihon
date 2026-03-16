@@ -1,19 +1,20 @@
+import com.android.build.api.dsl.ApplicationExtension
+import mihon.buildlogic.tasks.PrepareAboutLibrariesResourceTask
+import mihon.buildlogic.tasks.GenerateShortcutsXmlTask
 import mihon.buildlogic.Config
 import mihon.buildlogic.getBuildTime
 import mihon.buildlogic.getCommitCount
 import mihon.buildlogic.getGitSha
+import org.gradle.kotlin.dsl.configure
 
 plugins {
     id("mihon.android.application")
     id("mihon.android.application.compose")
-    id("com.github.zellius.shortcut-helper")
+    id("mihon.aboutlibraries")
     kotlin("plugin.serialization")
-    alias(libs.plugins.aboutLibraries)
 }
 
-shortcutHelper.setFilePath("./shortcuts.xml")
-
-android {
+extensions.configure<ApplicationExtension> {
     namespace = "eu.kanade.tachiyomi"
 
     defaultConfig {
@@ -29,6 +30,8 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
+
+    testBuildType = "foss"
 
     buildTypes {
         val debug by getting {
@@ -81,8 +84,8 @@ android {
     }
 
     sourceSets {
-        getByName("preview").res.srcDirs("src/debug/res")
-        getByName("benchmark").res.srcDirs("src/debug/res")
+        getByName("preview").res.directories.add("src/debug/res")
+        getByName("benchmark").res.directories.add("src/debug/res")
     }
 
     splits {
@@ -133,7 +136,6 @@ android {
         aidl = true
 
         // Disable some unused things
-        renderScript = false
         shaders = false
     }
 
@@ -286,6 +288,30 @@ dependencies {
 }
 
 androidComponents {
+    val prepareAboutLibrariesResource = tasks.register<PrepareAboutLibrariesResourceTask>("prepareAboutLibrariesResource") {
+        dependsOn(tasks.named("exportLibraryDefinitions"))
+        sourceFile.set(layout.buildDirectory.file("generated/aboutLibraries/aboutlibraries.json"))
+    }
+
+    onVariants(selector().all()) { variant ->
+        val generateShortcutsTask = tasks.register<GenerateShortcutsXmlTask>(
+            "generate${variant.name.replaceFirstChar(Char::titlecase)}ShortcutsXml",
+        ) {
+            sourceFile.set(layout.projectDirectory.file("shortcuts.xml"))
+            applicationId.set(variant.applicationId)
+        }
+
+        variant.sources.res?.addGeneratedSourceDirectory(
+            prepareAboutLibrariesResource,
+            PrepareAboutLibrariesResourceTask::outputDirectory,
+        )
+
+        variant.sources.res?.addGeneratedSourceDirectory(
+            generateShortcutsTask,
+            GenerateShortcutsXmlTask::outputDirectory,
+        )
+    }
+
     onVariants(selector().withFlavor("default" to "standard")) {
         // Only excluding in standard flavor because this breaks
         // Layout Inspector's Compose tree

@@ -8,10 +8,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.SmallExtendedFloatingActionButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.animateFloatingActionButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -23,6 +22,7 @@ import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.presentation.components.AppBar
+import eu.kanade.presentation.components.AnimatedFloatingActionButton
 import eu.kanade.presentation.manga.components.BaseMangaListItem
 import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.ui.manga.MangaScreen
@@ -77,22 +77,20 @@ data class MigrateMangaScreen(
                 )
             },
             floatingActionButton = {
-                SmallExtendedFloatingActionButton(
-                    text = { Text(text = stringResource(MR.strings.migrationConfigScreen_continueButtonText)) },
-                    icon = {
-                        Icon(imageVector = Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null)
-                    },
-                    onClick = {
-                        val selection = state.selection
-                        screenModel.clearSelection()
-                        navigator.push(MigrationConfigScreen(selection))
-                    },
-                    expanded = lazyListState.shouldExpandFAB(),
-                    modifier = Modifier.animateFloatingActionButton(
-                        visible = state.selectionMode,
-                        alignment = Alignment.BottomEnd,
-                    ),
-                )
+                AnimatedFloatingActionButton(visible = state.selectionMode) {
+                    ExtendedFloatingActionButton(
+                        text = { Text(text = stringResource(MR.strings.migrationConfigScreen_continueButtonText)) },
+                        icon = {
+                            Icon(imageVector = Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null)
+                        },
+                        onClick = {
+                            val selection = state.selection
+                            screenModel.clearSelection()
+                            navigator.push(MigrationConfigScreen(selection))
+                        },
+                        expanded = lazyListState.shouldExpandFAB(),
+                    )
+                }
             },
         ) { contentPadding ->
             if (state.isEmpty) {

@@ -1,4 +1,6 @@
+import com.android.build.api.dsl.LibraryExtension
 import mihon.buildlogic.configureCompose
+import org.gradle.kotlin.dsl.configure
 
 plugins {
     id("com.android.library")
@@ -6,6 +8,6 @@ plugins {
     id("mihon.code.lint")
 }
 
-android {
+extensions.configure<LibraryExtension> {
     configureCompose(this)
 }

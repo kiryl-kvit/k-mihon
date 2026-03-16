@@ -28,10 +28,12 @@ import eu.kanade.tachiyomi.util.system.cancelNotification
 import eu.kanade.tachiyomi.util.system.getBitmapOrNull
 import eu.kanade.tachiyomi.util.system.notificationBuilder
 import eu.kanade.tachiyomi.util.system.notify
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import tachiyomi.core.common.Constants
 import tachiyomi.core.common.i18n.pluralStringResource
 import tachiyomi.core.common.i18n.stringResource
-import tachiyomi.core.common.util.lang.launchUI
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.domain.manga.model.Manga
@@ -209,7 +211,7 @@ class LibraryUpdateNotifier(
 
         // Per-manga notification
         if (!securityPreferences.hideNotificationContent().get()) {
-            launchUI {
+            CoroutineScope(Dispatchers.Main).launch {
                 context.notify(
                     updates.map { (manga, chapters) ->
                         NotificationManagerCompat.NotificationWithIdAndTag(

@@ -1,15 +1,27 @@
-import mihon.buildlogic.generatedBuildDir
-import mihon.buildlogic.tasks.getLocalesConfigTask
+import mihon.buildlogic.AndroidConfig
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 
 plugins {
-    id("mihon.library")
-    kotlin("multiplatform")
+    id("mihon.library.kmp")
     alias(libs.plugins.moko)
 }
 
 kotlin {
-    androidTarget()
+    android {
+        namespace = "tachiyomi.i18n"
+        compileSdk = AndroidConfig.COMPILE_SDK
+        minSdk = AndroidConfig.MIN_SDK
+
+        withHostTest {}
+
+        androidResources {
+            enable = true
+        }
+
+        lint {
+            disable.addAll(listOf("MissingTranslation", "ExtraTranslation"))
+        }
+    }
 
     applyDefaultHierarchyTemplate()
 
@@ -27,31 +39,6 @@ kotlin {
     }
 }
 
-val generatedAndroidResourceDir = generatedBuildDir.resolve("android/res")
-
-android {
-    namespace = "tachiyomi.i18n"
-
-    sourceSets {
-        val main by getting
-        main.res.srcDirs(
-            "src/commonMain/resources",
-            generatedAndroidResourceDir,
-        )
-    }
-
-    lint {
-        disable.addAll(listOf("MissingTranslation", "ExtraTranslation"))
-    }
-}
-
 multiplatformResources {
     resourcesPackage.set("tachiyomi.i18n")
-}
-
-tasks {
-    val localesConfigTask = project.getLocalesConfigTask(generatedAndroidResourceDir)
-    preBuild {
-        dependsOn(localesConfigTask)
-    }
 }

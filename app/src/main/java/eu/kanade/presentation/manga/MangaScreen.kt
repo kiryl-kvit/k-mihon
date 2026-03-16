@@ -23,12 +23,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.SmallExtendedFloatingActionButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.animateFloatingActionButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -46,6 +45,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.util.fastAll
 import androidx.compose.ui.util.fastAny
 import androidx.compose.ui.util.fastMap
+import eu.kanade.presentation.components.AnimatedFloatingActionButton
 import eu.kanade.presentation.components.relativeDateText
 import eu.kanade.presentation.manga.components.ChapterDownloadAction
 import eu.kanade.presentation.manga.components.ChapterHeader
@@ -328,23 +328,21 @@ private fun MangaScreenSmallImpl(
             val isFABVisible = remember(chapters) {
                 chapters.fastAny { !it.chapter.read } && !isAnySelected
             }
-            SmallExtendedFloatingActionButton(
-                text = {
-                    val isReading = remember(state.chapters) {
-                        state.chapters.fastAny { it.chapter.read }
-                    }
-                    Text(
-                        text = stringResource(if (isReading) MR.strings.action_resume else MR.strings.action_start),
-                    )
-                },
-                icon = { Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = null) },
-                onClick = onContinueReading,
-                expanded = chapterListState.shouldExpandFAB(),
-                modifier = Modifier.animateFloatingActionButton(
-                    visible = isFABVisible,
-                    alignment = Alignment.BottomEnd,
-                ),
-            )
+            AnimatedFloatingActionButton(visible = isFABVisible) {
+                ExtendedFloatingActionButton(
+                    text = {
+                        val isReading = remember(state.chapters) {
+                            state.chapters.fastAny { it.chapter.read }
+                        }
+                        Text(
+                            text = stringResource(if (isReading) MR.strings.action_resume else MR.strings.action_start),
+                        )
+                    },
+                    icon = { Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = null) },
+                    onClick = onContinueReading,
+                    expanded = chapterListState.shouldExpandFAB(),
+                )
+            }
         },
     ) { contentPadding ->
         val topPadding = contentPadding.calculateTopPadding()
@@ -568,25 +566,23 @@ fun MangaScreenLargeImpl(
             val isFABVisible = remember(chapters) {
                 chapters.fastAny { !it.chapter.read } && !isAnySelected
             }
-            SmallExtendedFloatingActionButton(
-                text = {
-                    val isReading = remember(state.chapters) {
-                        state.chapters.fastAny { it.chapter.read }
-                    }
-                    Text(
-                        text = stringResource(
-                            if (isReading) MR.strings.action_resume else MR.strings.action_start,
-                        ),
-                    )
-                },
-                icon = { Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = null) },
-                onClick = onContinueReading,
-                expanded = chapterListState.shouldExpandFAB(),
-                modifier = Modifier.animateFloatingActionButton(
-                    visible = isFABVisible,
-                    alignment = Alignment.BottomEnd,
-                ),
-            )
+            AnimatedFloatingActionButton(visible = isFABVisible) {
+                ExtendedFloatingActionButton(
+                    text = {
+                        val isReading = remember(state.chapters) {
+                            state.chapters.fastAny { it.chapter.read }
+                        }
+                        Text(
+                            text = stringResource(
+                                if (isReading) MR.strings.action_resume else MR.strings.action_start,
+                            ),
+                        )
+                    },
+                    icon = { Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = null) },
+                    onClick = onContinueReading,
+                    expanded = chapterListState.shouldExpandFAB(),
+                )
+            }
         },
     ) { contentPadding ->
         PullRefresh(

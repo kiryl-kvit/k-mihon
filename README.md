@@ -1,17 +1,14 @@
 ## Fork that adds some features and changes that I miss in the official version and are convenient for me personally
 
+## Original app version base
+### 0.19.4
+
 ## Changes from the original
 - Removed third-party integrations (TODO)
 - Added startup screen configuration (TODO)
 - Removed telemetry
-
-### Credits
-
-Thank you to all the people who have contributed!
-
-<a href="https://github.com/mihonapp/mihon/graphs/contributors">
-    <img src="https://contrib.rocks/image?repo=mihonapp/mihon" alt="Mihon app contributors" title="Mihon app contributors" width="800"/>
-</a>
+- Library -> Group -> Source (TODO)
+- Upgraded AGP to AGP 9
 
 ### Disclaimer
 

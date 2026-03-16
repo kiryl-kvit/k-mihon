@@ -1,15 +1,16 @@
+import com.android.build.api.dsl.ApplicationExtension
 import mihon.buildlogic.AndroidConfig
 import mihon.buildlogic.configureAndroid
 import mihon.buildlogic.configureTest
+import org.gradle.kotlin.dsl.configure
 
 plugins {
     id("com.android.application")
-    kotlin("android")
 
     id("mihon.code.lint")
 }
 
-android {
+extensions.configure<ApplicationExtension> {
     defaultConfig {
         targetSdk = AndroidConfig.TARGET_SDK
     }
