@@ -158,7 +158,7 @@ object AboutScreen : Screen() {
                         LinkIcon(
                             label = "GitHub",
                             icon = CustomIcons.Github,
-                            url = "https://github.com/kiryl-kvit/mihon",
+                            url = "https://github.com/kiryl-kvit/k-mihon",
                         )
                     }
                 }
