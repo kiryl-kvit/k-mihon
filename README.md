@@ -5,10 +5,10 @@
 
 ## Changes from the original
 - Removed third-party integrations
-- Added startup screen configuration
 - Removed telemetry
 - Upgraded AGP to AGP 9
 - Removed localizations except EN
+- More → Settings → Custom settings → Startup screen
 - Library → Group → Source (TODO)
 
 ### Disclaimer
