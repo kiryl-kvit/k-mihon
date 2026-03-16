@@ -58,6 +58,7 @@ import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.coroutines.launch
 import logcat.LogPriority
+import mihon.core.common.HomeScreenTabs
 import okhttp3.Headers
 import tachiyomi.core.common.util.lang.launchNonCancellable
 import tachiyomi.core.common.util.lang.withUIContext
@@ -123,6 +124,16 @@ object SettingsAdvancedScreen : SearchableSettings {
                     }
                     context.startActivity(intent)
                 },
+            ),
+            Preference.PreferenceItem.ListPreference(
+                preference = basePreferences.homeScreenStartupTab(),
+                entries = persistentMapOf(
+                    HomeScreenTabs.Library to stringResource(MR.strings.label_library),
+                    HomeScreenTabs.Updates to stringResource(MR.strings.label_recent_updates),
+                    HomeScreenTabs.History to stringResource(MR.strings.history),
+                    HomeScreenTabs.Browse to stringResource(MR.strings.browse)
+                ),
+                title = stringResource(MR.strings.pref_startup_screen),
             ),
             getBackgroundActivityGroup(),
             getDataGroup(),
