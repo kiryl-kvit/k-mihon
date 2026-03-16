@@ -22,6 +22,7 @@ import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.presentation.components.AppBar
+import eu.kanade.presentation.components.AnimatedFloatingActionButton
 import eu.kanade.presentation.manga.components.BaseMangaListItem
 import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.ui.manga.MangaScreen
@@ -76,7 +77,7 @@ data class MigrateMangaScreen(
                 )
             },
             floatingActionButton = {
-                if (state.selectionMode) {
+                AnimatedFloatingActionButton(visible = state.selectionMode) {
                     ExtendedFloatingActionButton(
                         text = { Text(text = stringResource(MR.strings.migrationConfigScreen_continueButtonText)) },
                         icon = {

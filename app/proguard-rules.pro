@@ -80,3 +80,8 @@
 # Firebase
 -keep class com.google.firebase.installations.** { *; }
 -keep interface com.google.firebase.installations.** { *; }
+
+# Optional APIs referenced by transitive libraries
+-dontwarn androidx.window.extensions.**
+-dontwarn androidx.window.sidecar.**
+-dontwarn com.google.re2j.**

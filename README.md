@@ -8,6 +8,7 @@
 - Added startup screen configuration (TODO)
 - Removed telemetry
 - Library -> Group -> Source (TODO)
+- Upgraded AGP to AGP 9
 
 ### Disclaimer
 

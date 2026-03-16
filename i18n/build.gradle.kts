@@ -12,6 +12,8 @@ kotlin {
         compileSdk = AndroidConfig.COMPILE_SDK
         minSdk = AndroidConfig.MIN_SDK
 
+        withHostTest {}
+
         androidResources {
             enable = true
         }

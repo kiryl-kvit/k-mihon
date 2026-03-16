@@ -45,6 +45,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.util.fastAll
 import androidx.compose.ui.util.fastAny
 import androidx.compose.ui.util.fastMap
+import eu.kanade.presentation.components.AnimatedFloatingActionButton
 import eu.kanade.presentation.components.relativeDateText
 import eu.kanade.presentation.manga.components.ChapterDownloadAction
 import eu.kanade.presentation.manga.components.ChapterHeader
@@ -327,7 +328,7 @@ private fun MangaScreenSmallImpl(
             val isFABVisible = remember(chapters) {
                 chapters.fastAny { !it.chapter.read } && !isAnySelected
             }
-            if (isFABVisible) {
+            AnimatedFloatingActionButton(visible = isFABVisible) {
                 ExtendedFloatingActionButton(
                     text = {
                         val isReading = remember(state.chapters) {
@@ -565,7 +566,7 @@ fun MangaScreenLargeImpl(
             val isFABVisible = remember(chapters) {
                 chapters.fastAny { !it.chapter.read } && !isAnySelected
             }
-            if (isFABVisible) {
+            AnimatedFloatingActionButton(visible = isFABVisible) {
                 ExtendedFloatingActionButton(
                     text = {
                         val isReading = remember(state.chapters) {

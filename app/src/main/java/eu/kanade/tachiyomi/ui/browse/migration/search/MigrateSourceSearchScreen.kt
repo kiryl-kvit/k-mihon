@@ -20,6 +20,7 @@ import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.core.util.ifSourcesLoaded
+import eu.kanade.presentation.components.AnimatedFloatingActionButton
 import eu.kanade.presentation.browse.BrowseSourceContent
 import eu.kanade.presentation.components.SearchToolbar
 import eu.kanade.presentation.util.Screen
@@ -74,7 +75,7 @@ data class MigrateSourceSearchScreen(
                 )
             },
             floatingActionButton = {
-                if (state.filters.isNotEmpty()) {
+                AnimatedFloatingActionButton(visible = state.filters.isNotEmpty()) {
                     ExtendedFloatingActionButton(
                         text = { Text(text = stringResource(MR.strings.action_filter)) },
                         icon = { Icon(Icons.Outlined.FilterList, contentDescription = null) },

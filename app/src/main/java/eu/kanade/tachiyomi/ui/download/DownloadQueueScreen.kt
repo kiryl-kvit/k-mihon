@@ -44,6 +44,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import eu.kanade.presentation.components.AnimatedFloatingActionButton
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.components.DropdownMenu
@@ -199,7 +200,7 @@ object DownloadQueueScreen : Screen() {
             },
             floatingActionButton = {
                 val isRunning by screenModel.isDownloaderRunning.collectAsState()
-                if (downloadList.isNotEmpty()) {
+                AnimatedFloatingActionButton(visible = downloadList.isNotEmpty()) {
                     ExtendedFloatingActionButton(
                         text = {
                             val id = if (isRunning) {
