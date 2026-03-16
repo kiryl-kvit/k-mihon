@@ -65,6 +65,11 @@ abstract class BaseUpdatesGridGlanceWidget(
     abstract val bottomPadding: Dp
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
+        val widgetLayout = getWidgetLayout(context)
+        provideWidgetContent(widgetLayout)
+    }
+
+    private suspend fun getWidgetLayout(context: Context): WidgetLayout {
         val locked = preferences.useAuthenticator().get()
         val containerModifier = GlanceModifier
             .fillMaxSize()
@@ -80,12 +85,21 @@ abstract class BaseUpdatesGridGlanceWidget(
             .maxBy { it.height.value * it.width.value }
             .calculateRowAndColumnCount(topPadding, bottomPadding)
 
+        return WidgetLayout(
+            locked = locked,
+            containerModifier = containerModifier,
+            rowCount = rowCount,
+            columnCount = columnCount,
+        )
+    }
+
+    private suspend fun provideWidgetContent(widgetLayout: WidgetLayout) {
         provideContent {
             // If app lock enabled, don't do anything
-            if (locked) {
+            if (widgetLayout.locked) {
                 LockedWidget(
                     foreground = foreground,
-                    modifier = containerModifier,
+                    modifier = widgetLayout.containerModifier,
                 )
                 return@provideContent
             }
@@ -94,7 +108,7 @@ abstract class BaseUpdatesGridGlanceWidget(
                 getUpdates
                     .subscribe(false, DateLimit.toEpochMilli())
                     .map { rawData ->
-                        rawData.prepareData(rowCount, columnCount)
+                        rawData.prepareData(widgetLayout.rowCount, widgetLayout.columnCount)
                     }
             }
             val data by flow.collectAsState(initial = null)
@@ -103,7 +117,7 @@ abstract class BaseUpdatesGridGlanceWidget(
                 contentColor = foreground,
                 topPadding = topPadding,
                 bottomPadding = bottomPadding,
-                modifier = containerModifier,
+                modifier = widgetLayout.containerModifier,
             )
         }
     }
@@ -158,4 +172,11 @@ abstract class BaseUpdatesGridGlanceWidget(
         val DateLimit: Instant
             get() = ZonedDateTime.now().minusMonths(3).toInstant()
     }
+
+    private data class WidgetLayout(
+        val locked: Boolean,
+        val containerModifier: GlanceModifier,
+        val rowCount: Int,
+        val columnCount: Int,
+    )
 }

@@ -10,8 +10,8 @@ import org.gradle.kotlin.dsl.configure
 plugins {
     id("mihon.android.application")
     id("mihon.android.application.compose")
+    id("mihon.aboutlibraries")
     kotlin("plugin.serialization")
-    alias(libs.plugins.aboutLibraries)
 }
 
 extensions.configure<ApplicationExtension> {

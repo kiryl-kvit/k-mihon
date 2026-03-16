@@ -6,6 +6,7 @@ dependencies {
     implementation(androidx.gradle)
     implementation(kotlinx.gradle)
     implementation(kotlinx.compose.compiler.gradle)
+    implementation(libs.aboutlib.plugin)
     implementation(libs.spotless.gradle)
     implementation(gradleApi())
 
