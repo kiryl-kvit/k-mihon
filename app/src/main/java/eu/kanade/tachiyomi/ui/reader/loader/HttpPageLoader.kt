@@ -13,9 +13,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.suspendCancellableCoroutine
-import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.lang.withIOContext
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -44,7 +44,7 @@ internal class HttpPageLoader(
     private val preloadSize = 4
 
     init {
-        scope.launchIO {
+        scope.launch {
             flow {
                 while (true) {
                     emit(runInterruptible { queue.take() }.page)
@@ -126,7 +126,7 @@ internal class HttpPageLoader(
 
         // Cache current page list progress for online chapters to allow a faster reopen
         chapter.pages?.let { pages ->
-            launchIO {
+            CoroutineScope(Dispatchers.IO).launch {
                 try {
                     // Convert to pages without reader information
                     val pagesToSave = pages.map { Page(it.index, it.url, it.imageUrl) }
