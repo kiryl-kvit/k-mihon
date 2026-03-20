@@ -630,6 +630,7 @@
     <string name="pref_category_custom">Custom settings</string>
     <string name="pref_custom_summary">Fork's custom settings</string>
     <string name="pref_startup_screen">Application startup screen</string>
+    <string name="pref_extensions_auto_update">Enable extensions auto-update</string>
 
       <!-- About section -->
     <string name="website">Website</string>
