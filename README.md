@@ -10,7 +10,7 @@
 - Removed localizations except EN
 - More → Settings → Custom settings → Startup screen
 - More → Settings → Custom settings → Extensions auto-update
-- Library → Group → Source (TODO)
+- Library → Settings → Group
 
 ### Disclaimer
 
