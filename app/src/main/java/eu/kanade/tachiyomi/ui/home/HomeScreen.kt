@@ -86,7 +86,7 @@ object HomeScreen : Screen() {
     @Composable
     override fun Content() {
         val basePreferences = remember { Injekt.get<CustomPreferences>() }
-        val configuredTab = basePreferences.homeScreenStartupTab().get()
+        val configuredTab = basePreferences.homeScreenStartupTab.get()
         val launchTab = when (configuredTab) {
             HomeScreenTabs.Library -> LibraryTab
             HomeScreenTabs.Updates -> UpdatesTab
