@@ -18,5 +18,5 @@ extensions.configure<LibraryExtension> {
 dependencies {
     implementation(projects.sourceApi)
 
-    implementation(kotlinx.bundles.serialization)
+    implementation(libs.bundles.serialization)
 }

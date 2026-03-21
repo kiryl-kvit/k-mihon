@@ -3,17 +3,14 @@ plugins {
 }
 
 dependencies {
-    implementation(androidx.gradle)
-    implementation(kotlinx.gradle)
-    implementation(kotlinx.compose.compiler.gradle)
-    implementation(libs.aboutlib.plugin)
+    implementation(libs.android.gradle)
+    implementation(libs.kotlin.gradle)
+    implementation(libs.kotlin.compose.compiler.gradle)
+    implementation(libs.aboutLibraries.plugin)
     implementation(libs.spotless.gradle)
     implementation(gradleApi())
 
     implementation(files(libs.javaClass.superclass.protectionDomain.codeSource.location))
-    implementation(files(androidx.javaClass.superclass.protectionDomain.codeSource.location))
-    implementation(files(compose.javaClass.superclass.protectionDomain.codeSource.location))
-    implementation(files(kotlinx.javaClass.superclass.protectionDomain.codeSource.location))
 }
 
 repositories {

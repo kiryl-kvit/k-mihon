@@ -3,9 +3,6 @@ package mihon.buildlogic
 import com.android.build.api.dsl.ApplicationExtension
 import com.android.build.api.dsl.LibraryExtension
 import com.android.build.api.dsl.TestExtension
-import org.gradle.accessors.dm.LibrariesForAndroidx
-import org.gradle.accessors.dm.LibrariesForCompose
-import org.gradle.accessors.dm.LibrariesForKotlinx
 import org.gradle.accessors.dm.LibrariesForLibs
 import org.gradle.api.Project
 import org.gradle.api.tasks.testing.Test
@@ -19,9 +16,6 @@ import org.jetbrains.kotlin.compose.compiler.gradle.ComposeCompilerGradlePluginE
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import java.io.File
 
-val Project.androidx get() = the<LibrariesForAndroidx>()
-val Project.compose get() = the<LibrariesForCompose>()
-val Project.kotlinx get() = the<LibrariesForKotlinx>()
 val Project.libs get() = the<LibrariesForLibs>()
 
 internal fun Project.configureKotlinCompilation() {
@@ -33,11 +27,8 @@ internal fun Project.configureKotlinCompilation() {
                 "-opt-in=kotlin.RequiresOptIn",
             )
 
-            // Treat all Kotlin warnings as errors (disabled by default)
-            // Override by setting warningsAsErrors=true in your ~/.gradle/gradle.properties
             val warningsAsErrors: String? by project
             allWarningsAsErrors.set(warningsAsErrors.toBoolean())
-
         }
     }
 }
@@ -46,7 +37,7 @@ private fun Project.configureAndroidBase() {
     configureKotlinCompilation()
 
     dependencies {
-        "coreLibraryDesugaring"(libs.desugar)
+        "coreLibraryDesugaring"(libs.android.desugar)
     }
 }
 
@@ -105,7 +96,7 @@ internal fun Project.configureAndroid(testExtension: TestExtension) {
 }
 
 internal fun Project.configureCompose(applicationExtension: ApplicationExtension) {
-    pluginManager.apply(kotlinx.plugins.compose.compiler.get().pluginId)
+    pluginManager.apply(libs.plugins.kotlin.compose.compiler.get().pluginId)
 
     applicationExtension.apply {
         buildFeatures {
@@ -113,7 +104,7 @@ internal fun Project.configureCompose(applicationExtension: ApplicationExtension
         }
 
         dependencies {
-            "implementation"(platform(compose.bom))
+            "implementation"(platform(libs.androidx.compose.bom))
         }
     }
 
@@ -132,11 +123,10 @@ internal fun Project.configureCompose(applicationExtension: ApplicationExtension
             rootBuildDir.resolve("compose-reports").resolve(relativePath).let(reportsDestination::set)
         }
     }
-
 }
 
 internal fun Project.configureCompose(libraryExtension: LibraryExtension) {
-    pluginManager.apply(kotlinx.plugins.compose.compiler.get().pluginId)
+    pluginManager.apply(libs.plugins.kotlin.compose.compiler.get().pluginId)
 
     libraryExtension.apply {
         buildFeatures {
@@ -144,7 +134,7 @@ internal fun Project.configureCompose(libraryExtension: LibraryExtension) {
         }
 
         dependencies {
-            "implementation"(platform(compose.bom))
+            "implementation"(platform(libs.androidx.compose.bom))
         }
     }
 
@@ -163,7 +153,6 @@ internal fun Project.configureCompose(libraryExtension: LibraryExtension) {
             rootBuildDir.resolve("compose-reports").resolve(relativePath).let(reportsDestination::set)
         }
     }
-
 }
 
 internal fun Project.configureTest() {
