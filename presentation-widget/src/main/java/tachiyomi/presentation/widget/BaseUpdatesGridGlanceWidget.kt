@@ -70,7 +70,7 @@ abstract class BaseUpdatesGridGlanceWidget(
     }
 
     private suspend fun getWidgetLayout(context: Context): WidgetLayout {
-        val locked = preferences.useAuthenticator().get()
+        val locked = preferences.useAuthenticator.get()
         val containerModifier = GlanceModifier
             .fillMaxSize()
             .background(background)

@@ -48,7 +48,7 @@ internal class ExtensionInstaller(
     private val activeSteps = ConcurrentHashMap<Long, MutableStateFlow<InstallStep>>()
     private val downloadPackageNames = ConcurrentHashMap<Long, String>()
     private val packageInstallSteps = MutableStateFlow<Map<String, InstallStep>>(emptyMap())
-    private val extensionInstaller = Injekt.get<BasePreferences>().extensionInstaller()
+    private val extensionInstaller = Injekt.get<BasePreferences>().extensionInstaller
 
     private val httpClient: OkHttpClient = Injekt.get<NetworkHelper>().client
 
