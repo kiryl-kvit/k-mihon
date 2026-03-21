@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardDoubleArrowRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -31,8 +30,8 @@ import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.BaseSortItem
 import tachiyomi.presentation.core.components.CheckboxItem
-import tachiyomi.presentation.core.components.GroupItem
 import tachiyomi.presentation.core.components.HeadingItem
+import tachiyomi.presentation.core.components.RadioItem
 import tachiyomi.presentation.core.components.SettingsChipRow
 import tachiyomi.presentation.core.components.SliderItem
 import tachiyomi.presentation.core.components.SortItem
@@ -284,9 +283,9 @@ private fun GroupPage(
     }
 
     options.forEach { (titleRes, mode) ->
-        GroupItem(
+        RadioItem(
             label = stringResource(titleRes),
-            icon = Icons.Default.KeyboardDoubleArrowRight.takeIf { mode == groupState },
+            selected = mode == groupState,
             onClick = {
                 screenModel.setGroup(mode)
             }
