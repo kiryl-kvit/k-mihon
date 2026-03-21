@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import tachiyomi.core.common.util.lang.launchIO
@@ -94,7 +95,7 @@ class ExtensionsScreenModel(
         screenModelScope.launchIO { findAvailableExtensions() }
 
         combine(
-            preferences.extensionUpdatesCount().changes(),
+            preferences.extensionUpdatesCount.changes(),
             extensionManager.isAutoUpdateInProgress,
         ) { updates, inProgress ->
             if (inProgress) 0 else updates
@@ -102,7 +103,7 @@ class ExtensionsScreenModel(
             .onEach { mutableState.update { state -> state.copy(updates = it) } }
             .launchIn(screenModelScope)
 
-        basePreferences.extensionInstaller().changes()
+        basePreferences.extensionInstaller.changes()
             .onEach { mutableState.update { state -> state.copy(installer = it) } }
             .launchIn(screenModelScope)
     }

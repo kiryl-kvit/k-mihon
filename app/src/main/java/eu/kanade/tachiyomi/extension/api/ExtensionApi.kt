@@ -121,7 +121,7 @@ internal class ExtensionApi {
 
         extensionManager.setAvailableExtensions(extensions)
 
-        if (fromAvailableExtensionList || !customPreferences.extensionsAutoUpdates().get()) {
+        if (fromAvailableExtensionList || !customPreferences.extensionsAutoUpdates.get()) {
             ExtensionUpdateNotifier(context).promptUpdates(updateCandidates.map { it.installed.name })
             return updateCandidates.map { it.installed }
         }

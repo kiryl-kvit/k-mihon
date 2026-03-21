@@ -12,6 +12,6 @@ extensions.configure<LibraryExtension> {
 
 dependencies {
     implementation(libs.jsoup)
-    implementation(libs.libarchive)
+    implementation(libs.archive)
     implementation(libs.unifile)
 }

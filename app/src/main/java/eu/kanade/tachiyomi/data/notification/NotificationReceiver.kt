@@ -21,7 +21,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import tachiyomi.core.common.Constants
-import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.domain.chapter.interactor.GetChapter
 import tachiyomi.domain.chapter.interactor.UpdateChapter
 import tachiyomi.domain.chapter.model.Chapter
@@ -159,15 +158,13 @@ class NotificationReceiver : BroadcastReceiver() {
     private suspend fun openChapter(context: Context, mangaId: Long, chapterId: Long) {
         val manga = getManga.await(mangaId)
         val chapter = getChapter.await(chapterId)
-        withUIContext {
-            if (manga != null && chapter != null) {
-                val intent = ReaderActivity.newIntent(context, manga.id, chapter.id).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                }
-                context.startActivity(intent)
-            } else {
-                context.toast(MR.strings.chapter_error)
+        if (manga != null && chapter != null) {
+            val intent = ReaderActivity.newIntent(context, manga.id, chapter.id).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
+            context.startActivity(intent)
+        } else {
+            context.toast(MR.strings.chapter_error)
         }
     }
 
@@ -212,7 +209,7 @@ class NotificationReceiver : BroadcastReceiver() {
             val toUpdate = chapterUrls.mapNotNull { getChapter.await(it, mangaId) }
                 .map {
                     val chapter = it.copy(read = true)
-                    if (downloadPreferences.removeAfterMarkedAsRead().get()) {
+                    if (downloadPreferences.removeAfterMarkedAsRead.get()) {
                         val manga = getManga.await(mangaId)
                         if (manga != null) {
                             val source = sourceManager.get(manga.source)

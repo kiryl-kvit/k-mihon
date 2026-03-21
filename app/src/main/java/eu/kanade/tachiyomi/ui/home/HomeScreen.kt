@@ -86,7 +86,7 @@ object HomeScreen : Screen() {
     @Composable
     override fun Content() {
         val basePreferences = remember { Injekt.get<CustomPreferences>() }
-        val configuredTab = basePreferences.homeScreenStartupTab().get()
+        val configuredTab = basePreferences.homeScreenStartupTab.get()
         val launchTab = when (configuredTab) {
             HomeScreenTabs.Library -> LibraryTab
             HomeScreenTabs.Updates -> UpdatesTab
@@ -255,8 +255,8 @@ object HomeScreen : Screen() {
                         val count by produceState(initialValue = 0) {
                             val pref = Injekt.get<LibraryPreferences>()
                             combine(
-                                pref.newShowUpdatesCount().changes(),
-                                pref.newUpdatesCount().changes(),
+                                pref.newShowUpdatesCount.changes(),
+                                pref.newUpdatesCount.changes(),
                             ) { show, count -> if (show) count else 0 }
                                 .collectLatest { value = it }
                         }
@@ -279,7 +279,7 @@ object HomeScreen : Screen() {
                             val preferences = Injekt.get<SourcePreferences>()
                             val extensionManager = Injekt.get<ExtensionManager>()
                             combine(
-                                preferences.extensionUpdatesCount().changes(),
+                                preferences.extensionUpdatesCount.changes(),
                                 extensionManager.isAutoUpdateInProgress,
                             ) { pendingCount, inProgress ->
                                 if (inProgress) 0 else pendingCount
