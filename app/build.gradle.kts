@@ -38,6 +38,8 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    testBuildType = "foss"
+
     buildTypes {
         val debug by getting {
             applicationIdSuffix = ".dev"
