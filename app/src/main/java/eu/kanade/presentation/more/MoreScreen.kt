@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.automirrored.outlined.Label
+import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.AttachMoney
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.GetApp
@@ -39,6 +40,7 @@ fun MoreScreen(
     onClickCategories: () -> Unit,
     onClickStats: () -> Unit,
     onClickDataAndStorage: () -> Unit,
+    onClickProfiles: () -> Unit,
     onClickSettings: () -> Unit,
     onClickAbout: () -> Unit,
 ) {
@@ -130,6 +132,13 @@ fun MoreScreen(
                     title = stringResource(MR.strings.label_settings),
                     icon = Icons.Outlined.Settings,
                     onPreferenceClick = onClickSettings,
+                )
+            }
+            item {
+                TextPreferenceWidget(
+                    title = stringResource(MR.strings.profiles_switch_summary),
+                    icon = Icons.Outlined.AccountCircle,
+                    onPreferenceClick = onClickProfiles,
                 )
             }
             item {

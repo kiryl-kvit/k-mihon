@@ -29,7 +29,7 @@ object CustomSettingsScreen : SearchableSettings {
         return listOf(
             Preference.PreferenceItem.TextPreference(
                 title = stringResource(MR.strings.profiles_title),
-                subtitle = stringResource(MR.strings.profiles_summary),
+                subtitle = stringResource(MR.strings.profiles_manage_summary),
                 onClick = {
                     navigator.push(ProfilesSettingsScreen())
                 },

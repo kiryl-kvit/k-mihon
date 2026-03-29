@@ -1,5 +1,7 @@
 package mihon.feature.profiles.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,17 +10,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -34,10 +37,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import eu.kanade.domain.ui.UiPreferences
-import eu.kanade.domain.ui.model.setAppCompatDelegateThemeMode
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.util.Screen
+import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.system.AuthenticatorUtil.isAuthenticationSupported
 import kotlinx.coroutines.launch
 import mihon.feature.profiles.core.Profile
@@ -57,7 +59,6 @@ class ProfilesSettingsScreen : Screen() {
         val navigator = LocalNavigator.currentOrThrow
         val scope = rememberCoroutineScope()
         val profileManager = remember { Injekt.get<ProfileManager>() }
-        val uiPreferences = remember { Injekt.get<UiPreferences>() }
 
         val profiles by profileManager.profiles.collectAsState()
         val activeProfile by profileManager.activeProfile.collectAsState()
@@ -100,19 +101,16 @@ class ProfilesSettingsScreen : Screen() {
                         profile = profile,
                         isActive = activeProfile?.id == profile.id,
                         authSupported = authSupported,
-                        onSwitch = {
-                            scope.launch {
-                                profileManager.setActiveProfile(profile.id)
-                                setAppCompatDelegateThemeMode(uiPreferences.themeMode.get())
-                            }
-                        },
                         onRename = { dialog = ProfilesDialog.Rename(profile) },
                         onArchive = { dialog = ProfilesDialog.Archive(profile) },
-                        onDelete = { dialog = ProfilesDialog.Delete(profile) },
+                        onDelete = null,
                         onToggleAuth = { enabled ->
                             scope.launch {
                                 profileManager.setProfileRequiresAuth(profile.id, enabled)
                             }
+                        },
+                        onAuthUnavailable = {
+                            context.toast(MR.strings.profiles_require_unlock_unavailable)
                         },
                     )
                 }
@@ -125,7 +123,6 @@ class ProfilesSettingsScreen : Screen() {
                             profile = profile,
                             isActive = activeProfile?.id == profile.id,
                             authSupported = authSupported,
-                            onSwitch = {},
                             onRename = { dialog = ProfilesDialog.Rename(profile) },
                             onArchive = {
                                 scope.launch {
@@ -137,6 +134,9 @@ class ProfilesSettingsScreen : Screen() {
                                 scope.launch {
                                     profileManager.setProfileRequiresAuth(profile.id, enabled)
                                 }
+                            },
+                            onAuthUnavailable = {
+                                context.toast(MR.strings.profiles_require_unlock_unavailable)
                             },
                         )
                     }
@@ -235,11 +235,11 @@ private fun ProfileCard(
     profile: Profile,
     isActive: Boolean,
     authSupported: Boolean,
-    onSwitch: () -> Unit,
     onRename: () -> Unit,
     onArchive: () -> Unit,
-    onDelete: () -> Unit,
+    onDelete: (() -> Unit)?,
     onToggleAuth: (Boolean) -> Unit,
+    onAuthUnavailable: () -> Unit,
 ) {
     ElevatedCard(
         modifier = Modifier
@@ -263,17 +263,37 @@ private fun ProfileCard(
                 }
             }
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(16.dp))
+                    .clickable {
+                        if (authSupported) {
+                            onToggleAuth(!profile.requiresAuth)
+                        } else {
+                            onAuthUnavailable()
+                        }
+                    }
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text(
-                    text = stringResource(MR.strings.lock_with_biometrics),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                Checkbox(
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = stringResource(MR.strings.lock_with_biometrics),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    if (!authSupported) {
+                        Text(
+                            text = stringResource(MR.strings.profiles_require_unlock_unavailable),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                Switch(
                     checked = profile.requiresAuth,
-                    onCheckedChange = if (authSupported && !profile.isArchived) onToggleAuth else null,
+                    onCheckedChange = null,
+                    enabled = authSupported,
                 )
             }
             Row(
@@ -284,10 +304,6 @@ private fun ProfileCard(
                     TextButton(onClick = onArchive) {
                         Text(stringResource(MR.strings.action_restore))
                     }
-                } else if (!isActive) {
-                    TextButton(onClick = onSwitch) {
-                        Text(stringResource(MR.strings.action_switch))
-                    }
                 }
                 TextButton(onClick = onRename) {
                     Text(stringResource(MR.strings.action_edit))
@@ -297,7 +313,7 @@ private fun ProfileCard(
                         Text(stringResource(MR.strings.action_archive))
                     }
                 }
-                if (profile.id != ProfileConstants.defaultProfileId) {
+                if (onDelete != null) {
                     TextButton(onClick = onDelete) {
                         Text(stringResource(MR.strings.action_delete))
                     }

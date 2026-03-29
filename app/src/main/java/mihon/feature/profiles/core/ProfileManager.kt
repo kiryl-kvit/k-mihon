@@ -122,6 +122,8 @@ class ProfileManager(
 
     suspend fun permanentlyDeleteProfile(profileId: Long) {
         if (profileId == ProfileConstants.defaultProfileId) return
+        val profile = profileDatabase.getProfileById(profileId) ?: return
+        if (!profile.isArchived) return
         val fallback = visibleProfiles.value.firstOrNull { it.id != profileId }
             ?: profileDatabase.getProfileById(ProfileConstants.defaultProfileId)
         if (activeProfileId == profileId && fallback != null) {

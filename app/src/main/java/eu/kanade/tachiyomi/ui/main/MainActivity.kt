@@ -12,7 +12,6 @@ import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -29,14 +28,8 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -53,8 +46,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.animation.doOnEnd
 import androidx.core.net.toUri
@@ -118,6 +109,7 @@ import mihon.core.migration.Migrator
 import mihon.feature.profiles.core.Profile
 import mihon.feature.profiles.core.ProfileManager
 import mihon.feature.profiles.core.ProfilesPreferences
+import mihon.feature.profiles.ui.ProfileChooserScene
 import tachiyomi.core.common.Constants
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.lang.launchIO
@@ -703,86 +695,15 @@ private fun ProfileGateContent(
                     CircularProgressIndicator()
                 }
             } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 20.dp, vertical = 24.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Text(
-                        text = stringResource(MR.strings.profiles_title),
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        text = stringResource(MR.strings.profiles_summary),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-
-                    LazyVerticalGrid(
-                        columns = GridCells.Adaptive(minSize = 144.dp),
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        items(profiles, key = Profile::id) { profile ->
-                            ProfilePickerCard(
-                                profile = profile,
-                                isActive = profile.id == activeProfileId,
-                                onClick = { onProfileSelected(profile) },
-                            )
-                        }
-                    }
-                }
+                ProfileChooserScene(
+                    profiles = profiles,
+                    activeProfileId = activeProfileId,
+                    onProfileSelected = onProfileSelected,
+                    onOpenManagement = null,
+                )
             }
         }
         else -> Unit
-    }
-}
-
-@Composable
-private fun ProfilePickerCard(
-    profile: Profile,
-    isActive: Boolean,
-    onClick: () -> Unit,
-) {
-    val colors = if (isActive) {
-        CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-    } else {
-        CardDefaults.elevatedCardColors()
-    }
-
-    ElevatedCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(20.dp),
-        colors = colors,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            val initials = profile.name.trim().take(2).uppercase().ifBlank { "?" }
-            Text(
-                text = initials,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                text = profile.name,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-            )
-            Text(
-                text = if (isActive) stringResource(MR.strings.profiles_active) else stringResource(MR.strings.action_switch),
-                style = MaterialTheme.typography.labelLarge,
-                textAlign = TextAlign.Start,
-            )
-        }
     }
 }
 
