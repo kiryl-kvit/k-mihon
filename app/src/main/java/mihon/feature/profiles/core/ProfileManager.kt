@@ -3,6 +3,7 @@ package mihon.feature.profiles.core
 import android.app.Application
 import android.content.Intent
 import androidx.preference.PreferenceManager
+import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,6 +26,7 @@ class ProfileManager(
     private val profileDatabase: ProfileDatabase = Injekt.get(),
     private val profileStore: ProfileStoreImpl = Injekt.get(),
     private val profilesPreferences: ProfilesPreferences = Injekt.get(),
+    private val extensionManager: ExtensionManager = Injekt.get(),
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val switchRequests = MutableStateFlow(profilesPreferences.activeProfileId.get())
@@ -99,6 +101,18 @@ class ProfileManager(
             requiresAuth = false,
             isArchived = false,
         )
+        profileStore.profileStore(id)
+            .getStringSet(
+                "hidden_catalogues",
+                extensionManager.installedExtensionsFlow.value
+                    .flatMap { extension -> extension.sources.map { source -> source.id.toString() } }
+                    .toSet(),
+            )
+            .set(
+                extensionManager.installedExtensionsFlow.value
+                    .flatMap { extension -> extension.sources.map { source -> source.id.toString() } }
+                    .toSet(),
+            )
         return requireNotNull(profileDatabase.getProfileById(id))
     }
 

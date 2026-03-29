@@ -14,6 +14,11 @@ import eu.kanade.tachiyomi.extension.util.ExtensionInstaller
 import eu.kanade.tachiyomi.extension.util.ExtensionInstaller.UserActionBehavior
 import eu.kanade.tachiyomi.extension.util.ExtensionLoader
 import eu.kanade.tachiyomi.util.system.toast
+import kotlinx.coroutines.launch
+import mihon.feature.profiles.core.ProfileAwareStore
+import mihon.feature.profiles.core.ProfileConstants
+import mihon.feature.profiles.core.ProfileDatabase
+import tachiyomi.core.common.preference.getAndSet
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
@@ -45,6 +50,8 @@ class ExtensionManager(
     private val context: Context,
     private val preferences: SourcePreferences = Injekt.get(),
     private val trustExtension: TrustExtension = Injekt.get(),
+    private val profileDatabase: ProfileDatabase = Injekt.get(),
+    private val profileStore: ProfileAwareStore = Injekt.get(),
 ) {
 
     val scope = CoroutineScope(SupervisorJob())
@@ -325,6 +332,7 @@ class ExtensionManager(
      * @param extension The extension to be registered.
      */
     private fun registerNewExtension(extension: Extension.Installed) {
+        initializeExtensionVisibility(extension)
         installedExtensionMapFlow.value += extension.copy(isObsolete = false)
     }
 
@@ -335,7 +343,29 @@ class ExtensionManager(
      * @param extension The extension to be registered.
      */
     private fun registerUpdatedExtension(extension: Extension.Installed) {
+        initializeExtensionVisibility(extension)
         installedExtensionMapFlow.value += extension.copy(isObsolete = false)
+    }
+
+    private fun initializeExtensionVisibility(extension: Extension.Installed) {
+        val sourceIds = extension.sources.map { it.id.toString() }.toSet()
+        if (sourceIds.isEmpty()) return
+
+        scope.launch {
+            val profiles = profileDatabase.getProfiles(includeArchived = true)
+            val activeProfileId = profileStore.activeProfileId
+            profiles.forEach { profile ->
+                profileStore.profileStore(profile.id)
+                    .getStringSet("hidden_catalogues", emptySet())
+                    .getAndSet { hiddenSources ->
+                        when {
+                            profile.id == activeProfileId -> hiddenSources - sourceIds
+                            profile.id == ProfileConstants.defaultProfileId && profiles.size == 1 -> hiddenSources - sourceIds
+                            else -> hiddenSources + sourceIds
+                        }
+                    }
+            }
+        }
     }
 
     /**
