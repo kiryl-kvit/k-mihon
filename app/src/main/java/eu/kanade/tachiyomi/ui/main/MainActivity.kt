@@ -109,7 +109,7 @@ import mihon.core.migration.Migrator
 import mihon.feature.profiles.core.Profile
 import mihon.feature.profiles.core.ProfileManager
 import mihon.feature.profiles.core.ProfilesPreferences
-import mihon.feature.profiles.ui.ProfileChooserScene
+import mihon.feature.profiles.ui.ProfilePickerScene
 import tachiyomi.core.common.Constants
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.lang.launchIO
@@ -699,7 +699,7 @@ private fun ProfileGateContent(
                     CircularProgressIndicator()
                 }
             } else {
-                ProfileChooserScene(
+                ProfilePickerScene(
                     profiles = profiles,
                     activeProfileId = activeProfileId,
                     onProfileSelected = onProfileSelected,

@@ -9,19 +9,18 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
@@ -44,9 +43,9 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.fragment.app.FragmentActivity
@@ -61,13 +60,13 @@ import kotlinx.coroutines.launch
 import mihon.feature.profiles.core.Profile
 import mihon.feature.profiles.core.ProfileManager
 import mihon.feature.profiles.core.ProfilesPreferences
-import tachiyomi.core.common.i18n.stringResource as contextStringResource
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import tachiyomi.core.common.i18n.stringResource as contextStringResource
 
-class ProfileChooserScreen : Screen() {
+class ProfilePickerScreen : Screen() {
 
     @Composable
     override fun Content() {
@@ -81,7 +80,7 @@ class ProfileChooserScreen : Screen() {
         val profiles by profileManager.visibleProfiles.collectAsState()
         val activeProfile by profileManager.activeProfile.collectAsState()
 
-        ProfileChooserScene(
+        ProfilePickerScene(
             profiles = profiles,
             activeProfileId = activeProfile?.id,
             onProfileSelected = { profile ->
@@ -108,7 +107,7 @@ class ProfileChooserScreen : Screen() {
 }
 
 @Composable
-fun ProfileChooserScene(
+fun ProfilePickerScene(
     profiles: List<Profile>,
     activeProfileId: Long?,
     onProfileSelected: (Profile) -> Unit,
@@ -201,7 +200,7 @@ fun ProfileChooserScene(
                     maxItemsInEachRow = 3,
                 ) {
                     profiles.forEach { profile ->
-                        ProfileChooserTile(
+                        ProfilePickerTile(
                             profile = profile,
                             isActive = profile.id == activeProfileId,
                             onClick = { onProfileSelected(profile) },
@@ -214,7 +213,7 @@ fun ProfileChooserScene(
 }
 
 @Composable
-private fun ProfileChooserTile(
+private fun ProfilePickerTile(
     profile: Profile,
     isActive: Boolean,
     onClick: () -> Unit,
