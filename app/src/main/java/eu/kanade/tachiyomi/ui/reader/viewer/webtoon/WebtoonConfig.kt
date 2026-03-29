@@ -92,8 +92,8 @@ class WebtoonConfig(
             )
 
         readerPreferences.readerTheme.changes()
-            .drop(1)
             .distinctUntilChanged()
+            .drop(1)
             .onEach { themeChangedListener?.invoke() }
             .launchIn(scope)
     }
