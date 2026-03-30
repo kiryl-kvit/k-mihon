@@ -234,4 +234,15 @@ class MangaRepositoryImpl(
             }
         }
     }
+
+    override suspend fun updateDisplayName(mangaId: Long, displayName: String?): Boolean {
+        return handler.await {
+            mangasQueries.updateDisplayName(
+                displayName = displayName,
+                mangaId = mangaId,
+                profileId = profileProvider.activeProfileId,
+            )
+            true
+        }
+    }
 }

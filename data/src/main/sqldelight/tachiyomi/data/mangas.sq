@@ -259,6 +259,12 @@ UPDATE mangas SET
 WHERE _id = :mangaId
 AND profile_id = :profileId;
 
+updateDisplayName:
+UPDATE mangas SET
+    display_name = :displayName
+WHERE _id = :mangaId
+AND profile_id = :profileId;
+
 selectLastInsertedRowId:
 SELECT last_insert_rowid();
 

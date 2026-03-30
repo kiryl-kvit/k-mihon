@@ -48,6 +48,7 @@ import uy.kohesive.injekt.api.get
 fun ChapterSettingsDialog(
     onDismissRequest: () -> Unit,
     manga: Manga? = null,
+    isMerged: Boolean = false,
     onDownloadFilterChanged: (TriState) -> Unit,
     onUnreadFilterChanged: (TriState) -> Unit,
     onBookmarkedFilterChanged: (TriState) -> Unit,
@@ -113,6 +114,7 @@ fun ChapterSettingsDialog(
                 }
                 1 -> {
                     SortPage(
+                        isMerged = isMerged,
                         sortingMode = manga?.sorting ?: 0,
                         sortDescending = manga?.sortDescending() ?: false,
                         onItemSelected = onSortModeChanged,
@@ -192,10 +194,20 @@ fun ScanlatorFilterItem(
 
 @Composable
 private fun ColumnScope.SortPage(
+    isMerged: Boolean,
     sortingMode: Long,
     sortDescending: Boolean,
     onItemSelected: (Long) -> Unit,
 ) {
+    if (isMerged) {
+        SortItem(
+            label = stringResource(MR.strings.action_order_by_chapter_number),
+            sortDescending = sortDescending,
+            onClick = { onItemSelected(Manga.CHAPTER_SORTING_NUMBER) },
+        )
+        return
+    }
+
     listOf(
         MR.strings.sort_by_source to Manga.CHAPTER_SORTING_SOURCE,
         MR.strings.sort_by_number to Manga.CHAPTER_SORTING_NUMBER,

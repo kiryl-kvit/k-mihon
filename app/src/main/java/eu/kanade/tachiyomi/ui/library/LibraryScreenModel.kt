@@ -908,6 +908,7 @@ class LibraryScreenModel(
                         entries = entries,
                         targetId = existingMerge?.manga?.id ?: entries.first().id,
                         targetLocked = existingMerge != null,
+                        sortDescending = existingMerge?.manga?.sortDescending() ?: entries.first().manga.sortDescending(),
                     ),
                 )
             }
@@ -971,6 +972,7 @@ class LibraryScreenModel(
             val entries: ImmutableList<MergeEntry>,
             val targetId: Long,
             val targetLocked: Boolean,
+            val sortDescending: Boolean,
         ) : Dialog
         data class DeleteManga(
             val manga: List<Manga>,
@@ -987,6 +989,18 @@ class LibraryScreenModel(
     ) {
         val title: String
             get() = manga.presentationTitle()
+
+        val subtitle: String
+            get() = buildString {
+                val sourceName = Injekt.get<SourceManager>().getOrStub(manga.source).getNameForMangaInfo()
+                val creator = manga.author?.takeIf { it.isNotBlank() }
+                    ?: manga.artist?.takeIf { it.isNotBlank() }
+                append(sourceName)
+                if (creator != null && !creator.equals(sourceName, ignoreCase = true)) {
+                    append(" • ")
+                    append(creator)
+                }
+            }
     }
 
     @Immutable

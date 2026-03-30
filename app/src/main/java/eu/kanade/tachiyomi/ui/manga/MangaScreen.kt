@@ -233,6 +233,7 @@ class MangaScreen(
                 ManageMergeDialog(
                     targetId = dialog.targetId,
                     members = dialog.members,
+                    sortDescending = dialog.sortDescending,
                     onDismissRequest = onDismissRequest,
                     onMove = screenModel::reorderMergeMembers,
                     onSaveOrder = screenModel::saveMergeOrder,
@@ -264,6 +265,7 @@ class MangaScreen(
             MangaScreenModel.Dialog.SettingsSheet -> ChapterSettingsDialog(
                 onDismissRequest = onDismissRequest,
                 manga = successState.manga,
+                isMerged = successState.isMerged,
                 onDownloadFilterChanged = screenModel::setDownloadedFilter,
                 onUnreadFilterChanged = screenModel::setUnreadFilter,
                 onBookmarkedFilterChanged = screenModel::setBookmarkedFilter,

@@ -5,21 +5,29 @@ import androidx.compose.animation.graphics.res.animatedVectorResource
 import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.animation.graphics.vector.AnimatedImageVector
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.DragHandle
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.SnackbarHost
@@ -37,6 +45,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastAll
 import cafe.adriel.voyager.core.model.rememberScreenModel
@@ -50,6 +59,7 @@ import eu.kanade.presentation.library.DeleteLibraryMangaDialog
 import eu.kanade.presentation.library.LibrarySettingsDialog
 import eu.kanade.presentation.library.components.LibraryContent
 import eu.kanade.presentation.library.components.LibraryToolbar
+import eu.kanade.presentation.manga.components.MangaCover
 import eu.kanade.presentation.manga.components.LibraryBottomActionMenu
 import eu.kanade.presentation.more.onboarding.GETTING_STARTED_URL
 import eu.kanade.presentation.util.Tab
@@ -84,9 +94,6 @@ import tachiyomi.source.local.isLocal
 import sh.calvin.reorderable.ReorderableCollectionItemScope
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 
 data object LibraryTab : Tab {
 
@@ -384,7 +391,11 @@ private fun MergeLibraryMangaDialog(
                 verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
             ) {
                 Text(
-                    text = "Top to bottom = chapter reading order",
+                    text = if (dialog.sortDescending) {
+                        "Bottom to top = chapter reading order"
+                    } else {
+                        "Top to bottom = chapter reading order"
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -400,7 +411,6 @@ private fun MergeLibraryMangaDialog(
                         ReorderableItem(reorderableState, entry.id, enabled = dialog.entries.size > 1) {
                             MergeLibraryMangaItem(
                                 entry = entry,
-                                index = dialog.entries.indexOf(entry),
                                 isTarget = entry.id == dialog.targetId,
                                 targetLocked = dialog.targetLocked,
                                 onSelectTarget = onSelectTarget,
@@ -426,53 +436,77 @@ private fun MergeLibraryMangaDialog(
 @Composable
 private fun ReorderableCollectionItemScope.MergeLibraryMangaItem(
     entry: LibraryScreenModel.MergeEntry,
-    index: Int,
     isTarget: Boolean,
     targetLocked: Boolean,
     onSelectTarget: (Long) -> Unit,
 ) {
     ElevatedCard {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = MaterialTheme.padding.small, vertical = MaterialTheme.padding.extraSmall),
-            horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
-        ) {
-            Text(
-                text = "${index + 1}.",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(top = MaterialTheme.padding.small),
-            )
-            RadioButton(
-                selected = isTarget,
-                onClick = if (targetLocked) null else { { onSelectTarget(entry.id) } },
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(text = entry.title)
+        ListItem(
+            headlineContent = {
+                Text(
+                    text = entry.title,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            },
+            supportingContent = {
                 Text(
                     text = if (entry.isExistingMerge) {
-                        stringResource(MR.strings.merge_members_count, entry.memberMangas.size)
+                        buildString {
+                            append(entry.subtitle)
+                            append(" • ")
+                            append(stringResource(MR.strings.merge_members_count, entry.memberMangas.size))
+                        }
                     } else {
-                        stringResource(MR.strings.manga)
+                        entry.subtitle
                     },
-                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-            }
-            if (targetLocked && isTarget) {
-                Icon(
-                    imageVector = Icons.Outlined.Lock,
-                    contentDescription = null,
-                    modifier = Modifier.padding(top = MaterialTheme.padding.small),
-                )
-            }
-            Icon(
-                imageVector = Icons.Outlined.DragHandle,
-                contentDescription = null,
-                modifier = Modifier
-                    .padding(top = MaterialTheme.padding.small)
-                    .draggableHandle(),
-            )
-        }
+            },
+            leadingContent = {
+                Box {
+                    MangaCover.Square(
+                        data = entry.manga,
+                        modifier = Modifier.size(48.dp),
+                    )
+                    if (targetLocked && isTarget) {
+                        Icon(
+                            imageVector = Icons.Outlined.Lock,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(2.dp),
+                        )
+                    }
+                }
+            },
+            trailingContent = {
+                Row(
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
+                ) {
+                    if (!targetLocked) {
+                        RadioButton(
+                            selected = isTarget,
+                            onClick = { onSelectTarget(entry.id) },
+                        )
+                    } else if (isTarget) {
+                        Icon(
+                            imageVector = Icons.Filled.CheckCircle,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Outlined.DragHandle,
+                        contentDescription = null,
+                        modifier = Modifier.draggableHandle(),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        )
     }
 }

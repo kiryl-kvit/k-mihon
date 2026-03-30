@@ -1,6 +1,7 @@
 package eu.kanade.presentation.manga.components
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -10,18 +11,28 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.DragHandle
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -34,8 +45,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import eu.kanade.presentation.components.DropdownMenu
+import eu.kanade.presentation.manga.components.MangaCover
 import eu.kanade.tachiyomi.ui.manga.MangaScreenModel
 import eu.kanade.tachiyomi.util.system.isReleaseBuildType
 import kotlinx.collections.immutable.toImmutableList
@@ -214,6 +228,7 @@ fun EditDisplayNameDialog(
 fun ManageMergeDialog(
     targetId: Long,
     members: List<MangaScreenModel.MergeMember>,
+    sortDescending: Boolean,
     onDismissRequest: () -> Unit,
     onMove: (Int, Int) -> Unit,
     onSaveOrder: () -> Unit,
@@ -237,7 +252,11 @@ fun ManageMergeDialog(
                 verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
             ) {
                 Text(
-                    text = "Top to bottom = chapter reading order",
+                    text = if (sortDescending) {
+                        "Bottom to top = chapter reading order"
+                    } else {
+                        "Top to bottom = chapter reading order"
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -253,7 +272,6 @@ fun ManageMergeDialog(
                         ReorderableItem(reorderableState, member.id, enabled = members.size > 1) {
                             ManageMergeItem(
                                 member = member,
-                                index = members.indexOf(member),
                                 isTarget = member.id == targetId,
                                 markedForRemoval = member.id in removableIds,
                                 onToggleRemove = {
@@ -299,45 +317,104 @@ fun ManageMergeDialog(
 @Composable
 private fun ReorderableCollectionItemScope.ManageMergeItem(
     member: MangaScreenModel.MergeMember,
-    index: Int,
     isTarget: Boolean,
     markedForRemoval: Boolean,
     onToggleRemove: () -> Unit,
     onOpenManga: (Long) -> Unit,
 ) {
+    var expanded by remember { mutableStateOf(false) }
+
     ElevatedCard {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = MaterialTheme.padding.small, vertical = MaterialTheme.padding.extraSmall),
-            horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "${index + 1}.",
-                style = MaterialTheme.typography.bodyMedium,
+        Box {
+            ListItem(
+                headlineContent = {
+                    Text(
+                        text = member.manga.presentationTitle(),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                },
+                supportingContent = {
+                    Text(
+                        text = member.subtitle,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+                leadingContent = {
+                    MangaCover.Square(
+                        data = member.manga,
+                        modifier = Modifier.size(48.dp),
+                    )
+                },
+                trailingContent = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
+                    ) {
+                        Box {
+                            IconButton(onClick = { expanded = true }) {
+                                Icon(
+                                    imageVector = Icons.Outlined.MoreVert,
+                                    contentDescription = stringResource(MR.strings.label_more),
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = expanded,
+                                onDismissRequest = { expanded = false },
+                            ) {
+                                if (!isTarget) {
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                stringResource(
+                                                    if (markedForRemoval) MR.strings.action_keep else MR.strings.action_remove,
+                                                ),
+                                            )
+                                        },
+                                        onClick = {
+                                            onToggleRemove()
+                                            expanded = false
+                                        },
+                                    )
+                                }
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(MR.strings.action_open)) },
+                                    onClick = {
+                                        onOpenManga(member.id)
+                                        expanded = false
+                                    },
+                                )
+                            }
+                        }
+                        Icon(
+                            imageVector = Icons.Outlined.DragHandle,
+                            contentDescription = null,
+                            modifier = Modifier.draggableHandle(),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                },
+                colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
             )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(text = member.manga.presentationTitle())
-                Text(
-                    text = stringResource(if (isTarget) MR.strings.label_target else MR.strings.label_member),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (!isTarget) {
-                TextButton(onClick = onToggleRemove) {
-                    Text(text = stringResource(if (markedForRemoval) MR.strings.action_keep else MR.strings.action_remove))
+
+            if (isTarget) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(MaterialTheme.padding.extraSmall),
+                    shape = MaterialTheme.shapes.small,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                ) {
+                    Text(
+                        text = "Root",
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
                 }
             }
-            TextButton(onClick = { onOpenManga(member.id) }) {
-                Text(text = stringResource(MR.strings.action_open))
-            }
-            Icon(
-                imageVector = Icons.Outlined.DragHandle,
-                contentDescription = null,
-                modifier = Modifier.draggableHandle(),
-            )
         }
     }
 }

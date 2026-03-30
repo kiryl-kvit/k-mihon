@@ -116,4 +116,8 @@ class UpdateManga(
             MangaUpdate(id = mangaId, favorite = favorite, dateAdded = dateAdded),
         )
     }
+
+    suspend fun awaitUpdateDisplayName(mangaId: Long, displayName: String?): Boolean {
+        return mangaRepository.updateDisplayName(mangaId, displayName)
+    }
 }

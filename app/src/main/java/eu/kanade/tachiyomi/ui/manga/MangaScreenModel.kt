@@ -1165,7 +1165,11 @@ class MangaScreenModel(
         data class DeleteChapters(val chapters: List<Chapter>) : Dialog
         data class DuplicateManga(val manga: Manga, val duplicates: List<MangaWithChapterCount>) : Dialog
         data class EditDisplayName(val manga: Manga, val initialValue: String) : Dialog
-        data class ManageMerge(val targetId: Long, val members: ImmutableList<MergeMember>) : Dialog
+        data class ManageMerge(
+            val targetId: Long,
+            val members: ImmutableList<MergeMember>,
+            val sortDescending: Boolean,
+        ) : Dialog
         data class Migrate(val target: Manga, val current: Manga) : Dialog
         data class RemoveMergedManga(val members: ImmutableList<Manga>, val containsLocalManga: Boolean) : Dialog
         data class SetFetchInterval(val manga: Manga) : Dialog
@@ -1238,7 +1242,7 @@ class MangaScreenModel(
             }
                 .toImmutableList()
             updateSuccessState {
-                it.copy(dialog = Dialog.ManageMerge(targetId = targetId, members = members))
+                it.copy(dialog = Dialog.ManageMerge(targetId = targetId, members = members, sortDescending = state.manga.sortDescending()))
             }
         }
     }
@@ -1246,12 +1250,7 @@ class MangaScreenModel(
     fun updateDisplayName(displayName: String) {
         val manga = successState?.manga ?: return
         screenModelScope.launchIO {
-            updateManga.await(
-                MangaUpdate(
-                    id = manga.id,
-                    displayName = displayName.trim().ifBlank { null },
-                ),
-            )
+            updateManga.awaitUpdateDisplayName(manga.id, displayName.trim().ifBlank { null })
             dismissDialog()
         }
     }
@@ -1373,7 +1372,19 @@ class MangaScreenModel(
     data class MergeMember(
         val id: Long,
         val manga: Manga,
-    )
+    ) {
+        val subtitle: String
+            get() = buildString {
+                val sourceName = Injekt.get<SourceManager>().getOrStub(manga.source).getNameForMangaInfo()
+                val creator = manga.author?.takeIf { it.isNotBlank() }
+                    ?: manga.artist?.takeIf { it.isNotBlank() }
+                append(sourceName)
+                if (creator != null && !creator.equals(sourceName, ignoreCase = true)) {
+                    append(" • ")
+                    append(creator)
+                }
+            }
+    }
 
     sealed interface State {
         @Immutable

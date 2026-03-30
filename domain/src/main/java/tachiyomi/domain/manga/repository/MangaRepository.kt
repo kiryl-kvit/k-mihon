@@ -40,6 +40,8 @@ interface MangaRepository {
 
     suspend fun setMangaCategories(mangaId: Long, categoryIds: List<Long>)
 
+    suspend fun updateDisplayName(mangaId: Long, displayName: String?): Boolean
+
     suspend fun update(update: MangaUpdate): Boolean
 
     suspend fun updateAll(mangaUpdates: List<MangaUpdate>): Boolean
