@@ -5,6 +5,7 @@ import eu.kanade.domain.manga.model.downloadedFilter
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.ui.manga.ChapterList
 import tachiyomi.domain.chapter.model.Chapter
+import tachiyomi.domain.chapter.service.getChapterSort
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.repository.MangaRepository
 import tachiyomi.domain.manga.model.applyFilter
@@ -39,12 +40,16 @@ suspend fun List<Chapter>.getNextUnread(manga: Manga, downloadManager: DownloadM
                     downloaded || chapterManga.isLocal()
                 }
             }
+            .let { filtered ->
+                filtered.map { it.mangaId }
+                    .distinct()
+                    .flatMap { mangaId ->
+                        filtered.filter { it.mangaId == mangaId }
+                            .sortedWith(getChapterSort(manga))
+                    }
+            }
     }
-    return if (manga.sortDescending()) {
-        chapters.findLast { !it.read }
-    } else {
-        chapters.find { !it.read }
-    }
+    return chapters.firstOrNull { !it.read }
 }
 
 /**
@@ -52,11 +57,7 @@ suspend fun List<Chapter>.getNextUnread(manga: Manga, downloadManager: DownloadM
  */
 fun List<ChapterList.Item>.getNextUnread(manga: Manga): Chapter? {
     val isMerged = map { it.manga.id }.distinct().size > 1
-    return applyFilters(manga, isMerged = isMerged).let { chapters ->
-        if (manga.sortDescending()) {
-            chapters.findLast { !it.chapter.read }
-        } else {
-            chapters.find { !it.chapter.read }
-        }
-    }?.chapter
+    return applyFilters(manga, isMerged = isMerged)
+        .firstOrNull { !it.chapter.read }
+        ?.chapter
 }

@@ -53,10 +53,8 @@ class GetMangaWithChapters(
         merges: List<MangaMerge>,
         applyScanlatorFilter: Boolean,
     ): List<Chapter> {
-        val chapterSort = getChapterSort(manga, sortDescending = false)
-        return merges.let { mergeGroup ->
-            if (manga.sortDescending()) mergeGroup.sortedByDescending { it.position } else mergeGroup.sortedBy { it.position }
-        }
+        val chapterSort = getChapterSort(manga)
+        return merges.sortedBy { it.position }
             .flatMap { merge ->
                 chapterRepository.getChapterByMangaId(merge.mangaId, applyScanlatorFilter)
                     .sortedWith(chapterSort)

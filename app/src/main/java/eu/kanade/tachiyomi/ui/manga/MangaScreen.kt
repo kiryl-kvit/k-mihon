@@ -233,7 +233,6 @@ class MangaScreen(
                 ManageMergeDialog(
                     targetId = dialog.targetId,
                     members = dialog.members,
-                    sortDescending = dialog.sortDescending,
                     onDismissRequest = onDismissRequest,
                     onMove = screenModel::reorderMergeMembers,
                     onSaveOrder = screenModel::saveMergeOrder,

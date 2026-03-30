@@ -392,11 +392,7 @@ private fun MergeLibraryMangaDialog(
                 verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
             ) {
                 Text(
-                    text = if (dialog.sortDescending) {
-                        "Bottom to top = chapter reading order"
-                    } else {
-                        "Top to bottom = chapter reading order"
-                    },
+                    text = "Top to bottom = merged entry order",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

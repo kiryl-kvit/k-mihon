@@ -228,7 +228,6 @@ fun EditDisplayNameDialog(
 fun ManageMergeDialog(
     targetId: Long,
     members: List<MangaScreenModel.MergeMember>,
-    sortDescending: Boolean,
     onDismissRequest: () -> Unit,
     onMove: (Int, Int) -> Unit,
     onSaveOrder: () -> Unit,
@@ -252,11 +251,7 @@ fun ManageMergeDialog(
                 verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
             ) {
                 Text(
-                    text = if (sortDescending) {
-                        "Bottom to top = chapter reading order"
-                    } else {
-                        "Top to bottom = chapter reading order"
-                    },
+                    text = "Top to bottom = merged entry order",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

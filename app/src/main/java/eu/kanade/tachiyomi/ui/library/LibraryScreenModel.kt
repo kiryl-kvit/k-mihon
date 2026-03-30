@@ -926,7 +926,6 @@ class LibraryScreenModel(
                         entries = entries,
                         targetId = existingMerge?.manga?.id ?: entries.first().id,
                         targetLocked = existingMerge != null,
-                        sortDescending = existingMerge?.manga?.sortDescending() ?: entries.first().manga.sortDescending(),
                     ),
                 )
             }
@@ -990,7 +989,6 @@ class LibraryScreenModel(
             val entries: ImmutableList<MergeEntry>,
             val targetId: Long,
             val targetLocked: Boolean,
-            val sortDescending: Boolean,
         ) : Dialog
         data class DeleteManga(
             val manga: List<Manga>,

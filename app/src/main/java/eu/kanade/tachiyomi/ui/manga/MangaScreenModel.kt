@@ -683,14 +683,7 @@ class MangaScreenModel(
 
     private fun getUnreadChapterItemsSorted(): List<ChapterList.Item> {
         val state = successState ?: return emptyList()
-        return if (state.isMerged) {
-            getUnreadChapterItems()
-        } else {
-            val chaptersSorted = getUnreadChapterItems().sortedWith { item1, item2 ->
-                getChapterSort(state.manga).invoke(item1.chapter, item2.chapter)
-            }
-            if (state.manga.sortDescending()) chaptersSorted.reversed() else chaptersSorted
-        }
+        return state.sortChapters(getUnreadChapterItems(), preserveMergedMemberOrder = true)
     }
 
     private fun getBookmarkedChapterItems(): List<ChapterList.Item> {
@@ -1168,7 +1161,6 @@ class MangaScreenModel(
         data class ManageMerge(
             val targetId: Long,
             val members: ImmutableList<MergeMember>,
-            val sortDescending: Boolean,
         ) : Dialog
         data class Migrate(val target: Manga, val current: Manga) : Dialog
         data class RemoveMergedManga(val members: ImmutableList<Manga>, val containsLocalManga: Boolean) : Dialog
@@ -1242,7 +1234,7 @@ class MangaScreenModel(
             }
                 .toImmutableList()
             updateSuccessState {
-                it.copy(dialog = Dialog.ManageMerge(targetId = targetId, members = members, sortDescending = state.manga.sortDescending()))
+                it.copy(dialog = Dialog.ManageMerge(targetId = targetId, members = members))
             }
         }
     }
@@ -1457,11 +1449,30 @@ class MangaScreenModel(
             val isMerged: Boolean
                 get() = memberIds.size > 1
 
+            fun sortChapters(
+                chapters: List<ChapterList.Item>,
+                preserveMergedMemberOrder: Boolean,
+            ): List<ChapterList.Item> {
+                if (!isMerged || !preserveMergedMemberOrder) {
+                    return chapters.sortedWith { item1, item2 ->
+                        getChapterSort(manga).invoke(item1.chapter, item2.chapter)
+                    }
+                }
+
+                val chapterSort = getChapterSort(manga)
+                return memberIds.flatMap { memberId ->
+                    chapters.asSequence()
+                        .filter { it.chapter.mangaId == memberId }
+                        .sortedWith { item1, item2 -> chapterSort.invoke(item1.chapter, item2.chapter) }
+                        .toList()
+                }
+            }
+
             /**
              * Applies the view filters to the list of chapters obtained from the database.
              * @return an observable of the list of chapters filtered and sorted.
              */
-            private fun List<ChapterList.Item>.applyFilters(manga: Manga, isMerged: Boolean): Sequence<ChapterList.Item> {
+            private fun List<ChapterList.Item>.applyFilters(manga: Manga, isMerged: Boolean): List<ChapterList.Item> {
                 val isLocalManga = manga.isLocal()
                 val unreadFilter = manga.unreadFilter
                 val downloadedFilter = manga.downloadedFilter
@@ -1470,11 +1481,8 @@ class MangaScreenModel(
                     .filter { (chapter) -> applyFilter(unreadFilter) { !chapter.read } }
                     .filter { (chapter) -> applyFilter(bookmarkedFilter) { chapter.bookmark } }
                     .filter { applyFilter(downloadedFilter) { it.isDownloaded || isLocalManga } }
-                return if (isMerged) {
-                    filtered
-                } else {
-                    filtered.sortedWith { (chapter1), (chapter2) -> getChapterSort(manga).invoke(chapter1, chapter2) }
-                }
+                    .toList()
+                return sortChapters(filtered, preserveMergedMemberOrder = isMerged)
             }
         }
     }
