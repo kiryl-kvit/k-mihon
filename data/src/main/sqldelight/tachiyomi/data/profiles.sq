@@ -13,6 +13,9 @@ CREATE TABLE profiles(
     updated_at INTEGER NOT NULL DEFAULT 0
 );
 
+INSERT OR IGNORE INTO profiles(_id, uuid, name, color_seed, position, requires_auth, is_archived, created_at, updated_at)
+VALUES (1, 'default', 'Default', 5200626, 0, 0, 0, strftime('%s', 'now'), strftime('%s', 'now'));
+
 CREATE TRIGGER profiles_updated_at_trigger
 AFTER UPDATE ON profiles
 FOR EACH ROW
