@@ -6,12 +6,14 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
@@ -28,8 +30,6 @@ import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -326,78 +326,80 @@ private fun ReorderableCollectionItemScope.ManageMergeItem(
 
     ElevatedCard {
         Box {
-            ListItem(
-                headlineContent = {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = MaterialTheme.padding.small, vertical = MaterialTheme.padding.small),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+            ) {
+                MangaCover.Square(
+                    data = member.manga,
+                    modifier = Modifier.size(64.dp),
+                )
+
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
+                ) {
                     Text(
                         text = member.manga.presentationTitle(),
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.bodyMedium,
                     )
-                },
-                supportingContent = {
                     Text(
                         text = member.subtitle,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                },
-                leadingContent = {
-                    MangaCover.Square(
-                        data = member.manga,
-                        modifier = Modifier.size(48.dp),
-                    )
-                },
-                trailingContent = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
-                    ) {
-                        Box {
-                            IconButton(onClick = { expanded = true }) {
-                                Icon(
-                                    imageVector = Icons.Outlined.MoreVert,
-                                    contentDescription = stringResource(MR.strings.label_more),
-                                )
-                            }
-                            DropdownMenu(
-                                expanded = expanded,
-                                onDismissRequest = { expanded = false },
-                            ) {
-                                if (!isTarget) {
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                stringResource(
-                                                    if (markedForRemoval) MR.strings.action_keep else MR.strings.action_remove,
-                                                ),
-                                            )
-                                        },
-                                        onClick = {
-                                            onToggleRemove()
-                                            expanded = false
-                                        },
-                                    )
-                                }
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(MR.strings.action_open)) },
-                                    onClick = {
-                                        onOpenManga(member.id)
-                                        expanded = false
-                                    },
-                                )
-                            }
-                        }
+                }
+
+                Box {
+                    IconButton(onClick = { expanded = true }) {
                         Icon(
-                            imageVector = Icons.Outlined.DragHandle,
-                            contentDescription = null,
-                            modifier = Modifier.draggableHandle(),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            imageVector = Icons.Outlined.MoreVert,
+                            contentDescription = stringResource(MR.strings.label_more),
                         )
                     }
-                },
-                colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-            )
+                    DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false },
+                    ) {
+                        if (!isTarget) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        stringResource(
+                                            if (markedForRemoval) MR.strings.action_keep else MR.strings.action_remove,
+                                        ),
+                                    )
+                                },
+                                onClick = {
+                                    onToggleRemove()
+                                    expanded = false
+                                },
+                            )
+                        }
+                        DropdownMenuItem(
+                            text = { Text(stringResource(MR.strings.action_open)) },
+                            onClick = {
+                                onOpenManga(member.id)
+                                expanded = false
+                            },
+                        )
+                    }
+                }
+
+                Icon(
+                    imageVector = Icons.Outlined.DragHandle,
+                    contentDescription = null,
+                    modifier = Modifier.draggableHandle(),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
 
             if (isTarget) {
                 Surface(
