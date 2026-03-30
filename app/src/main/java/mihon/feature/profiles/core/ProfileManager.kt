@@ -44,30 +44,23 @@ class ProfileManager(
         profiles.firstOrNull { it.id == activeId }
     }.stateIn(scope, SharingStarted.Eagerly, null)
 
-    val shouldShowPicker: Flow<Boolean> = visibleProfiles.map { it.size > 1 }
+    val shouldShowPicker: Flow<Boolean> = profileDatabase.subscribeProfiles(includeArchived = false)
+        .map { it.size > 1 }
 
     suspend fun ensureDefaultProfile() {
         val defaultProfile = profileDatabase.getProfileById(ProfileConstants.defaultProfileId)
-        if (defaultProfile != null) return
+        if (defaultProfile == null) {
+            profileDatabase.insertProfile(
+                uuid = ProfileConstants.defaultProfileUuid,
+                name = ProfileConstants.defaultProfileName,
+                colorSeed = 0x4F6AF2,
+                position = 0,
+                requiresAuth = false,
+                isArchived = false,
+            )
+        }
 
-        profileDatabase.insertProfile(
-            uuid = ProfileConstants.defaultProfileUuid,
-            name = ProfileConstants.defaultProfileName,
-            colorSeed = 0x4F6AF2,
-            position = 0,
-            requiresAuth = false,
-            isArchived = false,
-        )
-
-        val migration = ProfilePreferenceMigration(
-            PreferenceManager.getDefaultSharedPreferences(application),
-        )
-        migration.migrateLegacyPreferenceKeys(
-            profileId = ProfileConstants.defaultProfileId,
-            profileKeys = ProfileScopedPreferenceSets.profile,
-            appStateKeys = ProfileScopedPreferenceSets.appState,
-            privateKeys = ProfileScopedPreferenceSets.private,
-        )
+        migrateLegacyPreferencesIfNeeded()
     }
 
     suspend fun loadInitialProfile(): Profile? {
@@ -144,6 +137,21 @@ class ProfileManager(
     private suspend fun clearProfileState(profileId: Long) {
         profileDatabase.clearProfileData(profileId)
         profileStore.deleteProfileState(profileId)
+    }
+
+    private fun migrateLegacyPreferencesIfNeeded() {
+        if (profilesPreferences.legacyPreferenceMigrationCompleted.get()) return
+
+        val migration = ProfilePreferenceMigration(
+            PreferenceManager.getDefaultSharedPreferences(application),
+        )
+        migration.migrateLegacyPreferenceKeys(
+            profileId = ProfileConstants.defaultProfileId,
+            profileKeys = ProfileScopedPreferenceSets.profile,
+            appStateKeys = ProfileScopedPreferenceSets.appState,
+            privateKeys = ProfileScopedPreferenceSets.private,
+        )
+        profilesPreferences.legacyPreferenceMigrationCompleted.set(true)
     }
 
     suspend fun getProfileBundles(includeArchived: Boolean = true): List<ProfileBundle> {

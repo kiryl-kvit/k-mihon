@@ -86,7 +86,13 @@ class BackupRestorer(
         sourceMapping = backupMaps.associate { it.sourceId to it.name }
 
         if (backup.backupProfiles.isNotEmpty()) {
-            restoreFromProfilesBackup(backup.backupProfiles, backup.activeProfileUuid, backup.backupExtensionRepo, options)
+            restoreFromProfilesBackup(
+                backupProfiles = backup.backupProfiles,
+                activeProfileUuid = backup.activeProfileUuid,
+                backupPreferences = backup.backupPreferences,
+                backupExtensionRepo = backup.backupExtensionRepo,
+                options = options,
+            )
             return
         }
 
@@ -130,6 +136,7 @@ class BackupRestorer(
     private suspend fun restoreFromProfilesBackup(
         backupProfiles: List<ProfileScopedBackup>,
         activeProfileUuid: String?,
+        backupPreferences: List<BackupPreference>,
         backupExtensionRepo: List<BackupExtensionRepos>,
         options: RestoreOptions,
     ) {
@@ -143,6 +150,9 @@ class BackupRestorer(
         }
         if (options.appSettings) {
             restoreAmount += backupProfiles.size
+            if (backupPreferences.isNotEmpty()) {
+                restoreAmount += 1
+            }
         }
         if (options.sourceSettings) {
             restoreAmount += backupProfiles.size
@@ -216,6 +226,20 @@ class BackupRestorer(
                         )
                     }
             }
+        }
+
+        if (options.appSettings && backupPreferences.isNotEmpty()) {
+            preferenceRestorer.restoreGlobalApp(
+                preferences = backupPreferences,
+                scheduleJobs = false,
+            )
+            restoreProgress += 1
+            notifier.showRestoreProgress(
+                context.stringResource(MR.strings.app_settings),
+                restoreProgress,
+                restoreAmount,
+                isSync,
+            )
         }
 
         if (options.extensionRepoSettings) {

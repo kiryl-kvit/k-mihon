@@ -45,6 +45,22 @@ class PreferenceRestorer(
         )
     }
 
+    suspend fun restoreGlobalApp(
+        preferences: List<BackupPreference>,
+        scheduleJobs: Boolean = true,
+    ) {
+        restorePreferences(
+            toRestore = preferences,
+            preferenceStore = preferenceStore,
+            backupCategories = null,
+        )
+
+        if (scheduleJobs) {
+            LibraryUpdateJob.setupTask(context)
+            BackupCreateJob.setupTask(context)
+        }
+    }
+
     suspend fun restoreAppForProfile(
         profileId: Long,
         preferences: List<BackupPreference>,

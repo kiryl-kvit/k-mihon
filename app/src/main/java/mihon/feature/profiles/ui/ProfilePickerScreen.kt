@@ -59,7 +59,6 @@ import eu.kanade.tachiyomi.util.system.AuthenticatorUtil.authenticate
 import kotlinx.coroutines.launch
 import mihon.feature.profiles.core.Profile
 import mihon.feature.profiles.core.ProfileManager
-import mihon.feature.profiles.core.ProfilesPreferences
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 import uy.kohesive.injekt.Injekt
@@ -74,7 +73,6 @@ class ProfilePickerScreen : Screen() {
         val navigator = LocalNavigator.currentOrThrow
         val scope = rememberCoroutineScope()
         val profileManager = remember { Injekt.get<ProfileManager>() }
-        val profilesPreferences = remember { Injekt.get<ProfilesPreferences>() }
         val uiPreferences = remember { Injekt.get<UiPreferences>() }
 
         val profiles by profileManager.visibleProfiles.collectAsState()
@@ -96,7 +94,6 @@ class ProfilePickerScreen : Screen() {
                     if (!authenticated) return@launch
 
                     profileManager.setActiveProfile(profile.id)
-                    profilesPreferences.pickerEnabled.set(false)
                     setAppCompatDelegateThemeMode(uiPreferences.themeMode.get())
                     navigator.pop()
                 }

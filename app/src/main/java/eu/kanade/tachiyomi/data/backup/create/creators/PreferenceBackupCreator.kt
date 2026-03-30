@@ -9,6 +9,7 @@ import eu.kanade.tachiyomi.data.backup.models.LongPreferenceValue
 import eu.kanade.tachiyomi.data.backup.models.StringPreferenceValue
 import eu.kanade.tachiyomi.data.backup.models.StringSetPreferenceValue
 import eu.kanade.tachiyomi.source.sourcePreferences
+import mihon.feature.profiles.core.ProfileAwarePreferenceStore
 import mihon.feature.profiles.core.ProfileStore
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
@@ -65,6 +66,7 @@ class PreferenceBackupCreator(
     @Suppress("UNCHECKED_CAST")
     private fun Map<String, *>.toBackupPreferences(): List<BackupPreference> {
         return this
+            .filterKeys { !ProfileAwarePreferenceStore.Namespace.isNamespacedKey(it) }
             .filterKeys { !Preference.isAppState(it) }
             .mapNotNull { (key, value) ->
                 when (value) {

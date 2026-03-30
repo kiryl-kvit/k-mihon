@@ -193,6 +193,12 @@ class ProfileAwarePreferenceStore(
         }
 
         companion object {
+            fun isNamespacedKey(key: String): Boolean {
+                return hasNamespacedPrefix(key, "profile_") ||
+                    hasNamespacedPrefix(key, Preference.appStateKey("profile_")) ||
+                    hasNamespacedPrefix(key, Preference.privateKey("profile_"))
+            }
+
             fun namespacedKey(base: String, profileId: Long): String {
                 return when {
                     Preference.isAppState(base) -> Preference.appStateKey(
@@ -210,6 +216,14 @@ class ProfileAwarePreferenceStore(
             private fun appStateProfilePrefix(profileId: Long) = Preference.appStateKey("profile_${profileId}:")
 
             private fun privateProfilePrefix(profileId: Long) = Preference.privateKey("profile_${profileId}:")
+
+            private fun hasNamespacedPrefix(key: String, prefix: String): Boolean {
+                if (!key.startsWith(prefix)) return false
+
+                val remainder = key.removePrefix(prefix)
+                val idPart = remainder.substringBefore(':', missingDelimiterValue = "")
+                return idPart.isNotEmpty() && idPart.all { it.isDigit() } && remainder.getOrNull(idPart.length) == ':'
+            }
         }
     }
 }
