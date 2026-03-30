@@ -139,14 +139,17 @@ object SettingsReaderScreen : SearchableSettings {
                 ),
                 Preference.PreferenceItem.SliderPreference(
                     value = flashMillis / ReaderPreferences.MILLI_CONVERSION,
+                    preference = flashMillisPref,
                     valueRange = 1..15,
                     title = stringResource(MR.strings.pref_flash_duration),
                     valueString = stringResource(MR.strings.pref_flash_duration_summary, flashMillis),
+                    isProfileSpecific = false,
                     enabled = flashPageState,
                     onValueChanged = { flashMillisPref.set(it * ReaderPreferences.MILLI_CONVERSION) },
                 ),
                 Preference.PreferenceItem.SliderPreference(
                     value = flashInterval,
+                    preference = flashIntervalPref,
                     valueRange = 1..10,
                     title = stringResource(MR.strings.pref_flash_page_interval),
                     valueString = pluralStringResource(MR.plurals.pref_pages, flashInterval, flashInterval),
@@ -330,6 +333,7 @@ object SettingsReaderScreen : SearchableSettings {
                 ),
                 Preference.PreferenceItem.SliderPreference(
                     value = webtoonSidePadding,
+                    preference = webtoonSidePaddingPref,
                     valueRange = ReaderPreferences.let {
                         it.WEBTOON_PADDING_MIN..it.WEBTOON_PADDING_MAX
                     },

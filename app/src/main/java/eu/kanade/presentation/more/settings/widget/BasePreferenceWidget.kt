@@ -12,9 +12,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,6 +32,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.FlowRow
 import eu.kanade.presentation.more.settings.LocalPreferenceHighlighted
 import eu.kanade.presentation.more.settings.LocalPreferenceMinHeight
 import kotlinx.coroutines.delay
@@ -38,6 +42,7 @@ import kotlin.time.Duration.Companion.seconds
 internal fun BasePreferenceWidget(
     modifier: Modifier = Modifier,
     title: String? = null,
+    titleSuffix: @Composable (() -> Unit)? = null,
     subcomponent: @Composable (ColumnScope.() -> Unit)? = null,
     icon: @Composable (() -> Unit)? = null,
     onClick: (() -> Unit)? = null,
@@ -65,14 +70,27 @@ internal fun BasePreferenceWidget(
                 .padding(vertical = PrefsVerticalPadding),
         ) {
             if (!title.isNullOrBlank()) {
-                Text(
+                FlowRow(
                     modifier = Modifier.padding(horizontal = PrefsHorizontalPadding),
-                    text = title,
-                    overflow = TextOverflow.Ellipsis,
-                    maxLines = 2,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontSize = TitleFontSize,
-                )
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        modifier = Modifier.wrapContentWidth(),
+                        text = title,
+                        maxLines = 2,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontSize = TitleFontSize,
+                    )
+                    if (titleSuffix != null) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.CenterVertically)
+                                .widthIn(max = 80.dp),
+                            content = { titleSuffix() },
+                        )
+                    }
+                }
             }
             subcomponent?.invoke(this)
         }

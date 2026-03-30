@@ -145,31 +145,37 @@ object SettingsTrackingScreen : SearchableSettings {
                 preferenceItems = persistentListOf(
                     Preference.PreferenceItem.TrackerPreference(
                         tracker = trackerManager.myAnimeList,
+                        isProfileSpecific = true,
                         login = { context.openInBrowser(MyAnimeListApi.authUrl(), forceDefaultBrowser = true) },
                         logout = { dialog = LogoutDialog(trackerManager.myAnimeList) },
                     ),
                     Preference.PreferenceItem.TrackerPreference(
                         tracker = trackerManager.aniList,
+                        isProfileSpecific = true,
                         login = { context.openInBrowser(AnilistApi.authUrl(), forceDefaultBrowser = true) },
                         logout = { dialog = LogoutDialog(trackerManager.aniList) },
                     ),
                     Preference.PreferenceItem.TrackerPreference(
                         tracker = trackerManager.kitsu,
+                        isProfileSpecific = true,
                         login = { dialog = LoginDialog(trackerManager.kitsu, MR.strings.email) },
                         logout = { dialog = LogoutDialog(trackerManager.kitsu) },
                     ),
                     Preference.PreferenceItem.TrackerPreference(
                         tracker = trackerManager.mangaUpdates,
+                        isProfileSpecific = true,
                         login = { dialog = LoginDialog(trackerManager.mangaUpdates, MR.strings.username) },
                         logout = { dialog = LogoutDialog(trackerManager.mangaUpdates) },
                     ),
                     Preference.PreferenceItem.TrackerPreference(
                         tracker = trackerManager.shikimori,
+                        isProfileSpecific = true,
                         login = { context.openInBrowser(ShikimoriApi.authUrl(), forceDefaultBrowser = true) },
                         logout = { dialog = LogoutDialog(trackerManager.shikimori) },
                     ),
                     Preference.PreferenceItem.TrackerPreference(
                         tracker = trackerManager.bangumi,
+                        isProfileSpecific = true,
                         login = { context.openInBrowser(BangumiApi.authUrl(), forceDefaultBrowser = true) },
                         logout = { dialog = LogoutDialog(trackerManager.bangumi) },
                     ),
@@ -183,6 +189,7 @@ object SettingsTrackingScreen : SearchableSettings {
                         .map { service ->
                             Preference.PreferenceItem.TrackerPreference(
                                 tracker = service,
+                                isProfileSpecific = true,
                                 login = { (service as EnhancedTracker).loginNoop() },
                                 logout = service::logout,
                             )
