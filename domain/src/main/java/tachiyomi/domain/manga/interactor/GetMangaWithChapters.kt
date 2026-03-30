@@ -2,6 +2,8 @@ package tachiyomi.domain.manga.interactor
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.chapter.service.getChapterSort
 import tachiyomi.domain.chapter.repository.ChapterRepository
@@ -23,13 +25,13 @@ class GetMangaWithChapters(
         ) { manga, merges ->
             manga to merges
         }
-            .let { upstream ->
-                combine(upstream, chapterRepository.getChapterByMangaIdAsFlow(id, applyScanlatorFilter)) { (manga, merges), ownChapters ->
-                    if (merges.isEmpty()) {
-                        manga to ownChapters
-                    } else {
-                        manga to mergedChapters(manga, merges, applyScanlatorFilter)
-                    }
+            .flatMapLatest { (manga, merges) ->
+                if (merges.isEmpty()) {
+                    chapterRepository.getChapterByMangaIdAsFlow(id, applyScanlatorFilter)
+                        .map { manga to it }
+                } else {
+                    mergedChaptersAsFlow(manga, merges, applyScanlatorFilter)
+                        .map { manga to it }
                 }
             }
     }
@@ -53,11 +55,33 @@ class GetMangaWithChapters(
         merges: List<MangaMerge>,
         applyScanlatorFilter: Boolean,
     ): List<Chapter> {
+        return mergeChapters(
+            manga = manga,
+            chapterLists = merges.sortedBy { it.position }
+                .map { merge -> chapterRepository.getChapterByMangaId(merge.mangaId, applyScanlatorFilter) },
+        )
+    }
+
+    private suspend fun mergedChaptersAsFlow(
+        manga: Manga,
+        merges: List<MangaMerge>,
+        applyScanlatorFilter: Boolean,
+    ): Flow<List<Chapter>> {
+        val orderedMerges = merges.sortedBy { it.position }
+        return combine(orderedMerges.map { merge ->
+            chapterRepository.getChapterByMangaIdAsFlow(merge.mangaId, applyScanlatorFilter)
+        }) { chapterLists ->
+            mergeChapters(manga, chapterLists.asIterable())
+        }
+    }
+
+    private fun mergeChapters(
+        manga: Manga,
+        chapterLists: Iterable<List<Chapter>>,
+    ): List<Chapter> {
         val chapterSort = getChapterSort(manga)
-        return merges.sortedBy { it.position }
-            .flatMap { merge ->
-                chapterRepository.getChapterByMangaId(merge.mangaId, applyScanlatorFilter)
-                    .sortedWith(chapterSort)
-            }
+        return chapterLists.flatMap { chapters ->
+            chapters.sortedWith(chapterSort)
+        }
     }
 }
