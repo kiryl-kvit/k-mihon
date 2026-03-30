@@ -10,7 +10,7 @@ import tachiyomi.core.common.preference.getLongArray
 import tachiyomi.domain.library.model.LibraryDisplayMode
 
 class SourcePreferences(
-    preferenceStore: PreferenceStore,
+    private val preferenceStore: PreferenceStore,
 ) {
 
     val sourceDisplayMode: Preference<LibraryDisplayMode> = preferenceStore.getObjectFromString(
@@ -49,15 +49,6 @@ class SourcePreferences(
     )
 
     val hideInLibraryItems: Preference<Boolean> = preferenceStore.getBoolean("browse_hide_in_library_items", false)
-
-    val extensionRepos: Preference<Set<String>> = preferenceStore.getStringSet("extension_repos", emptySet())
-
-    val extensionUpdatesCount: Preference<Int> = preferenceStore.getInt("ext_updates_count", 0)
-
-    val trustedExtensions: Preference<Set<String>> = preferenceStore.getStringSet(
-        Preference.appStateKey("trusted_extensions"),
-        emptySet(),
-    )
 
     val globalSearchFilterState: Preference<Boolean> = preferenceStore.getBoolean(
         Preference.appStateKey("has_filters_toggle_state"),

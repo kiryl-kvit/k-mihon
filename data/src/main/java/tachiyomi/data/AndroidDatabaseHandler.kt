@@ -92,8 +92,8 @@ class AndroidDatabaseHandler(
             return withTransaction { block(db) }
         }
 
-        // If we're currently in the transaction thread, there's no need to dispatch our query.
-        if (driver.currentTransaction() != null) {
+        // If we're already on the dedicated transaction thread, there's no need to dispatch again.
+        if (suspendingTransactionId.get() != null) {
             return block(db)
         }
 

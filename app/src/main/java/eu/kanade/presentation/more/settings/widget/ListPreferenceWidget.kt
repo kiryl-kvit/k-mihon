@@ -33,6 +33,7 @@ fun <T> ListPreferenceWidget(
     title: String,
     subtitle: String?,
     icon: ImageVector?,
+    isProfileSpecific: Boolean,
     entries: Map<out T, String>,
     onValueChange: (T) -> Unit,
 ) {
@@ -42,6 +43,7 @@ fun <T> ListPreferenceWidget(
         title = title,
         subtitle = subtitle,
         icon = icon,
+        isProfileSpecific = isProfileSpecific,
         onPreferenceClick = { isDialogShown = true },
     )
 

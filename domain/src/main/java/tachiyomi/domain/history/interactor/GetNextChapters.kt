@@ -5,16 +5,19 @@ import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.chapter.service.getChapterSort
 import tachiyomi.domain.history.repository.HistoryRepository
 import tachiyomi.domain.manga.interactor.GetManga
+import tachiyomi.domain.source.service.HiddenSourceIds
 import kotlin.math.max
 
 class GetNextChapters(
     private val getChaptersByMangaId: GetChaptersByMangaId,
     private val getManga: GetManga,
     private val historyRepository: HistoryRepository,
+    private val hiddenSourceIds: HiddenSourceIds,
 ) {
 
     suspend fun await(onlyUnread: Boolean = true): List<Chapter> {
         val history = historyRepository.getLastHistory() ?: return emptyList()
+        if (history.coverData.sourceId in hiddenSourceIds.get()) return emptyList()
         return await(history.mangaId, history.chapterId, onlyUnread)
     }
 

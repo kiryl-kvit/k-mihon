@@ -3,7 +3,9 @@ package eu.kanade.presentation.components
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -165,14 +167,23 @@ fun AppBarTitle(
     title: String?,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
+    titleSuffix: @Composable (() -> Unit)? = null,
 ) {
     Column(modifier = modifier) {
         title?.let {
-            Text(
-                text = it,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = it,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (titleSuffix != null) {
+                    titleSuffix()
+                }
+            }
         }
         subtitle?.let {
             Text(

@@ -64,6 +64,7 @@ object SettingsAppearanceScreen : SearchableSettings {
             preferenceItems = persistentListOf(
                 Preference.PreferenceItem.CustomPreference(
                     title = stringResource(MR.strings.pref_app_theme),
+                    isProfileSpecific = true,
                 ) {
                     Column {
                         AppThemeModePreferenceWidget(
