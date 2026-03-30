@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import eu.kanade.tachiyomi.ui.library.LibraryItem
 import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.domain.manga.model.MangaCover
+import tachiyomi.domain.manga.model.presentationTitle
 
 @Composable
 internal fun LibraryComfortableGrid(
@@ -35,7 +36,7 @@ internal fun LibraryComfortableGrid(
             val manga = libraryItem.libraryManga.manga
             MangaComfortableGridItem(
                 isSelected = manga.id in selection,
-                title = manga.title,
+                title = manga.presentationTitle(),
                 coverData = MangaCover(
                     mangaId = manga.id,
                     sourceId = manga.source,

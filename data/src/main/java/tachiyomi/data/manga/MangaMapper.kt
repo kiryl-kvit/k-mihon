@@ -1,11 +1,44 @@
 package tachiyomi.data.manga
 
 import eu.kanade.tachiyomi.source.model.UpdateStrategy
+import tachiyomi.data.Mangas
 import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.MangaWithChapterCount
 
 object MangaMapper {
+    fun mapManga(manga: Mangas): Manga {
+        return mapManga(
+            id = manga._id,
+            profileId = manga.profile_id,
+            source = manga.source,
+            url = manga.url,
+            artist = manga.artist,
+            author = manga.author,
+            description = manga.description,
+            genre = manga.genre,
+            title = manga.title,
+            displayName = manga.display_name,
+            status = manga.status,
+            thumbnailUrl = manga.thumbnail_url,
+            favorite = manga.favorite,
+            lastUpdate = manga.last_update,
+            nextUpdate = manga.next_update,
+            initialized = manga.initialized,
+            viewerFlags = manga.viewer,
+            chapterFlags = manga.chapter_flags,
+            coverLastModified = manga.cover_last_modified,
+            dateAdded = manga.date_added,
+            updateStrategy = manga.update_strategy,
+            calculateInterval = manga.calculate_interval,
+            lastModifiedAt = manga.last_modified_at,
+            favoriteModifiedAt = manga.favorite_modified_at,
+            version = manga.version,
+            isSyncing = manga.is_syncing,
+            notes = manga.notes,
+        )
+    }
+
     fun mapManga(
         id: Long,
         @Suppress("UNUSED_PARAMETER")
@@ -17,6 +50,7 @@ object MangaMapper {
         description: String?,
         genre: List<String>?,
         title: String,
+        displayName: String?,
         status: Long,
         thumbnailUrl: String?,
         favorite: Boolean,
@@ -48,6 +82,7 @@ object MangaMapper {
         coverLastModified = coverLastModified,
         url = url,
         title = title,
+        displayName = displayName,
         artist = artist,
         author = author,
         description = description,
@@ -73,6 +108,7 @@ object MangaMapper {
         description: String?,
         genre: List<String>?,
         title: String,
+        displayName: String?,
         status: Long,
         thumbnailUrl: String?,
         favorite: Boolean,
@@ -108,6 +144,7 @@ object MangaMapper {
             description,
             genre,
             title,
+            displayName,
             status,
             thumbnailUrl,
             favorite,
@@ -133,6 +170,37 @@ object MangaMapper {
         latestUpload = latestUpload,
         chapterFetchedAt = chapterFetchedAt,
         lastRead = lastRead,
+        memberMangas = listOf(
+            mapManga(
+                id,
+                profileId,
+                source,
+                url,
+                artist,
+                author,
+                description,
+                genre,
+                title,
+                displayName,
+                status,
+                thumbnailUrl,
+                favorite,
+                lastUpdate,
+                nextUpdate,
+                initialized,
+                viewerFlags,
+                chapterFlags,
+                coverLastModified,
+                dateAdded,
+                updateStrategy,
+                calculateInterval,
+                lastModifiedAt,
+                favoriteModifiedAt,
+                version,
+                isSyncing,
+                notes,
+            ),
+        ),
     )
 
     fun mapMangaWithChapterCount(
@@ -146,6 +214,7 @@ object MangaMapper {
         description: String?,
         genre: List<String>?,
         title: String,
+        displayName: String?,
         status: Long,
         thumbnailUrl: String?,
         favorite: Boolean,
@@ -175,6 +244,7 @@ object MangaMapper {
             description,
             genre,
             title,
+            displayName,
             status,
             thumbnailUrl,
             favorite,

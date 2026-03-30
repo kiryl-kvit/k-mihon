@@ -21,6 +21,7 @@ data class Manga(
     val coverLastModified: Long,
     val url: String,
     val title: String,
+    val displayName: String?,
     val artist: String?,
     val author: String?,
     val description: String?,
@@ -34,6 +35,9 @@ data class Manga(
     val version: Long,
     val notes: String,
 ) : Serializable {
+
+    val displayTitle: String
+        get() = displayName?.takeIf { it.isNotBlank() } ?: title
 
     val expectedNextUpdate: Instant?
         get() = nextUpdate
@@ -107,6 +111,7 @@ data class Manga(
             id = -1L,
             url = "",
             title = "",
+            displayName = null,
             source = -1L,
             favorite = false,
             lastUpdate = 0L,

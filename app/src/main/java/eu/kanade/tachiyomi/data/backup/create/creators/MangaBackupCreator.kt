@@ -13,7 +13,9 @@ import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.history.model.History
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.history.interactor.GetHistory
+import tachiyomi.domain.manga.interactor.GetMergedManga
 import tachiyomi.domain.manga.model.Manga
+import tachiyomi.domain.manga.repository.MangaRepository
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -22,6 +24,8 @@ class MangaBackupCreator(
     private val profileProvider: ActiveProfileProvider = Injekt.get(),
     private val getCategories: GetCategories = Injekt.get(),
     private val getHistory: GetHistory = Injekt.get(),
+    private val getMergedManga: GetMergedManga = Injekt.get(),
+    private val mangaRepository: MangaRepository = Injekt.get(),
 ) {
 
     suspend operator fun invoke(mangas: List<Manga>, options: BackupOptions): List<BackupManga> {
@@ -33,8 +37,9 @@ class MangaBackupCreator(
         mangas: List<Manga>,
         options: BackupOptions,
     ): List<BackupManga> {
+        val allMangaById = mangaRepository.getAllMangaByProfile(profileId).associateBy { it.id }
         return mangas.map {
-            backupManga(profileId, it, options)
+            backupManga(profileId, it, options, allMangaById)
         }
     }
 
@@ -42,6 +47,7 @@ class MangaBackupCreator(
         profileId: Long,
         manga: Manga,
         options: BackupOptions,
+        allMangaById: Map<Long, Manga>,
     ): BackupManga {
         // Entry for this manga
         val mangaObject = manga.toBackupManga()
@@ -122,6 +128,18 @@ class MangaBackupCreator(
             }
         }
 
+        val mergeGroup = getMergedManga.awaitGroupByMangaId(manga.id)
+        if (mergeGroup.isNotEmpty()) {
+            val targetId = mergeGroup.first().targetId
+            val targetManga = allMangaById[targetId]
+            val position = mergeGroup.firstOrNull { it.mangaId == manga.id }?.position?.toInt()
+            if (targetManga != null && position != null) {
+                mangaObject.mergeTargetSource = targetManga.source
+                mangaObject.mergeTargetUrl = targetManga.url
+                mangaObject.mergePosition = position
+            }
+        }
+
         return mangaObject
     }
 }
@@ -130,6 +148,7 @@ private fun Manga.toBackupManga() =
     BackupManga(
         url = this.url,
         title = this.title,
+        displayName = this.displayName,
         artist = this.artist,
         author = this.author,
         description = this.description,

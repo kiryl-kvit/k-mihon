@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.ui.library
 
+import android.content.Context
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.util.fastAny
 import androidx.compose.ui.util.fastFilter
@@ -42,14 +43,14 @@ import kotlinx.coroutines.flow.updateAndGet
 import mihon.core.common.utils.mutate
 import tachiyomi.core.common.preference.CheckboxState
 import tachiyomi.core.common.preference.TriState
+import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.lang.compareToWithCollator
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.lang.launchNonCancellable
+import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.interactor.SetMangaCategories
-import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.chapter.interactor.GetBookmarkedChaptersByMangaId
-import tachiyomi.domain.chapter.interactor.GetChaptersByMangaId
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.history.interactor.GetNextChapters
 import tachiyomi.domain.library.model.LibraryDisplayMode
@@ -59,26 +60,37 @@ import tachiyomi.domain.library.model.LibrarySort
 import tachiyomi.domain.library.model.sort
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.interactor.GetLibraryManga
+import tachiyomi.domain.manga.interactor.GetManga
+import tachiyomi.domain.manga.interactor.GetMangaWithChapters
+import tachiyomi.domain.manga.interactor.GetMergedManga
+import tachiyomi.domain.manga.interactor.UpdateMergedManga
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.MangaUpdate
+import tachiyomi.domain.manga.model.presentationTitle
 import tachiyomi.domain.manga.model.applyFilter
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.track.interactor.GetTracksPerManga
 import tachiyomi.domain.track.model.Track
+import tachiyomi.i18n.MR
+import tachiyomi.source.local.LocalSource
 import tachiyomi.source.local.isLocal
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import kotlin.random.Random
 
 class LibraryScreenModel(
+    private val context: Context,
     private val getLibraryManga: GetLibraryManga = Injekt.get(),
     private val getCategories: GetCategories = Injekt.get(),
     private val getTracksPerManga: GetTracksPerManga = Injekt.get(),
     private val getNextChapters: GetNextChapters = Injekt.get(),
-    private val getChaptersByMangaId: GetChaptersByMangaId = Injekt.get(),
     private val getBookmarkedChaptersByMangaId: GetBookmarkedChaptersByMangaId = Injekt.get(),
     private val setReadStatus: SetReadStatus = Injekt.get(),
     private val updateManga: UpdateManga = Injekt.get(),
+    private val getManga: GetManga = Injekt.get(),
+    private val getMangaWithChapters: GetMangaWithChapters = Injekt.get(),
+    private val getMergedManga: GetMergedManga = Injekt.get(),
+    private val updateMergedManga: UpdateMergedManga = Injekt.get(),
     private val setMangaCategories: SetMangaCategories = Injekt.get(),
     private val preferences: BasePreferences = Injekt.get(),
     private val libraryPreferences: LibraryPreferences = Injekt.get(),
@@ -279,9 +291,15 @@ class LibraryScreenModel(
                 category = category,
             )
         }
-        val sourceNames = map { it.libraryManga.manga.source }
+        val sourceNames = map { it.libraryManga.displaySourceId }
             .distinct()
-            .associateWith { sourceId -> sourceManager.getOrStub(sourceId).getNameForMangaInfo() }
+            .associateWith { sourceId ->
+                if (sourceId == LibraryManga.MULTI_SOURCE_ID) {
+                    context.stringResource(MR.strings.multi_lang)
+                } else {
+                    sourceManager.getOrStub(sourceId).getNameForMangaInfo()
+                }
+            }
         val sourceIds = sourceNames.keys.sortedWith { sourceId1, sourceId2 ->
             sourceNames.getValue(sourceId1)
                 .compareToWithCollator(sourceNames.getValue(sourceId2))
@@ -313,7 +331,7 @@ class LibraryScreenModel(
                         id = "source:$sourceId",
                         primaryTab = sourceTabs.getValue(sourceId),
                         sourceId = sourceId,
-                        itemIds = fastFilter { it.libraryManga.manga.source == sourceId }
+                        itemIds = fastFilter { it.libraryManga.displaySourceId == sourceId }
                             .fastMap(LibraryItem::id),
                     )
                 }
@@ -321,7 +339,7 @@ class LibraryScreenModel(
             LibraryGroupType.ExtensionCategory -> {
                 buildList {
                     sourceIds.forEach { sourceId ->
-                        val sourceItems = this@applyGrouping.fastFilter { it.libraryManga.manga.source == sourceId }
+                        val sourceItems = this@applyGrouping.fastFilter { it.libraryManga.displaySourceId == sourceId }
                         visibleCategories.forEach { category ->
                             val itemIds = sourceItems.fastFilter { category.id in it.libraryManga.categories }
                                 .fastMap(LibraryItem::id)
@@ -354,7 +372,7 @@ class LibraryScreenModel(
                                 ),
                             )
                         } else {
-                            val categorySourceIds = categoryItems.map { it.libraryManga.manga.source }
+                            val categorySourceIds = categoryItems.map { it.libraryManga.displaySourceId }
                                 .distinct()
                                 .sortedWith { sourceId1, sourceId2 ->
                                     sourceNames.getValue(sourceId1)
@@ -370,7 +388,7 @@ class LibraryScreenModel(
                                         secondaryTab = sourceTabs.getValue(sourceId),
                                         category = category,
                                         sourceId = sourceId,
-                                        itemIds = categoryItems.fastFilter { it.libraryManga.manga.source == sourceId }
+                                        itemIds = categoryItems.fastFilter { it.libraryManga.displaySourceId == sourceId }
                                             .fastMap(LibraryItem::id),
                                     ),
                                 )
@@ -389,8 +407,8 @@ class LibraryScreenModel(
         groupType: LibraryGroupType,
     ): List<LibraryPage> {
         val sortAlphabetically: (LibraryItem, LibraryItem) -> Int = { manga1, manga2 ->
-            val title1 = manga1.libraryManga.manga.title.lowercase()
-            val title2 = manga2.libraryManga.manga.title.lowercase()
+            val title1 = manga1.libraryManga.manga.presentationTitle().lowercase()
+            val title2 = manga2.libraryManga.manga.presentationTitle().lowercase()
             title1.compareToWithCollator(title2)
         }
 
@@ -510,11 +528,19 @@ class LibraryScreenModel(
             getLibraryItemPreferencesFlow(),
             downloadCache.changes,
         ) { libraryManga, preferences, _ ->
+            val multiSourceName = context.stringResource(MR.strings.multi_lang)
             libraryManga.map { manga ->
+                val sourceName = if (manga.displaySourceId == LibraryManga.MULTI_SOURCE_ID) {
+                    multiSourceName
+                } else {
+                    sourceManager.getOrStub(manga.displaySourceId).getNameForMangaInfo()
+                }
                 LibraryItem(
                     libraryManga = manga,
                     downloadCount = if (preferences.downloadBadge) {
-                        downloadManager.getDownloadCount(manga.manga).toLong()
+                        manga.memberMangas.sumOf { memberManga ->
+                            downloadManager.getDownloadCount(memberManga).toLong()
+                        }
                     } else {
                         0
                     },
@@ -524,15 +550,20 @@ class LibraryScreenModel(
                         0
                     },
                     isLocal = if (preferences.localBadge) {
-                        manga.manga.isLocal()
+                        manga.sourceIds.size == 1 && manga.manga.isLocal()
                     } else {
                         false
                     },
                     sourceLanguage = if (preferences.languageBadge) {
-                        sourceManager.getOrStub(manga.manga.source).lang
+                        if (manga.displaySourceId == LibraryManga.MULTI_SOURCE_ID) {
+                            LibraryManga.MULTI_SOURCE_ID.toString()
+                        } else {
+                            sourceManager.getOrStub(manga.displaySourceId).lang
+                        }
                     } else {
                         ""
                     },
+                    sourceName = sourceName,
                 )
             }
         }
@@ -568,8 +599,9 @@ class LibraryScreenModel(
             .reduce { set1, set2 -> set1.intersect(set2) }
     }
 
-    suspend fun getNextUnreadChapter(manga: Manga): Chapter? {
-        return getChaptersByMangaId.await(manga.id, applyScanlatorFilter = true).getNextUnread(manga, downloadManager)
+    suspend fun getNextUnreadChapter(manga: LibraryManga): Chapter? {
+        return getMangaWithChapters.awaitChapters(manga.id, applyScanlatorFilter = true)
+            .getNextUnread(manga.manga, downloadManager)
     }
 
     /**
@@ -600,8 +632,8 @@ class LibraryScreenModel(
     }
 
     private fun downloadNextChapters(amount: Int?) {
-        val mangas = state.value.selectedManga
         screenModelScope.launchNonCancellable {
+            val mangas = getSelectedActionManga()
             mangas.forEach { manga ->
                 val chapters = getNextChapters.await(manga.id)
                     .fastFilterNot { chapter ->
@@ -622,8 +654,8 @@ class LibraryScreenModel(
     }
 
     private fun downloadBookmarkedChapters() {
-        val mangas = state.value.selectedManga
         screenModelScope.launchNonCancellable {
+            val mangas = getSelectedActionManga()
             mangas.forEach { manga ->
                 val chapters = getBookmarkedChaptersByMangaId.await(manga.id)
                     .fastFilterNot { chapter ->
@@ -645,8 +677,8 @@ class LibraryScreenModel(
      * Marks mangas' chapters read status.
      */
     fun markReadSelection(read: Boolean) {
-        val selection = state.value.selectedManga
         screenModelScope.launchNonCancellable {
+            val selection = getSelectedActionManga()
             selection.forEach { manga ->
                 setReadStatus.await(
                     manga = manga,
@@ -666,8 +698,18 @@ class LibraryScreenModel(
      */
     fun removeMangas(mangas: List<Manga>, deleteFromLibrary: Boolean, deleteChapters: Boolean) {
         screenModelScope.launchNonCancellable {
+            val distinctMangas = mangas.distinctBy(Manga::id)
+
             if (deleteFromLibrary) {
-                val toDelete = mangas.map {
+                val removedMergesByTargetId = distinctMangas.mapNotNull { manga ->
+                    getMergedManga.awaitTargetId(manga.id)?.let { targetId -> targetId to manga.id }
+                }
+                    .groupBy(keySelector = { it.first }, valueTransform = { it.second })
+                removedMergesByTargetId.forEach { (targetId, mangaIds) ->
+                    updateMergedManga.awaitRemoveMembers(targetId, mangaIds)
+                }
+
+                val toDelete = distinctMangas.map {
                     it.removeCovers(coverCache)
                     MangaUpdate(
                         favorite = false,
@@ -678,7 +720,7 @@ class LibraryScreenModel(
             }
 
             if (deleteChapters) {
-                mangas.forEach { manga ->
+                distinctMangas.forEach { manga ->
                     val source = sourceManager.get(manga.source) as? HttpSource
                     if (source != null) {
                         downloadManager.deleteManga(manga, source)
@@ -812,8 +854,7 @@ class LibraryScreenModel(
 
     fun openChangeCategoryDialog() {
         screenModelScope.launchIO {
-            // Create a copy of selected manga
-            val mangaList = state.value.selectedManga
+            val mangaList = getSelectedActionManga()
 
             // Hide the default category because it has a different behavior than the ones from db.
             val categories = state.value.libraryData.categories.filter { it.id != 0L }
@@ -836,11 +877,106 @@ class LibraryScreenModel(
     }
 
     fun openDeleteMangaDialog() {
-        mutableState.update { it.copy(dialog = Dialog.DeleteManga(state.value.selectedManga)) }
+        screenModelScope.launchIO {
+            val mangaList = getSelectedActionManga()
+            val containsLocalManga = mangaList.any(Manga::isLocal)
+            val containsMergedManga = state.value.selectedLibraryManga.any(LibraryManga::isMerged)
+            mutableState.update {
+                it.copy(
+                    dialog = Dialog.DeleteManga(
+                        manga = mangaList,
+                        containsLocalManga = containsLocalManga,
+                        containsMergedManga = containsMergedManga,
+                    ),
+                )
+            }
+        }
+    }
+
+    fun canMergeSelection(): Boolean {
+        val selection = state.value.selectedLibraryManga
+        if (selection.size < 2) return false
+
+        val mergedSelections = selection.count { it.isMerged }
+        return mergedSelections <= 1
+    }
+
+    fun openMergeDialog() {
+        screenModelScope.launchIO {
+            val selection = state.value.selectedLibraryManga
+            if (selection.size < 2) return@launchIO
+
+            val mergedSelections = selection.filter { it.isMerged }
+            if (mergedSelections.size > 1) return@launchIO
+
+            val entries = selection.map { libraryManga ->
+                MergeEntry(
+                    id = libraryManga.manga.id,
+                    manga = libraryManga.manga,
+                    memberMangas = libraryManga.memberMangas.toImmutableList(),
+                    isExistingMerge = libraryManga.isMerged,
+                )
+            }
+                .toImmutableList()
+
+            val existingMerge = mergedSelections.firstOrNull()
+            mutableState.update {
+                it.copy(
+                    dialog = Dialog.MergeManga(
+                        entries = entries,
+                        targetId = existingMerge?.manga?.id ?: entries.first().id,
+                        targetLocked = existingMerge != null,
+                    ),
+                )
+            }
+        }
+    }
+
+    fun reorderMergeSelection(fromIndex: Int, toIndex: Int) {
+        mutableState.update { state ->
+            val dialog = state.dialog as? Dialog.MergeManga ?: return@update state
+            if (fromIndex !in dialog.entries.indices || toIndex !in dialog.entries.indices) return@update state
+            val reordered = dialog.entries.toMutableList().apply {
+                val item = removeAt(fromIndex)
+                add(toIndex, item)
+            }
+            state.copy(dialog = dialog.copy(entries = reordered.toImmutableList()))
+        }
+    }
+
+    fun setMergeTarget(mangaId: Long) {
+        mutableState.update { state ->
+            val dialog = state.dialog as? Dialog.MergeManga ?: return@update state
+            if (dialog.targetLocked || dialog.entries.none { it.id == mangaId }) return@update state
+            state.copy(dialog = dialog.copy(targetId = mangaId))
+        }
+    }
+
+    fun confirmMergeSelection() {
+        val dialog = state.value.dialog as? Dialog.MergeManga ?: return
+        screenModelScope.launchNonCancellable {
+            val targetId = dialog.targetId.takeIf { targetId -> dialog.entries.any { it.id == targetId } }
+                ?: dialog.entries.firstOrNull()?.id
+                ?: return@launchNonCancellable
+            val mergedIds = dialog.entries.flatMap { entry -> entry.memberMangas.map(Manga::id) }
+                .distinct()
+
+            if (mergedIds.size > 1) {
+                updateMergedManga.awaitMerge(targetId, mergedIds)
+            }
+        }
+        clearSelection()
+        closeDialog()
     }
 
     fun closeDialog() {
         mutableState.update { it.copy(dialog = null) }
+    }
+
+    private suspend fun getSelectedActionManga(): List<Manga> {
+        return state.value.selectedLibraryManga
+            .flatMap(LibraryManga::memberMangas)
+            .distinctBy(Manga::id)
     }
 
     sealed interface Dialog {
@@ -849,7 +985,39 @@ class LibraryScreenModel(
             val manga: List<Manga>,
             val initialSelection: ImmutableList<CheckboxState<Category>>,
         ) : Dialog
-        data class DeleteManga(val manga: List<Manga>) : Dialog
+        data class MergeManga(
+            val entries: ImmutableList<MergeEntry>,
+            val targetId: Long,
+            val targetLocked: Boolean,
+        ) : Dialog
+        data class DeleteManga(
+            val manga: List<Manga>,
+            val containsLocalManga: Boolean,
+            val containsMergedManga: Boolean,
+        ) : Dialog
+    }
+
+    @Immutable
+    data class MergeEntry(
+        val id: Long,
+        val manga: Manga,
+        val memberMangas: ImmutableList<Manga>,
+        val isExistingMerge: Boolean,
+    ) {
+        val title: String
+            get() = manga.presentationTitle()
+
+        val subtitle: String
+            get() = buildString {
+                val sourceName = Injekt.get<SourceManager>().getOrStub(manga.source).getNameForMangaInfo()
+                val creator = manga.author?.takeIf { it.isNotBlank() }
+                    ?: manga.artist?.takeIf { it.isNotBlank() }
+                append(sourceName)
+                if (creator != null && !creator.equals(sourceName, ignoreCase = true)) {
+                    append(" • ")
+                    append(creator)
+                }
+            }
     }
 
     @Immutable
@@ -921,7 +1089,11 @@ class LibraryScreenModel(
 
         val selectionMode = selection.isNotEmpty()
 
-        val selectedManga by lazy { selection.mapNotNull { libraryData.favoritesById[it]?.libraryManga?.manga } }
+        val selectedLibraryManga by lazy { selection.mapNotNull { libraryData.favoritesById[it]?.libraryManga } }
+
+        val selectedManga by lazy { selectedLibraryManga.map(LibraryManga::manga) }
+
+        val selectedContainsLocal by lazy { selectedLibraryManga.any { LocalSource.ID in it.sourceIds } }
 
         fun getItemsForPageId(pageId: String?): List<LibraryItem> {
             if (pageId == null) return emptyList()

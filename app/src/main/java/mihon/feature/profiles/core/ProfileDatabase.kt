@@ -83,6 +83,7 @@ class ProfileDatabase(
             historyQueries.removeAllHistory(profileId)
             excluded_scanlatorsQueries.deleteByProfile(profileId)
             manga_syncQueries.deleteByProfile(profileId)
+            merged_mangasQueries.deleteByProfile(profileId)
             mangas_categoriesQueries.deleteByProfile(profileId)
             chaptersQueries.deleteByProfile(profileId)
             categoriesQueries.deleteByProfile(profileId)

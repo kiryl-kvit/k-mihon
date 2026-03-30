@@ -174,6 +174,19 @@
     <string name="action_start_downloading_now">Start downloading now</string>
     <string name="action_not_now">Not now</string>
     <string name="action_add_anyway">Add anyway</string>
+    <string name="action_open">Open</string>
+    <string name="action_keep">Keep</string>
+    <string name="action_merge">Merge</string>
+    <string name="action_set_display_name">Set display name</string>
+    <string name="action_manage_merge">Manage merge</string>
+    <string name="action_unmerge">Unmerge</string>
+
+    <string name="label_target">Root</string>
+    <string name="label_member">Member</string>
+
+    <string name="merge_members_count">%d members</string>
+    <string name="merge_existing_target_locked">Existing merged entry will stay as the root</string>
+    <string name="remove_merged_manga_warning">Merged entries are removed from the library as whole groups.</string>
 
     <!-- Operations -->
     <string name="loading">Loading…</string>

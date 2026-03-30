@@ -31,6 +31,7 @@ import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.domain.manga.interactor.GetLibraryManga
+import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.toMangaUpdate
 import tachiyomi.domain.source.service.SourceManager
@@ -48,11 +49,12 @@ class MetadataUpdateJob(private val context: Context, workerParams: WorkerParame
     private val sourceManager: SourceManager = Injekt.get()
     private val coverCache: CoverCache = Injekt.get()
     private val getLibraryManga: GetLibraryManga = Injekt.get()
+    private val getManga: GetManga = Injekt.get()
     private val updateManga: UpdateManga = Injekt.get()
 
     private val notifier = LibraryUpdateNotifier(context)
 
-    private var mangaToUpdate: List<LibraryManga> = mutableListOf()
+    private var mangaToUpdate: List<Manga> = mutableListOf()
 
     override suspend fun doWork(): Result {
         setForegroundSafely()
@@ -94,8 +96,22 @@ class MetadataUpdateJob(private val context: Context, workerParams: WorkerParame
      * Adds list of manga to be updated.
      */
     private suspend fun addMangaToQueue() {
-        mangaToUpdate = getLibraryManga.await()
-        notifier.showQueueSizeWarningNotificationIfNeeded(mangaToUpdate)
+        val libraryManga = getLibraryManga.await()
+        notifier.showQueueSizeWarningNotificationIfNeeded(libraryManga)
+        mangaToUpdate = libraryManga.expandToMemberManga()
+    }
+
+    private suspend fun List<LibraryManga>.expandToMemberManga(): List<Manga> {
+        return flatMap { libraryManga ->
+            libraryManga.memberMangaIds.mapNotNull { memberId ->
+                if (memberId == libraryManga.manga.id) {
+                    libraryManga.manga
+                } else {
+                    getManga.await(memberId)
+                }
+            }
+        }
+            .distinctBy(Manga::id)
     }
 
     private suspend fun updateMetadata() {
@@ -104,13 +120,12 @@ class MetadataUpdateJob(private val context: Context, workerParams: WorkerParame
         val currentlyUpdatingManga = CopyOnWriteArrayList<Manga>()
 
         coroutineScope {
-            mangaToUpdate.groupBy { it.manga.source }
+            mangaToUpdate.groupBy { it.source }
                 .values
                 .map { mangaInSource ->
                     async {
                         semaphore.withPermit {
-                            mangaInSource.forEach { libraryManga ->
-                                val manga = libraryManga.manga
+                            mangaInSource.forEach { manga ->
                                 ensureActive()
 
                                 withUpdateNotification(

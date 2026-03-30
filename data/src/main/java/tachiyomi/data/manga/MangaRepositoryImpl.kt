@@ -69,6 +69,12 @@ class MangaRepositoryImpl(
         }
     }
 
+    override suspend fun getAllMangaByProfile(profileId: Long): List<Manga> {
+        return handler.awaitList {
+            mangasQueries.getAllManga(profileId, MangaMapper::mapManga)
+        }
+    }
+
     override suspend fun getReadMangaNotInLibrary(): List<Manga> {
         return handler.awaitList {
             mangasQueries.getReadMangaNotInLibrary(profileProvider.activeProfileId, MangaMapper::mapManga)
@@ -188,9 +194,9 @@ class MangaRepositoryImpl(
                     updateTitle = it.title.isNotBlank(),
                     updateCover = !it.thumbnailUrl.isNullOrBlank(),
                     updateDetails = it.initialized,
-                    mapper = MangaMapper::mapManga,
                 )
                     .executeAsOne()
+                    .let { MangaMapper.mapManga(it) }
             }
         }
     }
@@ -206,6 +212,7 @@ class MangaRepositoryImpl(
                     description = value.description,
                     genre = value.genre?.let(StringListColumnAdapter::encode),
                     title = value.title,
+                    displayName = value.displayName,
                     status = value.status,
                     thumbnailUrl = value.thumbnailUrl,
                     favorite = value.favorite,
@@ -225,6 +232,17 @@ class MangaRepositoryImpl(
                     profileId = profileProvider.activeProfileId,
                 )
             }
+        }
+    }
+
+    override suspend fun updateDisplayName(mangaId: Long, displayName: String?): Boolean {
+        return handler.await {
+            mangasQueries.updateDisplayName(
+                displayName = displayName,
+                mangaId = mangaId,
+                profileId = profileProvider.activeProfileId,
+            )
+            true
         }
     }
 }

@@ -93,7 +93,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
 
     private val notifier = LibraryUpdateNotifier(context)
 
-    private var mangaToUpdate: List<LibraryManga> = mutableListOf()
+    private var mangaToUpdate: List<Manga> = mutableListOf()
 
     override suspend fun doWork(): Result {
         if (tags.contains(WORK_NAME_AUTO)) {
@@ -162,7 +162,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
         val listToUpdate = if (categoryId != -1L || sourceId != -1L) {
             libraryManga.filter {
                 val matchesCategory = categoryId == -1L || categoryId in it.categories
-                val matchesSource = sourceId == -1L || it.manga.source == sourceId
+                val matchesSource = sourceId == -1L || it.containsSource(sourceId)
                 matchesCategory && matchesSource
             }
         } else {
@@ -180,7 +180,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
         val skippedUpdates = mutableListOf<Pair<Manga, String?>>()
         val (_, fetchWindowUpperBound) = fetchInterval.getWindow(ZonedDateTime.now())
 
-        mangaToUpdate = listToUpdate
+        val eligibleLibraryManga = listToUpdate
             .filter {
                 when {
                     it.manga.updateStrategy == UpdateStrategy.ONLY_FETCH_ONCE && it.totalChapters > 0L -> {
@@ -217,7 +217,10 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
             }
             .sortedBy { it.manga.title }
 
-        notifier.showQueueSizeWarningNotificationIfNeeded(mangaToUpdate)
+        notifier.showQueueSizeWarningNotificationIfNeeded(eligibleLibraryManga)
+
+        mangaToUpdate = eligibleLibraryManga.expandToMemberManga()
+            .sortedBy { it.title }
 
         if (skippedUpdates.isNotEmpty()) {
             // TODO: surface skipped reasons to user?
@@ -228,6 +231,19 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
                     .joinToString()
             }
         }
+    }
+
+    private suspend fun List<LibraryManga>.expandToMemberManga(): List<Manga> {
+        return flatMap { libraryManga ->
+            libraryManga.memberMangaIds.mapNotNull { memberId ->
+                if (memberId == libraryManga.manga.id) {
+                    libraryManga.manga
+                } else {
+                    getManga.await(memberId)
+                }
+            }
+        }
+            .distinctBy(Manga::id)
     }
 
     /**
@@ -248,12 +264,11 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
         val fetchWindow = fetchInterval.getWindow(ZonedDateTime.now())
 
         coroutineScope {
-            mangaToUpdate.groupBy { it.manga.source }.values
+            mangaToUpdate.groupBy { it.source }.values
                 .map { mangaInSource ->
                     async {
                         semaphore.withPermit {
-                            mangaInSource.forEach { libraryManga ->
-                                val manga = libraryManga.manga
+                            mangaInSource.forEach { manga ->
                                 ensureActive()
 
                                 // Don't continue to update if manga is not in library

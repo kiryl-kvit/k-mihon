@@ -28,13 +28,17 @@ import eu.kanade.tachiyomi.util.system.cancelNotification
 import eu.kanade.tachiyomi.util.system.getBitmapOrNull
 import eu.kanade.tachiyomi.util.system.notificationBuilder
 import eu.kanade.tachiyomi.util.system.notify
+import kotlinx.coroutines.runBlocking
 import tachiyomi.core.common.Constants
 import tachiyomi.core.common.i18n.pluralStringResource
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.lang.launchUI
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.library.model.LibraryManga
+import tachiyomi.domain.manga.interactor.GetManga
+import tachiyomi.domain.manga.interactor.GetMergedManga
 import tachiyomi.domain.manga.model.Manga
+import tachiyomi.domain.manga.model.presentationTitle
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.i18n.MR
 import uy.kohesive.injekt.Injekt
@@ -47,6 +51,8 @@ class LibraryUpdateNotifier(
 
     private val securityPreferences: SecurityPreferences = Injekt.get(),
     private val sourceManager: SourceManager = Injekt.get(),
+    private val getMergedManga: GetMergedManga = Injekt.get(),
+    private val getManga: GetManga = Injekt.get(),
 ) {
 
     private val percentFormatter = NumberFormat.getPercentInstance().apply {
@@ -167,28 +173,38 @@ class LibraryUpdateNotifier(
      * @param updates a list of manga with new updates.
      */
     fun showUpdateNotifications(updates: List<Pair<Manga, Array<Chapter>>>) {
+        val visibleUpdates = runBlocking {
+            updates.map { (manga, chapters) ->
+                NotificationMangaUpdate(
+                    originManga = manga,
+                    visibleManga = getVisibleManga(manga),
+                    chapters = chapters,
+                )
+            }
+        }
+
         // Parent group notification
         context.notify(
             Notifications.ID_NEW_CHAPTERS,
             Notifications.CHANNEL_NEW_CHAPTERS,
         ) {
             setContentTitle(context.stringResource(MR.strings.notification_new_chapters))
-            if (updates.size == 1 && !securityPreferences.hideNotificationContent.get()) {
-                setContentText(updates.first().first.title.chop(NOTIF_TITLE_MAX_LEN))
+            if (visibleUpdates.size == 1 && !securityPreferences.hideNotificationContent.get()) {
+                setContentText(visibleUpdates.first().visibleManga.presentationTitle().chop(NOTIF_TITLE_MAX_LEN))
             } else {
                 setContentText(
                     context.pluralStringResource(
                         MR.plurals.notification_new_chapters_summary,
-                        updates.size,
-                        updates.size,
+                        visibleUpdates.size,
+                        visibleUpdates.size,
                     ),
                 )
 
                 if (!securityPreferences.hideNotificationContent.get()) {
                     setStyle(
                         NotificationCompat.BigTextStyle().bigText(
-                            updates.joinToString("\n") {
-                                it.first.title.chop(NOTIF_TITLE_MAX_LEN)
+                            visibleUpdates.joinToString("\n") {
+                                it.visibleManga.presentationTitle().chop(NOTIF_TITLE_MAX_LEN)
                             },
                         ),
                     )
@@ -211,10 +227,10 @@ class LibraryUpdateNotifier(
         if (!securityPreferences.hideNotificationContent.get()) {
             launchUI {
                 context.notify(
-                    updates.map { (manga, chapters) ->
+                    visibleUpdates.map { update ->
                         NotificationManagerCompat.NotificationWithIdAndTag(
-                            manga.id.hashCode(),
-                            createNewChaptersNotification(manga, chapters),
+                            update.originManga.id.hashCode(),
+                            createNewChaptersNotification(update.originManga, update.visibleManga, update.chapters),
                         )
                     },
                 )
@@ -222,10 +238,14 @@ class LibraryUpdateNotifier(
         }
     }
 
-    private suspend fun createNewChaptersNotification(manga: Manga, chapters: Array<Chapter>): Notification {
-        val icon = getMangaIcon(manga)
+    private suspend fun createNewChaptersNotification(
+        manga: Manga,
+        visibleManga: Manga,
+        chapters: Array<Chapter>,
+    ): Notification {
+        val icon = getMangaIcon(visibleManga)
         return context.notificationBuilder(Notifications.CHANNEL_NEW_CHAPTERS) {
-            setContentTitle(manga.title)
+            setContentTitle(visibleManga.presentationTitle())
 
             val description = getNewChaptersDescription(chapters)
             setContentText(description)
@@ -242,7 +262,7 @@ class LibraryUpdateNotifier(
             priority = NotificationCompat.PRIORITY_HIGH
 
             // Open first chapter on tap
-            setContentIntent(NotificationReceiver.openChapterPendingActivity(context, manga, chapters.first()))
+            setContentIntent(NotificationReceiver.openChapterPendingActivity(context, visibleManga, chapters.first()))
             setAutoCancel(true)
 
             // Mark chapters as read action
@@ -262,7 +282,7 @@ class LibraryUpdateNotifier(
                 context.stringResource(MR.strings.action_view_chapters),
                 NotificationReceiver.openChapterPendingActivity(
                     context,
-                    manga,
+                    visibleManga,
                     Notifications.ID_NEW_CHAPTERS,
                 ),
             )
@@ -299,6 +319,17 @@ class LibraryUpdateNotifier(
         val drawable = context.imageLoader.execute(request).image?.asDrawable(context.resources)
         return drawable?.getBitmapOrNull()
     }
+
+    private suspend fun getVisibleManga(manga: Manga): Manga {
+        val visibleMangaId = getMergedManga.awaitVisibleTargetId(manga.id)
+        return getManga.await(visibleMangaId) ?: manga
+    }
+
+    private data class NotificationMangaUpdate(
+        val originManga: Manga,
+        val visibleManga: Manga,
+        val chapters: Array<Chapter>,
+    )
 
     private fun getNewChaptersDescription(chapters: Array<Chapter>): String {
         val displayableChapterNumbers = chapters

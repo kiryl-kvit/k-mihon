@@ -14,9 +14,13 @@ import eu.kanade.tachiyomi.util.lang.chop
 import eu.kanade.tachiyomi.util.system.cancelNotification
 import eu.kanade.tachiyomi.util.system.notificationBuilder
 import eu.kanade.tachiyomi.util.system.notify
+import kotlinx.coroutines.runBlocking
 import tachiyomi.core.common.i18n.stringResource
+import tachiyomi.domain.manga.interactor.GetMergedManga
 import tachiyomi.i18n.MR
 import uy.kohesive.injekt.injectLazy
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import java.util.regex.Pattern
 
 /**
@@ -27,6 +31,7 @@ import java.util.regex.Pattern
 internal class DownloadNotifier(private val context: Context) {
 
     private val preferences: SecurityPreferences by injectLazy()
+    private val getMergedManga by lazy { Injekt.get<GetMergedManga>() }
 
     private val progressNotificationBuilder by lazy {
         context.notificationBuilder(Notifications.CHANNEL_DOWNLOADER_PROGRESS) {
@@ -86,7 +91,7 @@ internal class DownloadNotifier(private val context: Context) {
                 addAction(
                     R.drawable.ic_book_24dp,
                     context.stringResource(MR.strings.action_show_manga),
-                    NotificationReceiver.openEntryPendingActivity(context, download.manga.id),
+                    NotificationReceiver.openEntryPendingActivity(context, getVisibleMangaId(download.manga.id)),
                 )
             }
 
@@ -180,7 +185,7 @@ internal class DownloadNotifier(private val context: Context) {
                 addAction(
                     R.drawable.ic_book_24dp,
                     context.stringResource(MR.strings.action_show_manga),
-                    NotificationReceiver.openEntryPendingActivity(context, mangaId),
+                    NotificationReceiver.openEntryPendingActivity(context, getVisibleMangaId(mangaId)),
                 )
             }
             setProgress(0, 0, false)
@@ -216,7 +221,7 @@ internal class DownloadNotifier(private val context: Context) {
                 addAction(
                     R.drawable.ic_book_24dp,
                     context.stringResource(MR.strings.action_show_manga),
-                    NotificationReceiver.openEntryPendingActivity(context, mangaId),
+                    NotificationReceiver.openEntryPendingActivity(context, getVisibleMangaId(mangaId)),
                 )
             }
             setProgress(0, 0, false)
@@ -226,5 +231,9 @@ internal class DownloadNotifier(private val context: Context) {
 
         // Reset download information
         isDownloading = false
+    }
+
+    private fun getVisibleMangaId(mangaId: Long): Long {
+        return runBlocking { getMergedManga.awaitVisibleTargetId(mangaId) }
     }
 }

@@ -15,4 +15,8 @@ class GetFavorites(
     fun subscribe(sourceId: Long): Flow<List<Manga>> {
         return mangaRepository.getFavoritesBySourceId(sourceId)
     }
+
+    suspend fun awaitByProfile(profileId: Long): List<Manga> {
+        return mangaRepository.getFavoritesByProfile(profileId)
+    }
 }

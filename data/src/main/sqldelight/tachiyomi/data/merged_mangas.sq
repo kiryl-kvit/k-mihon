@@ -1,0 +1,64 @@
+CREATE TABLE merged_mangas(
+    _id INTEGER NOT NULL PRIMARY KEY,
+    profile_id INTEGER NOT NULL DEFAULT 1,
+    target_manga_id INTEGER NOT NULL,
+    manga_id INTEGER NOT NULL,
+    position INTEGER NOT NULL,
+    UNIQUE(profile_id, manga_id),
+    UNIQUE(profile_id, target_manga_id, position),
+    FOREIGN KEY(target_manga_id) REFERENCES mangas (_id)
+    ON DELETE CASCADE,
+    FOREIGN KEY(manga_id) REFERENCES mangas (_id)
+    ON DELETE CASCADE,
+    FOREIGN KEY(profile_id) REFERENCES profiles (_id)
+    ON DELETE CASCADE
+);
+
+CREATE INDEX idx_merged_mangas_target ON merged_mangas(profile_id, target_manga_id);
+CREATE INDEX idx_merged_mangas_manga ON merged_mangas(profile_id, manga_id);
+
+getAll:
+SELECT target_manga_id, manga_id, position
+FROM merged_mangas
+WHERE profile_id = :profileId
+ORDER BY target_manga_id, position;
+
+getTargetIdByMangaId:
+SELECT target_manga_id
+FROM merged_mangas
+WHERE profile_id = :profileId
+AND manga_id = :mangaId
+LIMIT 1;
+
+getEntriesByTargetId:
+SELECT target_manga_id, manga_id, position
+FROM merged_mangas
+WHERE profile_id = :profileId
+AND target_manga_id = :targetMangaId
+ORDER BY position;
+
+getEntriesByMangaId:
+SELECT MM.target_manga_id, MM.manga_id, MM.position
+FROM merged_mangas MM
+WHERE MM.profile_id = :profileId
+AND MM.target_manga_id = (
+    SELECT target_manga_id
+    FROM merged_mangas
+    WHERE profile_id = :profileId
+    AND manga_id = :mangaId
+    LIMIT 1
+)
+ORDER BY MM.position;
+
+insert:
+INSERT INTO merged_mangas(profile_id, target_manga_id, manga_id, position)
+VALUES (:profileId, :targetMangaId, :mangaId, :position);
+
+deleteByTargetId:
+DELETE FROM merged_mangas
+WHERE profile_id = :profileId
+AND target_manga_id = :targetMangaId;
+
+deleteByProfile:
+DELETE FROM merged_mangas
+WHERE profile_id = :profileId;

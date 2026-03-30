@@ -1,13 +1,11 @@
 package eu.kanade.tachiyomi.ui.library
 
-import eu.kanade.tachiyomi.source.getNameForMangaInfo
 import tachiyomi.domain.library.model.LibraryManga
-import tachiyomi.domain.source.service.SourceManager
+import tachiyomi.domain.manga.model.presentationTitle
 import tachiyomi.source.local.LocalSource
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 
 private const val LOCAL_SOURCE_ID_ALIAS = "local"
+private const val MULTI_SOURCE_ID_ALIAS = "multi"
 
 data class LibraryItem(
     val libraryManga: LibraryManga,
@@ -15,7 +13,7 @@ data class LibraryItem(
     val unreadCount: Long = -1,
     val isLocal: Boolean = false,
     val sourceLanguage: String = "",
-    private val sourceManager: SourceManager = Injekt.get(),
+    val sourceName: String,
 ) {
     val id: Long = libraryManga.id
 
@@ -26,19 +24,20 @@ data class LibraryItem(
      * @return true if the manga matches the query, false otherwise.
      */
     fun matches(constraint: String): Boolean {
-        val source = sourceManager.getOrStub(libraryManga.manga.source)
-        val sourceName by lazy { source.getNameForMangaInfo() }
         if (constraint.startsWith("id:", true)) {
             return id == constraint.substringAfter("id:").toLongOrNull()
         } else if (constraint.startsWith("src:", true)) {
             val querySource = constraint.substringAfter("src:")
             return if (querySource.equals(LOCAL_SOURCE_ID_ALIAS, ignoreCase = true)) {
-                source.id == LocalSource.ID
+                libraryManga.displaySourceId == LocalSource.ID
+            } else if (querySource.equals(MULTI_SOURCE_ID_ALIAS, ignoreCase = true)) {
+                libraryManga.displaySourceId == LibraryManga.MULTI_SOURCE_ID
             } else {
-                source.id == querySource.toLongOrNull()
+                libraryManga.sourceIds.contains(querySource.toLongOrNull())
             }
         }
-        return libraryManga.manga.title.contains(constraint, true) ||
+        return libraryManga.manga.presentationTitle().contains(constraint, true) ||
+            libraryManga.manga.title.contains(constraint, true) ||
             (libraryManga.manga.author?.contains(constraint, true) ?: false) ||
             (libraryManga.manga.artist?.contains(constraint, true) ?: false) ||
             (libraryManga.manga.description?.contains(constraint, true) ?: false) ||

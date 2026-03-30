@@ -95,6 +95,7 @@ import org.intellij.markdown.MarkdownElementTypes
 import org.intellij.markdown.MarkdownTokenTypes
 import org.intellij.markdown.ast.findChildOfType
 import tachiyomi.domain.manga.model.Manga
+import tachiyomi.domain.manga.model.presentationTitle
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.DISABLED_ALPHA
 import tachiyomi.presentation.core.components.material.TextButton
@@ -116,6 +117,7 @@ fun MangaInfoBox(
     manga: Manga,
     sourceName: String,
     isStubSource: Boolean,
+    mergedMemberTitles: List<String>,
     onCoverClick: () -> Unit,
     doSearch: (query: String, global: Boolean) -> Unit,
     modifier: Modifier = Modifier,
@@ -153,6 +155,7 @@ fun MangaInfoBox(
                     manga = manga,
                     sourceName = sourceName,
                     isStubSource = isStubSource,
+                    mergedMemberTitles = mergedMemberTitles,
                     onCoverClick = onCoverClick,
                     doSearch = doSearch,
                 )
@@ -162,6 +165,7 @@ fun MangaInfoBox(
                     manga = manga,
                     sourceName = sourceName,
                     isStubSource = isStubSource,
+                    mergedMemberTitles = mergedMemberTitles,
                     onCoverClick = onCoverClick,
                     doSearch = doSearch,
                 )
@@ -346,6 +350,7 @@ private fun MangaAndSourceTitlesLarge(
     manga: Manga,
     sourceName: String,
     isStubSource: Boolean,
+    mergedMemberTitles: List<String>,
     onCoverClick: () -> Unit,
     doSearch: (query: String, global: Boolean) -> Unit,
 ) {
@@ -366,12 +371,13 @@ private fun MangaAndSourceTitlesLarge(
         )
         Spacer(modifier = Modifier.height(16.dp))
         MangaContentInfo(
-            title = manga.title,
+            title = manga.presentationTitle(),
             author = manga.author,
             artist = manga.artist,
             status = manga.status,
             sourceName = sourceName,
             isStubSource = isStubSource,
+            mergedMemberTitles = mergedMemberTitles,
             doSearch = doSearch,
             textAlign = TextAlign.Center,
         )
@@ -384,6 +390,7 @@ private fun MangaAndSourceTitlesSmall(
     manga: Manga,
     sourceName: String,
     isStubSource: Boolean,
+    mergedMemberTitles: List<String>,
     onCoverClick: () -> Unit,
     doSearch: (query: String, global: Boolean) -> Unit,
 ) {
@@ -409,12 +416,13 @@ private fun MangaAndSourceTitlesSmall(
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             MangaContentInfo(
-                title = manga.title,
+                title = manga.presentationTitle(),
                 author = manga.author,
                 artist = manga.artist,
                 status = manga.status,
                 sourceName = sourceName,
                 isStubSource = isStubSource,
+                mergedMemberTitles = mergedMemberTitles,
                 doSearch = doSearch,
             )
         }
@@ -429,6 +437,7 @@ private fun ColumnScope.MangaContentInfo(
     status: Long,
     sourceName: String,
     isStubSource: Boolean,
+    mergedMemberTitles: List<String>,
     doSearch: (query: String, global: Boolean) -> Unit,
     textAlign: TextAlign? = LocalTextStyle.current.textAlign,
 ) {
@@ -451,6 +460,18 @@ private fun ColumnScope.MangaContentInfo(
     )
 
     Spacer(modifier = Modifier.height(2.dp))
+
+    if (mergedMemberTitles.size > 1) {
+        Text(
+            text = mergedMemberTitles.joinToString(separator = " • "),
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.secondaryItemAlpha(),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = textAlign,
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+    }
 
     Row(
         modifier = Modifier.secondaryItemAlpha(),
