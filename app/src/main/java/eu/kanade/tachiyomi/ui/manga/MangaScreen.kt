@@ -28,11 +28,14 @@ import eu.kanade.domain.manga.model.hasCustomCover
 import eu.kanade.domain.manga.model.toSManga
 import eu.kanade.presentation.category.components.ChangeCategoryDialog
 import eu.kanade.presentation.components.NavigatorAdaptiveSheet
+import eu.kanade.presentation.library.DeleteLibraryMangaDialog
 import eu.kanade.presentation.manga.ChapterSettingsDialog
 import eu.kanade.presentation.manga.DuplicateMangaDialog
 import eu.kanade.presentation.manga.EditCoverAction
 import eu.kanade.presentation.manga.MangaScreen
 import eu.kanade.presentation.manga.components.DeleteChaptersDialog
+import eu.kanade.presentation.manga.components.EditDisplayNameDialog
+import eu.kanade.presentation.manga.components.ManageMergeDialog
 import eu.kanade.presentation.manga.components.MangaCoverDialog
 import eu.kanade.presentation.manga.components.ScanlatorFilterDialog
 import eu.kanade.presentation.manga.components.SetIntervalDialog
@@ -56,6 +59,7 @@ import eu.kanade.tachiyomi.util.system.toShareIntent
 import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.coroutines.launch
 import logcat.LogPriority
+import tachiyomi.domain.manga.model.presentationTitle
 import mihon.feature.migration.config.MigrationConfigScreen
 import mihon.feature.migration.dialog.MigrateMangaDialog
 import tachiyomi.core.common.util.lang.withIOContext
@@ -119,7 +123,11 @@ class MangaScreen(
             chapterSwipeStartAction = screenModel.chapterSwipeStartAction,
             chapterSwipeEndAction = screenModel.chapterSwipeEndAction,
             navigateUp = navigator::pop,
-            onChapterClicked = { openChapter(context, it) },
+            onChapterClicked = { chapter ->
+                scope.launch {
+                    openChapter(context, screenModel, chapter)
+                }
+            },
             onDownloadChapter = screenModel::runChapterDownloadActions.takeIf { !successState.source.isLocalOrStub() },
             onAddToLibraryClicked = {
                 screenModel.toggleFavorite()
@@ -149,7 +157,11 @@ class MangaScreen(
             onTagSearch = { scope.launch { performGenreSearch(navigator, it, screenModel.source!!) } },
             onFilterButtonClicked = screenModel::showSettingsDialog,
             onRefresh = screenModel::fetchAllFromSource,
-            onContinueReading = { continueReading(context, screenModel.getNextUnreadChapter()) },
+            onContinueReading = {
+                scope.launch {
+                    continueReading(context, screenModel, screenModel.getNextUnreadChapter())
+                }
+            },
             onSearch = { query, global -> scope.launch { performSearch(navigator, query, global) } },
             onCoverClicked = screenModel::showCoverDialog,
             onShareClicked = { shareManga(context, screenModel.manga, screenModel.source) }.takeIf { isHttpSource },
@@ -158,6 +170,8 @@ class MangaScreen(
             onEditFetchIntervalClicked = screenModel::showSetFetchIntervalDialog.takeIf {
                 successState.manga.favorite
             },
+            onEditDisplayNameClicked = screenModel::showEditDisplayNameDialog.takeIf { successState.manga.favorite },
+            onManageMergeClicked = screenModel::showManageMergeDialog.takeIf { successState.isMerged },
             onMigrateClicked = {
                 navigator.push(MigrationConfigScreen(successState.manga.id))
             }.takeIf { successState.manga.favorite },
@@ -207,6 +221,35 @@ class MangaScreen(
                 )
             }
 
+            is MangaScreenModel.Dialog.EditDisplayName -> {
+                EditDisplayNameDialog(
+                    initialValue = dialog.initialValue,
+                    onDismissRequest = onDismissRequest,
+                    onConfirm = screenModel::updateDisplayName,
+                )
+            }
+
+            is MangaScreenModel.Dialog.ManageMerge -> {
+                ManageMergeDialog(
+                    targetId = dialog.targetId,
+                    members = dialog.members,
+                    onDismissRequest = onDismissRequest,
+                    onOpenManga = { navigator.push(MangaScreen(it)) },
+                    onRemoveMembers = screenModel::removeMergedMembers,
+                    onUnmergeAll = screenModel::unmergeAll,
+                )
+            }
+
+            is MangaScreenModel.Dialog.RemoveMergedManga -> {
+                DeleteLibraryMangaDialog(
+                    containsLocalManga = dialog.containsLocalManga,
+                    onDismissRequest = onDismissRequest,
+                    onConfirm = { deleteManga, deleteChapter ->
+                        screenModel.removeMergedManga(dialog.members, deleteManga, deleteChapter)
+                    },
+                )
+            }
+
             is MangaScreenModel.Dialog.Migrate -> {
                 MigrateMangaDialog(
                     current = dialog.current,
@@ -233,7 +276,7 @@ class MangaScreen(
                 NavigatorAdaptiveSheet(
                     screen = TrackInfoDialogHomeScreen(
                         mangaId = successState.manga.id,
-                        mangaTitle = successState.manga.title,
+                        mangaTitle = successState.manga.presentationTitle(),
                         sourceId = successState.source.id,
                     ),
                     enableSwipeDismiss = { it.lastItem is TrackInfoDialogHomeScreen },
@@ -287,12 +330,13 @@ class MangaScreen(
         }
     }
 
-    private fun continueReading(context: Context, unreadChapter: Chapter?) {
-        if (unreadChapter != null) openChapter(context, unreadChapter)
+    private suspend fun continueReading(context: Context, screenModel: MangaScreenModel, unreadChapter: Chapter?) {
+        if (unreadChapter != null) openChapter(context, screenModel, unreadChapter)
     }
 
-    private fun openChapter(context: Context, chapter: Chapter) {
-        context.startActivity(ReaderActivity.newIntent(context, chapter.mangaId, chapter.id))
+    private suspend fun openChapter(context: Context, screenModel: MangaScreenModel, chapter: Chapter) {
+        val visibleMangaId = screenModel.getVisibleMangaId(chapter.mangaId)
+        context.startActivity(ReaderActivity.newIntent(context, visibleMangaId, chapter.id))
     }
 
     private fun getMangaUrl(manga_: Manga?, source_: Source?): String? {

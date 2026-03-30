@@ -7,7 +7,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import eu.kanade.presentation.theme.TachiyomiPreviewTheme
+import tachiyomi.domain.library.model.LibraryManga
+import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.Badge
+import tachiyomi.presentation.core.i18n.stringResource
 
 @Composable
 internal fun DownloadsBadge(count: Long) {
@@ -40,7 +43,11 @@ internal fun LanguageBadge(
         )
     } else if (sourceLanguage.isNotEmpty()) {
         Badge(
-            text = sourceLanguage.uppercase(),
+            text = if (sourceLanguage == LibraryManga.MULTI_SOURCE_ID.toString()) {
+                stringResource(MR.strings.multi_lang)
+            } else {
+                sourceLanguage.uppercase()
+            },
             color = MaterialTheme.colorScheme.tertiary,
             textColor = MaterialTheme.colorScheme.onTertiary,
         )

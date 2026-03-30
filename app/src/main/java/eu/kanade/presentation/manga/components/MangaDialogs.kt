@@ -1,17 +1,24 @@
 package eu.kanade.presentation.manga.components
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -22,6 +29,8 @@ import androidx.compose.ui.unit.dp
 import eu.kanade.tachiyomi.util.system.isReleaseBuildType
 import kotlinx.collections.immutable.toImmutableList
 import tachiyomi.domain.manga.interactor.FetchInterval
+import tachiyomi.domain.manga.model.Manga
+import tachiyomi.domain.manga.model.presentationTitle
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.WheelTextPicker
 import tachiyomi.presentation.core.components.material.padding
@@ -145,6 +154,105 @@ fun SetIntervalDialog(
                 onValueChanged?.invoke(selectedInterval)
                 onDismissRequest()
             }) {
+                Text(text = stringResource(MR.strings.action_ok))
+            }
+        },
+    )
+}
+
+@Composable
+fun EditDisplayNameDialog(
+    initialValue: String,
+    onDismissRequest: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var value by rememberSaveable { mutableStateOf(initialValue) }
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        title = { Text(text = stringResource(MR.strings.action_set_display_name)) },
+        text = {
+            OutlinedTextField(
+                value = value,
+                onValueChange = { value = it },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text(text = stringResource(MR.strings.action_cancel))
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(value) }) {
+                Text(text = stringResource(MR.strings.action_ok))
+            }
+        },
+    )
+}
+
+@Composable
+fun ManageMergeDialog(
+    targetId: Long,
+    members: List<Manga>,
+    onDismissRequest: () -> Unit,
+    onOpenManga: (Long) -> Unit,
+    onRemoveMembers: (List<Long>) -> Unit,
+    onUnmergeAll: () -> Unit,
+) {
+    val removableIds = remember { mutableStateListOf<Long>() }
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        title = { Text(text = stringResource(MR.strings.action_manage_merge)) },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+            ) {
+                members.forEach { member ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(text = member.presentationTitle())
+                            Text(text = stringResource(if (member.id == targetId) MR.strings.label_target else MR.strings.label_member))
+                        }
+                        if (member.id != targetId) {
+                            TextButton(
+                                onClick = {
+                                    if (member.id in removableIds) {
+                                        removableIds.remove(member.id)
+                                    } else {
+                                        removableIds.add(member.id)
+                                    }
+                                },
+                            ) {
+                                Text(text = stringResource(if (member.id in removableIds) MR.strings.action_keep else MR.strings.action_remove))
+                            }
+                        }
+                        TextButton(onClick = { onOpenManga(member.id) }) {
+                            Text(text = stringResource(MR.strings.action_open))
+                        }
+                    }
+                }
+            }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small)) {
+                TextButton(onClick = onUnmergeAll) {
+                    Text(text = stringResource(MR.strings.action_unmerge))
+                }
+                TextButton(onClick = onDismissRequest) {
+                    Text(text = stringResource(MR.strings.action_cancel))
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = removableIds.isNotEmpty(),
+                onClick = { onRemoveMembers(removableIds.toList()) },
+            ) {
                 Text(text = stringResource(MR.strings.action_ok))
             }
         },

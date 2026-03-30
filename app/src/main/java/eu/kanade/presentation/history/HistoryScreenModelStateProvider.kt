@@ -86,25 +86,30 @@ class HistoryScreenModelStateProvider : PreviewParameterProvider<HistoryScreenMo
         }
 
         fun randItem(historyBuilder: (HistoryWithRelations) -> HistoryWithRelations = { it }) =
-            HistoryUiModel.Item(
-                historyBuilder(
-                    HistoryWithRelations(
-                        id = Random.nextLong(),
-                        chapterId = Random.nextLong(),
+            historyBuilder(
+                HistoryWithRelations(
+                    id = Random.nextLong(),
+                    chapterId = Random.nextLong(),
+                    mangaId = Random.nextLong(),
+                    title = "Test Title",
+                    chapterNumber = Random.nextDouble(),
+                    readAt = Date.from(Instant.now()),
+                    readDuration = Random.nextLong(),
+                    coverData = MangaCover(
                         mangaId = Random.nextLong(),
-                        title = "Test Title",
-                        chapterNumber = Random.nextDouble(),
-                        readAt = Date.from(Instant.now()),
-                        readDuration = Random.nextLong(),
-                        coverData = MangaCover(
-                            mangaId = Random.nextLong(),
-                            sourceId = Random.nextLong(),
-                            isMangaFavorite = Random.nextBoolean(),
-                            url = "https://example.com/cover.png",
-                            lastModified = Random.nextLong(),
-                        ),
+                        sourceId = Random.nextLong(),
+                        isMangaFavorite = Random.nextBoolean(),
+                        url = "https://example.com/cover.png",
+                        lastModified = Random.nextLong(),
                     ),
                 ),
-            )
+            ).let {
+                HistoryUiModel.Item(
+                    item = it,
+                    visibleMangaId = it.mangaId,
+                    visibleTitle = it.title,
+                    visibleCoverData = it.coverData,
+                )
+            }
     }
 }

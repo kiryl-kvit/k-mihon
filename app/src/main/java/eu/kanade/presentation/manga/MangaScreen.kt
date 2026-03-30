@@ -66,6 +66,7 @@ import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.chapter.service.missingChaptersCount
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.model.Manga
+import tachiyomi.domain.manga.model.presentationTitle
 import tachiyomi.domain.source.model.StubSource
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.TwoPanelBox
@@ -109,6 +110,8 @@ fun MangaScreen(
     onDownloadActionClicked: ((DownloadAction) -> Unit)?,
     onEditCategoryClicked: (() -> Unit)?,
     onEditFetchIntervalClicked: (() -> Unit)?,
+    onEditDisplayNameClicked: (() -> Unit)?,
+    onManageMergeClicked: (() -> Unit)?,
     onMigrateClicked: (() -> Unit)?,
     onEditNotesClicked: () -> Unit,
 
@@ -158,6 +161,8 @@ fun MangaScreen(
             onDownloadActionClicked = onDownloadActionClicked,
             onEditCategoryClicked = onEditCategoryClicked,
             onEditIntervalClicked = onEditFetchIntervalClicked,
+            onEditDisplayNameClicked = onEditDisplayNameClicked,
+            onManageMergeClicked = onManageMergeClicked,
             onMigrateClicked = onMigrateClicked,
             onEditNotesClicked = onEditNotesClicked,
             onMultiBookmarkClicked = onMultiBookmarkClicked,
@@ -194,6 +199,8 @@ fun MangaScreen(
             onDownloadActionClicked = onDownloadActionClicked,
             onEditCategoryClicked = onEditCategoryClicked,
             onEditIntervalClicked = onEditFetchIntervalClicked,
+            onEditDisplayNameClicked = onEditDisplayNameClicked,
+            onManageMergeClicked = onManageMergeClicked,
             onMigrateClicked = onMigrateClicked,
             onEditNotesClicked = onEditNotesClicked,
             onMultiBookmarkClicked = onMultiBookmarkClicked,
@@ -240,6 +247,8 @@ private fun MangaScreenSmallImpl(
     onDownloadActionClicked: ((DownloadAction) -> Unit)?,
     onEditCategoryClicked: (() -> Unit)?,
     onEditIntervalClicked: (() -> Unit)?,
+    onEditDisplayNameClicked: (() -> Unit)?,
+    onManageMergeClicked: (() -> Unit)?,
     onMigrateClicked: (() -> Unit)?,
     onEditNotesClicked: () -> Unit,
 
@@ -291,13 +300,15 @@ private fun MangaScreenSmallImpl(
                 label = "Top Bar Background",
             )
             MangaToolbar(
-                title = state.manga.title,
+                title = state.manga.presentationTitle(),
                 hasFilters = state.filterActive,
                 navigateUp = navigateUp,
                 onClickFilter = onFilterClicked,
                 onClickShare = onShareClicked,
                 onClickDownload = onDownloadActionClicked,
                 onClickEditCategory = onEditCategoryClicked,
+                onClickEditDisplayName = onEditDisplayNameClicked,
+                onClickManageMerge = onManageMergeClicked,
                 onClickRefresh = onRefresh,
                 onClickMigrate = onMigrateClicked,
                 onClickEditNotes = onEditNotesClicked,
@@ -378,8 +389,9 @@ private fun MangaScreenSmallImpl(
                             isTabletUi = false,
                             appBarPadding = topPadding,
                             manga = state.manga,
-                            sourceName = remember { state.source.getNameForMangaInfo() },
+                            sourceName = state.sourceName,
                             isStubSource = remember { state.source is StubSource },
+                            mergedMemberTitles = state.mergedMemberTitles,
                             onCoverClick = onCoverClicked,
                             doSearch = onSearch,
                         )
@@ -435,6 +447,8 @@ private fun MangaScreenSmallImpl(
 
                     sharedChapterItems(
                         manga = state.manga,
+                        mergedMemberIds = state.memberIds,
+                        memberTitleById = state.memberTitleById,
                         chapters = listItem,
                         isAnyChapterSelected = chapters.fastAny { it.selected },
                         chapterSwipeStartAction = chapterSwipeStartAction,
@@ -482,6 +496,8 @@ fun MangaScreenLargeImpl(
     onDownloadActionClicked: ((DownloadAction) -> Unit)?,
     onEditCategoryClicked: (() -> Unit)?,
     onEditIntervalClicked: (() -> Unit)?,
+    onEditDisplayNameClicked: (() -> Unit)?,
+    onManageMergeClicked: (() -> Unit)?,
     onMigrateClicked: (() -> Unit)?,
     onEditNotesClicked: () -> Unit,
 
@@ -526,13 +542,15 @@ fun MangaScreenLargeImpl(
             }
             MangaToolbar(
                 modifier = Modifier.onSizeChanged { topBarHeight = it.height },
-                title = state.manga.title,
+                title = state.manga.presentationTitle(),
                 hasFilters = state.filterActive,
                 navigateUp = navigateUp,
                 onClickFilter = onFilterButtonClicked,
                 onClickShare = onShareClicked,
                 onClickDownload = onDownloadActionClicked,
                 onClickEditCategory = onEditCategoryClicked,
+                onClickEditDisplayName = onEditDisplayNameClicked,
+                onClickManageMerge = onManageMergeClicked,
                 onClickRefresh = onRefresh,
                 onClickMigrate = onMigrateClicked,
                 onClickEditNotes = onEditNotesClicked,
@@ -614,8 +632,9 @@ fun MangaScreenLargeImpl(
                             isTabletUi = true,
                             appBarPadding = contentPadding.calculateTopPadding(),
                             manga = state.manga,
-                            sourceName = remember { state.source.getNameForMangaInfo() },
+                            sourceName = state.sourceName,
                             isStubSource = remember { state.source is StubSource },
+                            mergedMemberTitles = state.mergedMemberTitles,
                             onCoverClick = onCoverClicked,
                             doSearch = onSearch,
                         )
@@ -670,10 +689,12 @@ fun MangaScreenLargeImpl(
                                 )
                             }
 
-                            sharedChapterItems(
-                                manga = state.manga,
-                                chapters = listItem,
-                                isAnyChapterSelected = chapters.fastAny { it.selected },
+                    sharedChapterItems(
+                        manga = state.manga,
+                        mergedMemberIds = state.memberIds,
+                        memberTitleById = state.memberTitleById,
+                        chapters = listItem,
+                        isAnyChapterSelected = chapters.fastAny { it.selected },
                                 chapterSwipeStartAction = chapterSwipeStartAction,
                                 chapterSwipeEndAction = chapterSwipeEndAction,
                                 onChapterClicked = onChapterClicked,
@@ -733,6 +754,8 @@ private fun SharedMangaBottomActionMenu(
 
 private fun LazyListScope.sharedChapterItems(
     manga: Manga,
+    mergedMemberIds: List<Long>,
+    memberTitleById: Map<Long, String>,
     chapters: List<ChapterList>,
     isAnyChapterSelected: Boolean,
     chapterSwipeStartAction: LibraryPreferences.ChapterSwipeAction,
@@ -777,7 +800,18 @@ private fun LazyListScope.sharedChapterItems(
                                 it + 1,
                             )
                         },
-                    scanlator = item.chapter.scanlator.takeIf { !it.isNullOrBlank() },
+                    scanlator = item.chapter.scanlator.takeIf { !it.isNullOrBlank() }
+                        ?.let { scanlator ->
+                            val originTitle = memberTitleById[item.chapter.mangaId]
+                                ?.takeIf { mergedMemberIds.size > 1 && it.isNotBlank() && it != manga.presentationTitle() }
+                            if (originTitle != null) {
+                                "$originTitle · $scanlator"
+                            } else {
+                                scanlator
+                            }
+                        }
+                        ?: memberTitleById[item.chapter.mangaId]
+                            ?.takeIf { mergedMemberIds.size > 1 && it.isNotBlank() && it != manga.presentationTitle() },
                     read = item.chapter.read,
                     bookmark = item.chapter.bookmark,
                     selected = item.selected,

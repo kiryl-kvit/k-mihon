@@ -12,6 +12,7 @@ import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.manga.model.Manga
+import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.source.model.StubSource
 import tachiyomi.i18n.MR
 import tachiyomi.source.local.LocalSource
@@ -25,7 +26,7 @@ class ChapterLoader(
     private val downloadManager: DownloadManager,
     private val downloadProvider: DownloadProvider,
     private val manga: Manga,
-    private val source: Source,
+    private val sourceManager: SourceManager,
 ) {
 
     /**
@@ -77,31 +78,33 @@ class ChapterLoader(
      */
     private fun getPageLoader(chapter: ReaderChapter): PageLoader {
         val dbChapter = chapter.chapter
+        val chapterManga = chapter.manga ?: manga
+        val chapterSource = chapter.source ?: sourceManager.getOrStub(chapterManga.source)
         val isDownloaded = downloadManager.isChapterDownloaded(
             dbChapter.name,
             dbChapter.scanlator,
             dbChapter.url,
-            manga.title,
-            manga.source,
+            chapterManga.title,
+            chapterManga.source,
             skipCache = true,
         )
         return when {
             isDownloaded -> DownloadPageLoader(
                 chapter,
-                manga,
-                source,
+                chapterManga,
+                chapterSource,
                 downloadManager,
                 downloadProvider,
             )
-            source is LocalSource -> source.getFormat(chapter.chapter).let { format ->
+            chapterSource is LocalSource -> chapterSource.getFormat(chapter.chapter).let { format ->
                 when (format) {
                     is Format.Directory -> DirectoryPageLoader(format.file)
                     is Format.Archive -> ArchivePageLoader(format.file.archiveReader(context))
                     is Format.Epub -> EpubPageLoader(format.file.epubReader(context))
                 }
             }
-            source is HttpSource -> HttpPageLoader(chapter, source)
-            source is StubSource -> error(context.stringResource(MR.strings.source_not_installed, source.toString()))
+            chapterSource is HttpSource -> HttpPageLoader(chapter, chapterSource)
+            chapterSource is StubSource -> error(context.stringResource(MR.strings.source_not_installed, chapterSource.toString()))
             else -> error(context.stringResource(MR.strings.loader_not_implemented_error))
         }
     }

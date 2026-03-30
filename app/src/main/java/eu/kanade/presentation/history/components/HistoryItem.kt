@@ -28,6 +28,7 @@ import eu.kanade.presentation.theme.TachiyomiPreviewTheme
 import eu.kanade.presentation.util.formatChapterNumber
 import eu.kanade.tachiyomi.util.lang.toTimestampString
 import tachiyomi.domain.history.model.HistoryWithRelations
+import tachiyomi.domain.manga.model.MangaCover as MangaCoverData
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
@@ -37,6 +38,8 @@ private val HistoryItemHeight = 96.dp
 @Composable
 fun HistoryItem(
     history: HistoryWithRelations,
+    title: String,
+    coverData: MangaCoverData,
     onClickCover: () -> Unit,
     onClickResume: () -> Unit,
     onClickDelete: () -> Unit,
@@ -52,7 +55,7 @@ fun HistoryItem(
     ) {
         MangaCover.Book(
             modifier = Modifier.fillMaxHeight(),
-            data = history.coverData,
+            data = coverData,
             onClick = onClickCover,
         )
         Column(
@@ -62,7 +65,7 @@ fun HistoryItem(
         ) {
             val textStyle = MaterialTheme.typography.bodyMedium
             Text(
-                text = history.title,
+                text = title,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -84,7 +87,7 @@ fun HistoryItem(
             )
         }
 
-        if (!history.coverData.isMangaFavorite) {
+        if (!coverData.isMangaFavorite) {
             IconButton(onClick = onClickFavorite) {
                 Icon(
                     imageVector = Icons.Outlined.FavoriteBorder,
@@ -114,6 +117,8 @@ private fun HistoryItemPreviews(
         Surface {
             HistoryItem(
                 history = historyWithRelations,
+                title = historyWithRelations.title,
+                coverData = historyWithRelations.coverData,
                 onClickCover = {},
                 onClickResume = {},
                 onClickDelete = {},

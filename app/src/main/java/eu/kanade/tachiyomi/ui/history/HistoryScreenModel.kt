@@ -39,8 +39,11 @@ import tachiyomi.domain.history.model.HistoryWithRelations
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.interactor.GetDuplicateLibraryManga
 import tachiyomi.domain.manga.interactor.GetManga
+import tachiyomi.domain.manga.interactor.GetMergedManga
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.MangaWithChapterCount
+import tachiyomi.domain.manga.model.asMangaCover
+import tachiyomi.domain.manga.model.presentationTitle
 import tachiyomi.domain.source.service.SourceManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -51,6 +54,7 @@ class HistoryScreenModel(
     private val getDuplicateLibraryManga: GetDuplicateLibraryManga = Injekt.get(),
     private val getHistory: GetHistory = Injekt.get(),
     private val getManga: GetManga = Injekt.get(),
+    private val getMergedManga: GetMergedManga = Injekt.get(),
     private val getNextChapters: GetNextChapters = Injekt.get(),
     private val libraryPreferences: LibraryPreferences = Injekt.get(),
     private val removeHistory: RemoveHistory = Injekt.get(),
@@ -74,15 +78,31 @@ class HistoryScreenModel(
                             logcat(LogPriority.ERROR, error)
                             _events.send(Event.InternalError)
                         }
-                        .map { it.toHistoryUiModels() }
+                        .map { history -> history.toHistoryUiModels() }
                         .flowOn(Dispatchers.IO)
                 }
                 .collect { newList -> mutableState.update { it.copy(list = newList) } }
         }
     }
 
-    private fun List<HistoryWithRelations>.toHistoryUiModels(): List<HistoryUiModel> {
-        return map { HistoryUiModel.Item(it) }
+    private suspend fun List<HistoryWithRelations>.toHistoryUiModels(): List<HistoryUiModel> {
+        val visibleTargetCache = mutableMapOf<Long, Long>()
+        val visibleMangaCache = mutableMapOf<Long, Manga?>()
+
+        return map { history ->
+            val visibleMangaId = visibleTargetCache.getOrPut(history.mangaId) {
+                getMergedManga.awaitVisibleTargetId(history.mangaId)
+            }
+            val visibleManga = visibleMangaCache.getOrPut(visibleMangaId) {
+                getManga.await(visibleMangaId)
+            }
+            HistoryUiModel.Item(
+                item = history,
+                visibleMangaId = visibleMangaId,
+                visibleTitle = visibleManga?.presentationTitle() ?: history.title,
+                visibleCoverData = visibleManga?.asMangaCover() ?: history.coverData,
+            )
+        }
             .insertSeparators { before, after ->
                 val beforeDate = before?.item?.readAt?.time?.toLocalDate()
                 val afterDate = after?.item?.readAt?.time?.toLocalDate()
@@ -235,6 +255,10 @@ class HistoryScreenModel(
                 )
             }
         }
+    }
+
+    suspend fun getVisibleMangaId(mangaId: Long): Long {
+        return getMergedManga.awaitVisibleTargetId(mangaId)
     }
 
     @Immutable

@@ -9,6 +9,7 @@ import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarTitle
 import eu.kanade.presentation.manga.components.MangaNotesTextArea
 import eu.kanade.tachiyomi.ui.manga.notes.MangaNotesScreen
+import tachiyomi.domain.manga.model.presentationTitle
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.stringResource
@@ -25,7 +26,7 @@ fun MangaNotesScreen(
                 titleContent = {
                     AppBarTitle(
                         title = stringResource(MR.strings.action_edit_notes),
-                        subtitle = state.manga.title,
+                        subtitle = state.manga.presentationTitle(),
                     )
                 },
                 navigateUp = navigateUp,

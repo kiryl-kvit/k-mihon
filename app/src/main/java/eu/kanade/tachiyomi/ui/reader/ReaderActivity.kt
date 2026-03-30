@@ -98,6 +98,7 @@ import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.lang.launchNonCancellable
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
+import tachiyomi.domain.manga.model.presentationTitle
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
@@ -461,7 +462,7 @@ class ReaderActivity : BaseActivity() {
         ReaderAppBars(
             visible = state.menuVisible,
 
-            mangaTitle = state.manga?.title,
+            mangaTitle = state.manga?.presentationTitle(),
             chapterTitle = state.currentChapter?.chapter?.name,
             navigateUp = onBackPressedDispatcher::onBackPressed,
             onClickTopAppBar = ::openMangaScreen,
@@ -564,7 +565,7 @@ class ReaderActivity : BaseActivity() {
         val manga = viewModel.manga ?: return
         val source = viewModel.getSource() ?: return
         assistUrl?.let {
-            val intent = WebViewActivity.newIntent(this@ReaderActivity, it, source.id, manga.title)
+            val intent = WebViewActivity.newIntent(this@ReaderActivity, it, source.id, manga.presentationTitle())
             startActivity(intent)
         }
     }
@@ -725,7 +726,7 @@ class ReaderActivity : BaseActivity() {
 
         val intent = uri.toShareIntent(
             context = applicationContext,
-            message = stringResource(MR.strings.share_page_info, manga.title, chapter.name, page.number),
+            message = stringResource(MR.strings.share_page_info, manga.presentationTitle(), chapter.name, page.number),
         )
         startActivity(intent)
     }

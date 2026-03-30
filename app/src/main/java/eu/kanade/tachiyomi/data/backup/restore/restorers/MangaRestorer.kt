@@ -14,6 +14,7 @@ import tachiyomi.domain.chapter.interactor.GetChaptersByMangaId
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.manga.interactor.FetchInterval
 import tachiyomi.domain.manga.interactor.GetMangaByUrlAndSourceId
+import tachiyomi.domain.manga.interactor.UpdateMergedManga
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.track.interactor.GetTracks
 import tachiyomi.domain.track.interactor.InsertTrack
@@ -31,6 +32,7 @@ class MangaRestorer(
     private val getMangaByUrlAndSourceId: GetMangaByUrlAndSourceId = Injekt.get(),
     private val getChaptersByMangaId: GetChaptersByMangaId = Injekt.get(),
     private val updateManga: UpdateManga = Injekt.get(),
+    private val updateMergedManga: UpdateMergedManga = Injekt.get(),
     private val getTracks: GetTracks = Injekt.get(),
     private val insertTrack: InsertTrack = Injekt.get(),
     fetchInterval: FetchInterval = Injekt.get(),
@@ -38,6 +40,7 @@ class MangaRestorer(
 
     private var now = ZonedDateTime.now()
     private var currentFetchWindow = fetchInterval.getWindow(now)
+    private val pendingMerges = linkedMapOf<Pair<Long, String>, PendingMergeGroup>()
 
     init {
         now = ZonedDateTime.now()
@@ -77,7 +80,33 @@ class MangaRestorer(
                 tracks = backupManga.tracking,
                 excludedScanlators = backupManga.excludedScanlators,
             )
+
+            enqueueMerge(restoredManga, backupManga)
         }
+    }
+
+    suspend fun restorePendingMerges() {
+        pendingMerges.values.forEach { merge ->
+            val targetManga = getMangaByUrlAndSourceId.await(merge.targetUrl, merge.targetSource) ?: return@forEach
+            val orderedIds = merge.members
+                .let { members ->
+                    if (members.any { it.source == merge.targetSource && it.url == merge.targetUrl }) {
+                        members
+                    } else {
+                        members + PendingMergeMember(source = merge.targetSource, url = merge.targetUrl, position = Int.MIN_VALUE)
+                    }
+                }
+                .sortedBy { it.position }
+                .mapNotNull { member ->
+                    getMangaByUrlAndSourceId.await(member.url, member.source)?.id
+                }
+                .distinct()
+
+            if (targetManga.id in orderedIds && orderedIds.size > 1) {
+                updateMergedManga.awaitMerge(targetManga.id, orderedIds)
+            }
+        }
+        pendingMerges.clear()
     }
 
     private suspend fun findExistingManga(backupManga: BackupManga): Manga? {
@@ -116,6 +145,7 @@ class MangaRestorer(
                 description = manga.description,
                 genre = manga.genre?.joinToString(separator = ", "),
                 title = manga.title,
+                displayName = manga.displayName,
                 status = manga.status,
                 thumbnailUrl = manga.thumbnailUrl,
                 favorite = manga.favorite,
@@ -253,6 +283,7 @@ class MangaRestorer(
                 description = manga.description,
                 genre = manga.genre,
                 title = manga.title,
+                displayName = manga.displayName,
                 status = manga.status,
                 thumbnailUrl = manga.thumbnailUrl,
                 favorite = manga.favorite,
@@ -452,4 +483,37 @@ class MangaRestorer(
             }
         }
     }
+
+    private fun enqueueMerge(manga: Manga, backupManga: BackupManga) {
+        val targetSource = backupManga.mergeTargetSource ?: return
+        val targetUrl = backupManga.mergeTargetUrl ?: return
+        val position = backupManga.mergePosition ?: return
+
+        val key = targetSource to targetUrl
+        val group = pendingMerges.getOrPut(key) {
+            PendingMergeGroup(
+                targetSource = targetSource,
+                targetUrl = targetUrl,
+                members = mutableListOf(),
+            )
+        }
+        group.members.removeAll { it.source == manga.source && it.url == manga.url }
+        group.members.add(PendingMergeMember(source = manga.source, url = manga.url, position = position))
+        if (targetSource == manga.source && targetUrl == manga.url) {
+            group.members.removeAll { it.source == targetSource && it.url == targetUrl }
+            group.members.add(PendingMergeMember(source = targetSource, url = targetUrl, position = position))
+        }
+    }
+
+    private data class PendingMergeGroup(
+        val targetSource: Long,
+        val targetUrl: String,
+        val members: MutableList<PendingMergeMember>,
+    )
+
+    private data class PendingMergeMember(
+        val source: Long,
+        val url: String,
+        val position: Int,
+    )
 }

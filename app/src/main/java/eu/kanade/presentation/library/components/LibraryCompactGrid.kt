@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import eu.kanade.tachiyomi.ui.library.LibraryItem
 import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.domain.manga.model.MangaCover
+import tachiyomi.domain.manga.model.presentationTitle
 
 @Composable
 internal fun LibraryCompactGrid(
@@ -36,7 +37,7 @@ internal fun LibraryCompactGrid(
             val manga = libraryItem.libraryManga.manga
             MangaCompactGridItem(
                 isSelected = manga.id in selection,
-                title = manga.title.takeIf { showTitle },
+                title = manga.presentationTitle().takeIf { showTitle },
                 coverData = MangaCover(
                     mangaId = manga.id,
                     sourceId = manga.source,

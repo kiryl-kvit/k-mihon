@@ -85,7 +85,7 @@ internal fun LazyListScope.updatesUiItems(
         key = {
             when (it) {
                 is UpdatesUiModel.Header -> "updatesHeader-${it.hashCode()}"
-                is UpdatesUiModel.Item -> "updates-${it.item.update.mangaId}-${it.item.update.chapterId}"
+                is UpdatesUiModel.Item -> "updates-${it.item.visibleMangaId}-${it.item.update.chapterId}"
             }
         },
     ) { item ->
@@ -101,6 +101,8 @@ internal fun LazyListScope.updatesUiItems(
                 UpdatesUiItem(
                     modifier = Modifier.animateItemFastScroll(),
                     update = updatesItem.update,
+                    mangaTitle = updatesItem.visibleMangaTitle,
+                    coverData = updatesItem.visibleCoverData,
                     selected = updatesItem.selected,
                     readProgress = updatesItem.update.lastPageRead
                         .takeIf { !updatesItem.update.read && it > 0L }
@@ -134,6 +136,8 @@ internal fun LazyListScope.updatesUiItems(
 @Composable
 private fun UpdatesUiItem(
     update: UpdatesWithRelations,
+    mangaTitle: String,
+    coverData: tachiyomi.domain.manga.model.MangaCover,
     selected: Boolean,
     readProgress: String?,
     onClick: () -> Unit,
@@ -166,7 +170,7 @@ private fun UpdatesUiItem(
             modifier = Modifier
                 .padding(vertical = 6.dp)
                 .fillMaxHeight(),
-            data = update.coverData,
+            data = coverData,
             onClick = onClickCover,
         )
 
@@ -176,7 +180,7 @@ private fun UpdatesUiItem(
                 .weight(1f),
         ) {
             Text(
-                text = update.mangaTitle,
+                text = mangaTitle,
                 maxLines = 1,
                 style = MaterialTheme.typography.bodyMedium,
                 color = LocalContentColor.current.copy(alpha = textAlpha),

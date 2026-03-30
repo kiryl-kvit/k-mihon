@@ -10,6 +10,7 @@ import androidx.compose.ui.unit.dp
 import eu.kanade.tachiyomi.ui.library.LibraryItem
 import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.domain.manga.model.MangaCover
+import tachiyomi.domain.manga.model.presentationTitle
 import tachiyomi.presentation.core.components.FastScrollLazyColumn
 import tachiyomi.presentation.core.util.plus
 
@@ -45,7 +46,7 @@ internal fun LibraryList(
             val manga = libraryItem.libraryManga.manga
             MangaListItem(
                 isSelected = manga.id in selection,
-                title = manga.title,
+                title = manga.presentationTitle(),
                 coverData = MangaCover(
                     mangaId = manga.id,
                     sourceId = manga.source,

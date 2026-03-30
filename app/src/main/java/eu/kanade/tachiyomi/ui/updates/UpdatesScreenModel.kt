@@ -46,7 +46,10 @@ import tachiyomi.domain.chapter.interactor.UpdateChapter
 import tachiyomi.domain.chapter.model.ChapterUpdate
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.interactor.GetManga
+import tachiyomi.domain.manga.interactor.GetMergedManga
+import tachiyomi.domain.manga.model.asMangaCover
 import tachiyomi.domain.manga.model.applyFilter
+import tachiyomi.domain.manga.model.presentationTitle
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.updates.interactor.GetUpdates
 import tachiyomi.domain.updates.model.UpdatesWithRelations
@@ -63,6 +66,7 @@ class UpdatesScreenModel(
     private val setReadStatus: SetReadStatus = Injekt.get(),
     private val getUpdates: GetUpdates = Injekt.get(),
     private val getManga: GetManga = Injekt.get(),
+    private val getMergedManga: GetMergedManga = Injekt.get(),
     private val getChapter: GetChapter = Injekt.get(),
     private val libraryPreferences: LibraryPreferences = Injekt.get(),
     private val updatesPreferences: UpdatesPreferences = Injekt.get(),
@@ -103,12 +107,13 @@ class UpdatesScreenModel(
                     old.filterDownloaded == new.filterDownloaded
                 },
             ) { updates, _, _, itemPreferences ->
-                updates
-                    .toUpdateItems()
-                    .applyFilters(itemPreferences)
-                    .toPersistentList()
+                Triple(updates, itemPreferences, Unit)
             }
-                .collectLatest { updateItems ->
+                .collectLatest { (updates, itemPreferences, _) ->
+                    val updateItems = updates
+                        .toUpdateItems()
+                        .applyFilters(itemPreferences)
+                        .toPersistentList()
                     mutableState.update {
                         it.copy(
                             isLoading = false,
@@ -159,9 +164,17 @@ class UpdatesScreenModel(
         }
     }
 
-    private fun List<UpdatesWithRelations>.toUpdateItems(): List<UpdatesItem> {
-        return this
-            .map { update ->
+    private suspend fun List<UpdatesWithRelations>.toUpdateItems(): List<UpdatesItem> {
+        val visibleTargetCache = mutableMapOf<Long, Long>()
+        val visibleMangaCache = mutableMapOf<Long, tachiyomi.domain.manga.model.Manga?>()
+
+        return map { update ->
+                val visibleMangaId = visibleTargetCache.getOrPut(update.mangaId) {
+                    getMergedManga.awaitVisibleTargetId(update.mangaId)
+                }
+                val visibleManga = visibleMangaCache.getOrPut(visibleMangaId) {
+                    getManga.await(visibleMangaId)
+                }
                 val activeDownload = downloadManager.getQueuedDownloadOrNull(update.chapterId)
                 val downloaded = downloadManager.isChapterDownloaded(
                     update.chapterName,
@@ -177,6 +190,9 @@ class UpdatesScreenModel(
                 }
                 UpdatesItem(
                     update = update,
+                    visibleMangaId = visibleMangaId,
+                    visibleMangaTitle = visibleManga?.presentationTitle() ?: update.mangaTitle,
+                    visibleCoverData = visibleManga?.asMangaCover() ?: update.coverData,
                     downloadStateProvider = { downloadState },
                     downloadProgressProvider = { activeDownload?.progress ?: 0 },
                     selected = update.chapterId in selectedChapterIds,
@@ -440,6 +456,10 @@ class UpdatesScreenModel(
         mutableState.update { it.copy(dialog = Dialog.FilterSheet) }
     }
 
+    suspend fun getVisibleMangaId(mangaId: Long): Long {
+        return getMergedManga.awaitVisibleTargetId(mangaId)
+    }
+
     @Immutable
     private data class ItemPreferences(
         val filterDownloaded: TriState,
@@ -496,6 +516,9 @@ private fun TriState.toBooleanOrNull(): Boolean? {
 @Immutable
 data class UpdatesItem(
     val update: UpdatesWithRelations,
+    val visibleMangaId: Long,
+    val visibleMangaTitle: String,
+    val visibleCoverData: tachiyomi.domain.manga.model.MangaCover,
     val downloadStateProvider: () -> Download.State,
     val downloadProgressProvider: () -> Int,
     val selected: Boolean = false,

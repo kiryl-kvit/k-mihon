@@ -13,6 +13,7 @@ CREATE TABLE mangas(
     description TEXT,
     genre TEXT AS List<String>,
     title TEXT NOT NULL,
+    display_name TEXT,
     status INTEGER NOT NULL,
     thumbnail_url TEXT,
     favorite INTEGER AS Boolean NOT NULL,
@@ -227,8 +228,8 @@ WHERE profile_id = :profileId
 AND favorite = 1;
 
 insert:
-INSERT INTO mangas(profile_id, source, url, artist, author, description, genre, title, status, thumbnail_url, favorite, last_update, next_update, initialized, viewer, chapter_flags, cover_last_modified, date_added, update_strategy, calculate_interval, last_modified_at, version, notes)
-VALUES (:profileId, :source, :url, :artist, :author, :description, :genre, :title, :status, :thumbnailUrl, :favorite, :lastUpdate, :nextUpdate, :initialized, :viewerFlags, :chapterFlags, :coverLastModified, :dateAdded, :updateStrategy, :calculateInterval, 0, :version, :notes);
+INSERT INTO mangas(profile_id, source, url, artist, author, description, genre, title, display_name, status, thumbnail_url, favorite, last_update, next_update, initialized, viewer, chapter_flags, cover_last_modified, date_added, update_strategy, calculate_interval, last_modified_at, version, notes)
+VALUES (:profileId, :source, :url, :artist, :author, :description, :genre, :title, :displayName, :status, :thumbnailUrl, :favorite, :lastUpdate, :nextUpdate, :initialized, :viewerFlags, :chapterFlags, :coverLastModified, :dateAdded, :updateStrategy, :calculateInterval, 0, :version, :notes);
 
 update:
 UPDATE mangas SET
@@ -239,6 +240,7 @@ UPDATE mangas SET
     description = coalesce(:description, description),
     genre = coalesce(:genre, genre),
     title = coalesce(:title, title),
+    display_name = coalesce(:displayName, display_name),
     status = coalesce(:status, status),
     thumbnail_url = coalesce(:thumbnailUrl, thumbnail_url),
     favorite = coalesce(:favorite, favorite),
@@ -262,12 +264,12 @@ SELECT last_insert_rowid();
 
 insertNetworkManga {
     INSERT INTO mangas(
-        profile_id, source, url, artist, author, description, genre, title, status, thumbnail_url, favorite,
+        profile_id, source, url, artist, author, description, genre, title, display_name, status, thumbnail_url, favorite,
         last_update, next_update, initialized, viewer, chapter_flags, cover_last_modified, date_added,
         update_strategy, calculate_interval, last_modified_at, version
     )
     SELECT
-        :profileId, :source, :url, :artist, :author, :description, :genre, :title, :status, :thumbnailUrl, :favorite,
+        :profileId, :source, :url, :artist, :author, :description, :genre, :title, NULL, :status, :thumbnailUrl, :favorite,
         :lastUpdate, :nextUpdate, :initialized, :viewerFlags, :chapterFlags, :coverLastModified, :dateAdded,
         :updateStrategy, :calculateInterval, 0, :version
     WHERE NOT EXISTS(

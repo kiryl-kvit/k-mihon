@@ -22,6 +22,7 @@ import eu.kanade.presentation.util.animateItemFastScroll
 import eu.kanade.tachiyomi.ui.history.HistoryScreenModel
 import kotlinx.collections.immutable.persistentListOf
 import tachiyomi.domain.history.model.HistoryWithRelations
+import tachiyomi.domain.manga.model.MangaCover
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.FastScrollLazyColumn
 import tachiyomi.presentation.core.components.ListGroupHeader
@@ -82,10 +83,10 @@ fun HistoryScreen(
                 HistoryScreenContent(
                     history = it,
                     contentPadding = contentPadding,
-                    onClickCover = { history -> onClickCover(history.mangaId) },
-                    onClickResume = { history -> onClickResume(history.mangaId, history.chapterId) },
+                    onClickCover = { history -> onClickCover(history.visibleMangaId) },
+                    onClickResume = { history -> onClickResume(history.item.mangaId, history.item.chapterId) },
                     onClickDelete = { item -> onDialogChange(HistoryScreenModel.Dialog.Delete(item)) },
-                    onClickFavorite = { history -> onClickFavorite(history.mangaId) },
+                    onClickFavorite = { history -> onClickFavorite(history.item.mangaId) },
                 )
             }
         }
@@ -96,10 +97,10 @@ fun HistoryScreen(
 private fun HistoryScreenContent(
     history: List<HistoryUiModel>,
     contentPadding: PaddingValues,
-    onClickCover: (HistoryWithRelations) -> Unit,
-    onClickResume: (HistoryWithRelations) -> Unit,
+    onClickCover: (HistoryUiModel.Item) -> Unit,
+    onClickResume: (HistoryUiModel.Item) -> Unit,
     onClickDelete: (HistoryWithRelations) -> Unit,
-    onClickFavorite: (HistoryWithRelations) -> Unit,
+    onClickFavorite: (HistoryUiModel.Item) -> Unit,
 ) {
     FastScrollLazyColumn(
         contentPadding = contentPadding,
@@ -126,10 +127,12 @@ private fun HistoryScreenContent(
                     HistoryItem(
                         modifier = Modifier.animateItemFastScroll(),
                         history = value,
-                        onClickCover = { onClickCover(value) },
-                        onClickResume = { onClickResume(value) },
+                        title = item.visibleTitle,
+                        coverData = item.visibleCoverData,
+                        onClickCover = { onClickCover(item) },
+                        onClickResume = { onClickResume(item) },
                         onClickDelete = { onClickDelete(value) },
-                        onClickFavorite = { onClickFavorite(value) },
+                        onClickFavorite = { onClickFavorite(item) },
                     )
                 }
             }
@@ -139,7 +142,12 @@ private fun HistoryScreenContent(
 
 sealed interface HistoryUiModel {
     data class Header(val date: LocalDate) : HistoryUiModel
-    data class Item(val item: HistoryWithRelations) : HistoryUiModel
+    data class Item(
+        val item: HistoryWithRelations,
+        val visibleMangaId: Long,
+        val visibleTitle: String,
+        val visibleCoverData: MangaCover,
+    ) : HistoryUiModel
 }
 
 @PreviewLightDark
