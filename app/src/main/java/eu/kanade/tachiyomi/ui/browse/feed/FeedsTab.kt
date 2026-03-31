@@ -71,6 +71,7 @@ import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.components.material.topSmallPaddingValues
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.screens.EmptyScreen
+import tachiyomi.presentation.core.screens.LoadingScreen
 import tachiyomi.source.local.LocalSource
 import mihon.feature.migration.dialog.MigrateMangaDialog
 import mihon.presentation.core.util.collectAsLazyPagingItems
@@ -115,6 +116,11 @@ private fun FeedsTabContent(
     contentPadding: PaddingValues,
     snackbarHostState: SnackbarHostState,
 ) {
+    if (!state.sourcesLoaded) {
+        LoadingScreen()
+        return
+    }
+
     val activeFeed = screenModel.activeFeed()
     val activeSource = activeFeed?.let { screenModel.sourceFor(it.sourceId) }
     val activePreset = activeFeed?.let(screenModel::presetFor)

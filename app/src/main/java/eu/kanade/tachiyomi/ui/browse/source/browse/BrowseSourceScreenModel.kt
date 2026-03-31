@@ -19,6 +19,7 @@ import eu.kanade.domain.source.model.SourceFeedPreset
 import eu.kanade.domain.source.model.BUILTIN_LATEST_PRESET_ID
 import eu.kanade.domain.source.model.BUILTIN_POPULAR_PRESET_ID
 import eu.kanade.domain.source.model.applySnapshot
+import eu.kanade.domain.source.model.FilterStateNode
 import eu.kanade.domain.source.model.latestFeedPreset
 import eu.kanade.domain.source.model.popularFeedPreset
 import eu.kanade.domain.source.model.snapshot
@@ -384,18 +385,16 @@ class BrowseSourceScreenModel(
         val trimmed = name.trim()
         if (trimmed.isBlank()) return
 
+        val presetState = state.value.toSavedPresetState(defaultFilters = source.getFilterList())
+
         browseFeedService.savePreset(
             SourceFeedPreset(
                 id = UUID.randomUUID().toString(),
                 sourceId = sourceId,
                 name = trimmed,
-                listingMode = when (state.value.listing) {
-                    Listing.Popular -> FeedListingMode.Popular
-                    Listing.Latest -> FeedListingMode.Latest
-                    is Listing.Search -> FeedListingMode.Search
-                },
-                query = state.value.listing.query?.trim()?.takeIf { it.isNotEmpty() },
-                filters = state.value.filters.snapshot(),
+                listingMode = presetState.listingMode,
+                query = presetState.query,
+                filters = presetState.filters,
             ),
         )
         setDialog(null)
@@ -449,4 +448,30 @@ class BrowseSourceScreenModel(
     ) {
         val isUserQuery get() = listing is Listing.Search && !listing.query.isNullOrEmpty()
     }
+}
+
+internal data class SavedPresetState(
+    val listingMode: FeedListingMode,
+    val query: String?,
+    val filters: List<FilterStateNode>,
+)
+
+internal fun BrowseSourceScreenModel.State.toSavedPresetState(defaultFilters: FilterList): SavedPresetState {
+    val filterSnapshot = filters.snapshot()
+    val hasEditedFilters = filterSnapshot != defaultFilters.snapshot()
+    val listingMode = when {
+        listing is BrowseSourceScreenModel.Listing.Search || hasEditedFilters -> FeedListingMode.Search
+        listing == BrowseSourceScreenModel.Listing.Popular -> FeedListingMode.Popular
+        else -> FeedListingMode.Latest
+    }
+    val query = (listing as? BrowseSourceScreenModel.Listing.Search)
+        ?.query
+        ?.trim()
+        ?.takeIf { listingMode == FeedListingMode.Search && it.isNotEmpty() }
+
+    return SavedPresetState(
+        listingMode = listingMode,
+        query = query,
+        filters = filterSnapshot,
+    )
 }

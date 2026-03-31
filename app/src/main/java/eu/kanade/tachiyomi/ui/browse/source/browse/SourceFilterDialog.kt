@@ -53,7 +53,7 @@ fun SourceFilterDialog(
     onApplyPreset: (String) -> Unit,
     onDeletePreset: (String) -> Unit,
     canDeletePreset: (String) -> Boolean,
-    onSave: () -> Unit,
+    onSave: (() -> Unit)? = null,
     onFilter: () -> Unit,
     onUpdate: (FilterList) -> Unit,
 ) {
@@ -120,11 +120,13 @@ fun SourceFilterDialog(
                         }
                     }
 
-                    IconButton(onClick = onSave) {
-                        Icon(
-                            imageVector = Icons.Outlined.Save,
-                            contentDescription = stringResource(MR.strings.action_save),
-                        )
+                    if (onSave != null) {
+                        IconButton(onClick = onSave) {
+                            Icon(
+                                imageVector = Icons.Outlined.Save,
+                                contentDescription = stringResource(MR.strings.action_save),
+                            )
+                        }
                     }
 
                     Button(onClick = {

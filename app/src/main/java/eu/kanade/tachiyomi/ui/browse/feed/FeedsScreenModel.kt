@@ -15,9 +15,11 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.domain.source.model.Source
+import tachiyomi.domain.source.service.SourceManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.util.UUID
@@ -25,13 +27,18 @@ import java.util.UUID
 class FeedsScreenModel(
     private val browseFeedService: BrowseFeedService = Injekt.get(),
     private val getEnabledSources: GetEnabledSources = Injekt.get(),
+    private val sourceManager: SourceManager = Injekt.get(),
 ) : StateScreenModel<FeedsScreenModel.State>(State()) {
 
     init {
         screenModelScope.launchIO {
-            getEnabledSources.subscribe().collectLatest { sources ->
+            combine(
+                getEnabledSources.subscribe(),
+                sourceManager.isInitialized,
+            ) { sources, sourcesLoaded -> sources to sourcesLoaded }
+                .collectLatest { (sources, sourcesLoaded) ->
                 mutableState.update { state ->
-                    state.copy(
+                    val nextState = state.copy(
                         sources = sources
                             .groupBy { it.id }
                             .values
@@ -40,29 +47,43 @@ class FeedsScreenModel(
                             }
                             .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
                             .toImmutableList(),
+                        sourcesLoaded = sourcesLoaded,
+                    )
+
+                    nextState.copy(
+                        selectedFeedId = resolveSelectedFeedId(
+                            requestedId = nextState.selectedFeedId,
+                            state = nextState,
+                        ),
                     )
                 }
-            }
+
+                pruneInvalidFeedsIfReady()
+                }
         }
 
         screenModelScope.launchIO {
             browseFeedService.state().collectLatest { browseState ->
                 mutableState.update { state ->
-                    val selectedFeedId = resolveSelectedFeedId(
-                        requestedId = browseState.selectedFeedId,
-                        feeds = browseState.feeds,
-                    )
-                    val nextDialog = when {
-                        browseState.feeds.isEmpty() && state.dialog == Dialog.ManageFeeds -> null
-                        else -> state.dialog
-                    }
-                    state.copy(
+                    val nextState = state.copy(
                         presets = browseState.presets.toImmutableList(),
                         feeds = browseState.feeds.toImmutableList(),
-                        selectedFeedId = selectedFeedId,
+                    )
+                    val nextDialog = when {
+                        nextState.validFeeds.isEmpty() && state.dialog == Dialog.ManageFeeds -> null
+                        else -> nextState.dialog
+                    }
+
+                    nextState.copy(
+                        selectedFeedId = resolveSelectedFeedId(
+                            requestedId = browseState.selectedFeedId,
+                            state = nextState,
+                        ),
                         dialog = nextDialog,
                     )
                 }
+
+                pruneInvalidFeedsIfReady()
             }
         }
     }
@@ -73,7 +94,7 @@ class FeedsScreenModel(
 
     fun showManageDialog() {
         mutableState.update {
-            if (it.feeds.isEmpty()) {
+            if (it.validFeeds.isEmpty()) {
                 it.copy(dialog = null)
             } else {
                 it.copy(dialog = Dialog.ManageFeeds)
@@ -137,15 +158,22 @@ class FeedsScreenModel(
     }
 
     fun activeFeed(): SourceFeed? {
-        return state.value.feeds.firstOrNull { it.id == state.value.selectedFeedId && it.enabled }
+        val enabledFeeds = state.value.enabledFeeds
+        return enabledFeeds.firstOrNull { it.id == state.value.selectedFeedId }
+            ?: enabledFeeds.firstOrNull()
     }
 
     fun presetFor(feed: SourceFeed): SourceFeedPreset? {
         val source = state.value.sources.firstOrNull { it.id == feed.sourceId } ?: return null
         return when (feed.presetId) {
             BUILTIN_POPULAR_PRESET_ID -> popularFeedPreset(source.id, "Popular")
-            BUILTIN_LATEST_PRESET_ID -> latestFeedPreset(source.id, "Latest")
-            else -> state.value.presets.firstOrNull { it.id == feed.presetId }
+            BUILTIN_LATEST_PRESET_ID -> source
+                .takeIf(Source::supportsLatest)
+                ?.let { latestFeedPreset(it.id, "Latest") }
+
+            else -> state.value.presets.firstOrNull {
+                it.id == feed.presetId && it.sourceId == source.id
+            }
         }
     }
 
@@ -153,13 +181,22 @@ class FeedsScreenModel(
         return state.value.sources.firstOrNull { it.id == sourceId }
     }
 
-    private fun resolveSelectedFeedId(requestedId: String?, feeds: List<SourceFeed>): String? {
-        val enabledFeeds = feeds.filter { it.enabled }
+    private fun resolveSelectedFeedId(requestedId: String?, state: State): String? {
+        val enabledFeeds = state.enabledFeeds
         return when {
             enabledFeeds.isEmpty() -> null
             requestedId != null && enabledFeeds.any { it.id == requestedId } -> requestedId
             else -> enabledFeeds.first().id.also(browseFeedService::selectFeed)
         }
+    }
+
+    private fun pruneInvalidFeedsIfReady() {
+        val currentState = state.value
+        if (!currentState.sourcesLoaded) return
+
+        currentState.feeds
+            .filterNot(currentState::isFeedValid)
+            .forEach { browseFeedService.removeFeed(it.id) }
     }
 
     sealed interface Dialog {
@@ -173,10 +210,25 @@ class FeedsScreenModel(
         val sources: ImmutableList<Source> = persistentListOf(),
         val presets: ImmutableList<SourceFeedPreset> = persistentListOf(),
         val feeds: ImmutableList<SourceFeed> = persistentListOf(),
+        val sourcesLoaded: Boolean = false,
         val selectedFeedId: String? = null,
         val dialog: Dialog? = null,
     ) {
+        fun isFeedValid(feed: SourceFeed): Boolean {
+            if (!sourcesLoaded) return true
+
+            val source = sources.firstOrNull { it.id == feed.sourceId } ?: return false
+            return when (feed.presetId) {
+                BUILTIN_POPULAR_PRESET_ID -> true
+                BUILTIN_LATEST_PRESET_ID -> source.supportsLatest
+                else -> presets.any { it.id == feed.presetId && it.sourceId == source.id }
+            }
+        }
+
+        val validFeeds: ImmutableList<SourceFeed>
+            get() = feeds.filter(::isFeedValid).toImmutableList()
+
         val enabledFeeds: ImmutableList<SourceFeed>
-            get() = feeds.filter { it.enabled }.toImmutableList()
+            get() = validFeeds.filter { it.enabled }.toImmutableList()
     }
 }
