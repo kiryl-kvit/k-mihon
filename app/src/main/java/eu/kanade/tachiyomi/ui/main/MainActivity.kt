@@ -15,15 +15,15 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.consumeWindowInsets
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
@@ -64,7 +64,6 @@ import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.source.interactor.GetIncognitoState
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.domain.ui.model.setAppCompatDelegateThemeMode
-import eu.kanade.tachiyomi.core.security.SecurityPreferences
 import eu.kanade.presentation.components.AppStateBanners
 import eu.kanade.presentation.components.DownloadedOnlyBannerBackgroundColor
 import eu.kanade.presentation.components.IncognitoModeBannerBackgroundColor
@@ -74,6 +73,7 @@ import eu.kanade.presentation.more.settings.screen.data.RestoreBackupScreen
 import eu.kanade.presentation.util.AssistContentScreen
 import eu.kanade.presentation.util.DefaultNavigatorScreenTransition
 import eu.kanade.tachiyomi.BuildConfig
+import eu.kanade.tachiyomi.core.security.SecurityPreferences
 import eu.kanade.tachiyomi.data.cache.ChapterCache
 import eu.kanade.tachiyomi.data.download.DownloadCache
 import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
@@ -229,7 +229,9 @@ class MainActivity : BaseActivity() {
                     allowAppUnlockPrompt = false
                     startupGateState = ProfileStartupGateState.Picker
                     pendingAuthProfile = null
-                } else if (initialProfile != null && profileManager.profileRequiresUnlock(initialProfile.id) && !shouldSkipStartupProfileAuth()) {
+                } else if (initialProfile != null && profileManager.profileRequiresUnlock(initialProfile.id) &&
+                    !shouldSkipStartupProfileAuth()
+                ) {
                     allowAppUnlockPrompt = true
                     pendingAuthProfile = initialProfile
                     startupGateState = ProfileStartupGateState.Authenticating
@@ -243,7 +245,9 @@ class MainActivity : BaseActivity() {
             LaunchedEffect(startupGateState, visibleProfiles, activeProfile?.id) {
                 if (startupGateState == ProfileStartupGateState.Picker && visibleProfiles.size <= 1) {
                     val profile = activeProfile ?: visibleProfiles.firstOrNull()
-                    if (profile != null && profileManager.profileRequiresUnlock(profile.id) && !shouldSkipStartupProfileAuth()) {
+                    if (profile != null && profileManager.profileRequiresUnlock(profile.id) &&
+                        !shouldSkipStartupProfileAuth()
+                    ) {
                         allowAppUnlockPrompt = true
                         pendingAuthProfile = profile
                         startupGateState = ProfileStartupGateState.Authenticating
@@ -419,7 +423,6 @@ class MainActivity : BaseActivity() {
             elapsed <= SPLASH_MIN_DURATION || (!ready && elapsed <= SPLASH_MAX_DURATION)
         }
         setSplashScreenExitAnimation(splashScreen)
-
     }
 
     override fun onProvideAssistContent(outContent: AssistContent) {
@@ -483,7 +486,6 @@ class MainActivity : BaseActivity() {
                 }
             }
         }
-
     }
 
     @Composable

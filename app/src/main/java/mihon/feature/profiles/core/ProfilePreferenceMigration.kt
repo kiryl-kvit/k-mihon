@@ -12,7 +12,7 @@ class ProfilePreferenceMigration(
         profileKeys: Set<String>,
         appStateKeys: Set<String> = emptySet(),
         privateKeys: Set<String> = emptySet(),
-        ) {
+    ) {
         sharedPreferences.edit(commit = true) {
             profileKeys.forEach { key ->
                 migrateKey(key, ProfileAwarePreferenceStore.Namespace.namespacedKey(key, profileId), this)

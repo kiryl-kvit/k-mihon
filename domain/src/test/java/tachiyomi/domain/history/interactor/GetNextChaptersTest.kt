@@ -5,11 +5,11 @@ import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
+import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.history.repository.HistoryRepository
 import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.interactor.GetMangaWithChapters
 import tachiyomi.domain.manga.model.Manga
-import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.source.service.HiddenSourceIds
 
 class GetNextChaptersTest {
@@ -55,7 +55,8 @@ class GetNextChaptersTest {
         coEvery { getManga.await(mangaId) } returns manga
         coEvery { getMangaWithChapters.awaitChapters(mangaId, true) } returns chapters
 
-        getNextChapters.await(mangaId, fromChapterId = 104L, onlyUnread = false).map(Chapter::id) shouldBe listOf(104L, 105L)
+        getNextChapters.await(mangaId, fromChapterId = 104L, onlyUnread = false).map(Chapter::id) shouldBe
+            listOf(104L, 105L)
     }
 
     private fun chapter(

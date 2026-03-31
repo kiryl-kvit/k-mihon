@@ -18,9 +18,9 @@ import kotlinx.coroutines.runBlocking
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.domain.manga.interactor.GetMergedManga
 import tachiyomi.i18n.MR
-import uy.kohesive.injekt.injectLazy
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import uy.kohesive.injekt.injectLazy
 import java.util.regex.Pattern
 
 /**

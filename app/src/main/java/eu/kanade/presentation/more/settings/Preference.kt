@@ -10,8 +10,8 @@ import kotlinx.collections.immutable.ImmutableMap
 import mihon.feature.profiles.core.ProfileAwarePreferenceStore
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
-import tachiyomi.core.common.preference.Preference as PreferenceData
 import tachiyomi.core.common.preference.Preference as CorePreference
+import tachiyomi.core.common.preference.Preference as PreferenceData
 
 sealed class Preference {
     abstract val title: String
@@ -198,7 +198,8 @@ sealed class Preference {
 }
 
 fun Preference.PreferenceGroup.isFullyProfileSpecific(): Boolean {
-    return preferenceItems.isNotEmpty() && preferenceItems.all { it.isProfileSpecific || it is Preference.PreferenceItem.InfoPreference }
+    return preferenceItems.isNotEmpty() &&
+        preferenceItems.all { it.isProfileSpecific || it is Preference.PreferenceItem.InfoPreference }
 }
 
 private fun PreferenceData<*>.isProfileSpecificKey(): Boolean {

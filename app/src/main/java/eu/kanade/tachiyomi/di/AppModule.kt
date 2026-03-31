@@ -20,11 +20,12 @@ import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.network.JavaScriptEngine
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.source.AndroidSourceManager
+import eu.kanade.tachiyomi.source.SourcePreferenceProvider
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.protobuf.ProtoBuf
-import mihon.feature.profiles.core.ProfileSourcePreferenceProvider
 import mihon.feature.profiles.core.ProfileDatabase
 import mihon.feature.profiles.core.ProfileManager
+import mihon.feature.profiles.core.ProfileSourcePreferenceProvider
 import nl.adaptivity.xmlutil.XmlDeclMode
 import nl.adaptivity.xmlutil.core.XmlVersion
 import nl.adaptivity.xmlutil.serialization.XML
@@ -39,7 +40,6 @@ import tachiyomi.data.StringListColumnAdapter
 import tachiyomi.data.UpdateStrategyColumnAdapter
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.storage.service.StorageManager
-import eu.kanade.tachiyomi.source.SourcePreferenceProvider
 import tachiyomi.source.local.image.LocalCoverManager
 import tachiyomi.source.local.io.LocalSourceFileSystem
 import uy.kohesive.injekt.api.InjektModule
@@ -47,21 +47,31 @@ import uy.kohesive.injekt.api.InjektRegistrar
 import uy.kohesive.injekt.api.addSingleton
 import uy.kohesive.injekt.api.addSingletonFactory
 import uy.kohesive.injekt.api.get
+import java.lang.ref.WeakReference
+
+private val lock = Any()
 
 class AppModule(val app: Application) : InjektModule {
+
+    private var sqlDriverRef: WeakReference<SqlDriver>? = null
 
     override fun InjektRegistrar.registerInjectables() {
         addSingleton(app)
 
         addSingletonFactory<SqlDriver> {
-            AndroidxSqliteDriver(
-                driver = BundledSQLiteDriver(),
-                databaseType = AndroidxSqliteDatabaseType.FileProvider(app, "tachiyomi.db"),
-                schema = Database.Schema,
-                configuration = AndroidxSqliteConfiguration(
-                    isForeignKeyConstraintsEnabled = true,
-                ),
-            )
+            synchronized(lock) {
+                sqlDriverRef?.get()?.let { return@synchronized it }
+
+                AndroidxSqliteDriver(
+                    driver = BundledSQLiteDriver(),
+                    databaseType = AndroidxSqliteDatabaseType.FileProvider(app, "tachiyomi.db"),
+                    schema = Database.Schema,
+                    configuration = AndroidxSqliteConfiguration(
+                        isForeignKeyConstraintsEnabled = true,
+                    ),
+                )
+                    .also { sqlDriverRef = WeakReference(it) }
+            }
         }
         addSingletonFactory {
             Database(

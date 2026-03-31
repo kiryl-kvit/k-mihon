@@ -12,8 +12,8 @@ import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.manga.model.Manga
-import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.source.model.StubSource
+import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.i18n.MR
 import tachiyomi.source.local.LocalSource
 import tachiyomi.source.local.io.Format
@@ -104,7 +104,9 @@ class ChapterLoader(
                 }
             }
             chapterSource is HttpSource -> HttpPageLoader(chapter, chapterSource)
-            chapterSource is StubSource -> error(context.stringResource(MR.strings.source_not_installed, chapterSource.toString()))
+            chapterSource is StubSource -> error(
+                context.stringResource(MR.strings.source_not_installed, chapterSource.toString()),
+            )
             else -> error(context.stringResource(MR.strings.loader_not_implemented_error))
         }
     }

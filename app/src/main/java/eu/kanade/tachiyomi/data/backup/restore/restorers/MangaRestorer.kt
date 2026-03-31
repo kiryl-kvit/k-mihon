@@ -93,7 +93,12 @@ class MangaRestorer(
                     if (members.any { it.source == merge.targetSource && it.url == merge.targetUrl }) {
                         members
                     } else {
-                        members + PendingMergeMember(source = merge.targetSource, url = merge.targetUrl, position = Int.MIN_VALUE)
+                        members +
+                            PendingMergeMember(
+                                source = merge.targetSource,
+                                url = merge.targetUrl,
+                                position = Int.MIN_VALUE,
+                            )
                     }
                 }
                 .sortedBy { it.position }
@@ -223,24 +228,24 @@ class MangaRestorer(
 
     private suspend fun insertNewChapters(chapters: List<Chapter>) {
         handler.await(true) {
-                chapters.forEach { chapter ->
-                    chaptersQueries.insert(
-                        profileProvider.activeProfileId,
-                        chapter.mangaId,
-                        chapter.url,
-                        chapter.name,
-                        chapter.scanlator,
-                        chapter.read,
-                        chapter.bookmark,
-                        chapter.lastPageRead,
-                        chapter.chapterNumber,
-                        chapter.sourceOrder,
-                        chapter.dateFetch,
-                        chapter.dateUpload,
-                        chapter.version,
-                    )
-                }
+            chapters.forEach { chapter ->
+                chaptersQueries.insert(
+                    profileProvider.activeProfileId,
+                    chapter.mangaId,
+                    chapter.url,
+                    chapter.name,
+                    chapter.scanlator,
+                    chapter.read,
+                    chapter.bookmark,
+                    chapter.lastPageRead,
+                    chapter.chapterNumber,
+                    chapter.sourceOrder,
+                    chapter.dateFetch,
+                    chapter.dateUpload,
+                    chapter.version,
+                )
             }
+        }
     }
 
     private suspend fun updateExistingChapters(chapters: List<Chapter>) {

@@ -640,7 +640,11 @@ class ReaderViewModel @JvmOverloads constructor(
         return state.value.currentChapter
     }
 
-    fun getSource() = (state.value.currentChapter?.source ?: manga?.source?.let { sourceManager.getOrStub(it) }) as? HttpSource
+    fun getSource() = (
+        state.value.currentChapter?.source ?: manga?.source?.let {
+            sourceManager.getOrStub(it)
+        }
+        ) as? HttpSource
 
     fun getChapterUrl(): String? {
         val sChapter = getCurrentChapter()?.chapter ?: return null

@@ -13,7 +13,7 @@ class ProfilesPreferences(
 
     val activeProfileId: Preference<Long> = preferenceStore.getLong(
         Preference.appStateKey("active_profile_id"),
-        ProfileConstants.defaultProfileId,
+        ProfileConstants.DEFAULT_PROFILE_ID,
     )
 
     val pickerEnabled: Preference<Boolean> = preferenceStore.getBoolean(

@@ -5,8 +5,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import tachiyomi.domain.chapter.model.Chapter
-import tachiyomi.domain.chapter.service.getChapterSort
 import tachiyomi.domain.chapter.repository.ChapterRepository
+import tachiyomi.domain.chapter.service.getChapterSort
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.MangaMerge
 import tachiyomi.domain.manga.repository.MangaRepository
@@ -68,9 +68,11 @@ class GetMangaWithChapters(
         applyScanlatorFilter: Boolean,
     ): Flow<List<Chapter>> {
         val orderedMerges = merges.sortedBy { it.position }
-        return combine(orderedMerges.map { merge ->
-            chapterRepository.getChapterByMangaIdAsFlow(merge.mangaId, applyScanlatorFilter)
-        }) { chapterLists ->
+        return combine(
+            orderedMerges.map { merge ->
+                chapterRepository.getChapterByMangaIdAsFlow(merge.mangaId, applyScanlatorFilter)
+            },
+        ) { chapterLists ->
             mergeChapters(manga, chapterLists.asIterable())
         }
     }

@@ -68,7 +68,8 @@ class GetMangaWithChaptersTest {
 
         advanceUntilIdle()
 
-        mergedChaptersFlow.value = mergedChaptersFlow.value + chapter(id = 202, mangaId = mergedMemberId, sourceOrder = 2)
+        mergedChaptersFlow.value =
+            mergedChaptersFlow.value + chapter(id = 202, mangaId = mergedMemberId, sourceOrder = 2)
 
         advanceUntilIdle()
 

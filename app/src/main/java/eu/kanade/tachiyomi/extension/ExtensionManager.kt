@@ -15,22 +15,22 @@ import eu.kanade.tachiyomi.extension.util.ExtensionInstaller
 import eu.kanade.tachiyomi.extension.util.ExtensionInstaller.UserActionBehavior
 import eu.kanade.tachiyomi.extension.util.ExtensionLoader
 import eu.kanade.tachiyomi.util.system.toast
-import kotlinx.coroutines.launch
-import mihon.feature.profiles.core.ProfileAwareStore
-import mihon.feature.profiles.core.ProfileConstants
-import mihon.feature.profiles.core.ProfileDatabase
-import tachiyomi.core.common.preference.getAndSet
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.SharingStarted.Companion.WhileSubscribed
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import logcat.LogPriority
+import mihon.feature.profiles.core.ProfileAwareStore
+import mihon.feature.profiles.core.ProfileConstants
+import mihon.feature.profiles.core.ProfileDatabase
+import tachiyomi.core.common.preference.getAndSet
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.source.model.StubSource
@@ -370,7 +370,9 @@ class ExtensionManager(
                     .getAndSet { hiddenSources ->
                         when {
                             profile.id == activeProfileId -> hiddenSources - sourceIds
-                            profile.id == ProfileConstants.defaultProfileId && profiles.size == 1 -> hiddenSources - sourceIds
+                            profile.id == ProfileConstants.DEFAULT_PROFILE_ID && profiles.size == 1 ->
+                                hiddenSources -
+                                    sourceIds
                             else -> hiddenSources + sourceIds
                         }
                     }

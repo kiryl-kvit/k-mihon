@@ -2,11 +2,11 @@ package eu.kanade.tachiyomi.ui.reader.model
 
 import eu.kanade.domain.chapter.model.toDbChapter
 import eu.kanade.tachiyomi.data.database.models.Chapter
+import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.ui.reader.loader.PageLoader
 import kotlinx.coroutines.flow.MutableStateFlow
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.manga.model.Manga
-import eu.kanade.tachiyomi.source.Source
 
 data class ReaderChapter(
     val chapter: Chapter,

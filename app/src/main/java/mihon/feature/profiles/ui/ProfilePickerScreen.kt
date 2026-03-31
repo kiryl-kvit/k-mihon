@@ -83,7 +83,9 @@ class ProfilePickerScreen : Screen() {
             activeProfileId = activeProfile?.id,
             onProfileSelected = { profile ->
                 scope.launch {
-                    val authenticated = if (profileManager.profileRequiresUnlock(profile.id) && context is FragmentActivity) {
+                    val authenticated = if (profileManager.profileRequiresUnlock(profile.id) &&
+                        context is FragmentActivity
+                    ) {
                         context.authenticate(
                             title = context.contextStringResource(MR.strings.unlock_app_title, profile.name),
                             subtitle = null,
@@ -229,7 +231,11 @@ private fun ProfilePickerTile(
                 .background(profileTileBrush(profile.colorSeed))
                 .border(
                     width = if (isActive) 2.dp else 1.dp,
-                    color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                    color = if (isActive) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.outlineVariant
+                    },
                     shape = RoundedCornerShape(12.dp),
                 )
                 .clickable(onClick = onClick),

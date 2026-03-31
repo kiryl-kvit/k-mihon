@@ -47,8 +47,8 @@ import tachiyomi.domain.chapter.model.ChapterUpdate
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.interactor.GetMergedManga
-import tachiyomi.domain.manga.model.asMangaCover
 import tachiyomi.domain.manga.model.applyFilter
+import tachiyomi.domain.manga.model.asMangaCover
 import tachiyomi.domain.manga.model.presentationTitle
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.updates.interactor.GetUpdates
@@ -169,35 +169,35 @@ class UpdatesScreenModel(
         val visibleMangaCache = mutableMapOf<Long, tachiyomi.domain.manga.model.Manga?>()
 
         return map { update ->
-                val visibleMangaId = visibleTargetCache.getOrPut(update.mangaId) {
-                    getMergedManga.awaitVisibleTargetId(update.mangaId)
-                }
-                val visibleManga = visibleMangaCache.getOrPut(visibleMangaId) {
-                    getManga.await(visibleMangaId)
-                }
-                val activeDownload = downloadManager.getQueuedDownloadOrNull(update.chapterId)
-                val downloaded = downloadManager.isChapterDownloaded(
-                    update.chapterName,
-                    update.scanlator,
-                    update.chapterUrl,
-                    update.mangaTitle,
-                    update.sourceId,
-                )
-                val downloadState = when {
-                    activeDownload != null -> activeDownload.status
-                    downloaded -> Download.State.DOWNLOADED
-                    else -> Download.State.NOT_DOWNLOADED
-                }
-                UpdatesItem(
-                    update = update,
-                    visibleMangaId = visibleMangaId,
-                    visibleMangaTitle = visibleManga?.presentationTitle() ?: update.mangaTitle,
-                    visibleCoverData = visibleManga?.asMangaCover() ?: update.coverData,
-                    downloadStateProvider = { downloadState },
-                    downloadProgressProvider = { activeDownload?.progress ?: 0 },
-                    selected = update.chapterId in selectedChapterIds,
-                )
+            val visibleMangaId = visibleTargetCache.getOrPut(update.mangaId) {
+                getMergedManga.awaitVisibleTargetId(update.mangaId)
             }
+            val visibleManga = visibleMangaCache.getOrPut(visibleMangaId) {
+                getManga.await(visibleMangaId)
+            }
+            val activeDownload = downloadManager.getQueuedDownloadOrNull(update.chapterId)
+            val downloaded = downloadManager.isChapterDownloaded(
+                update.chapterName,
+                update.scanlator,
+                update.chapterUrl,
+                update.mangaTitle,
+                update.sourceId,
+            )
+            val downloadState = when {
+                activeDownload != null -> activeDownload.status
+                downloaded -> Download.State.DOWNLOADED
+                else -> Download.State.NOT_DOWNLOADED
+            }
+            UpdatesItem(
+                update = update,
+                visibleMangaId = visibleMangaId,
+                visibleMangaTitle = visibleManga?.presentationTitle() ?: update.mangaTitle,
+                visibleCoverData = visibleManga?.asMangaCover() ?: update.coverData,
+                downloadStateProvider = { downloadState },
+                downloadProgressProvider = { activeDownload?.progress ?: 0 },
+                selected = update.chapterId in selectedChapterIds,
+            )
+        }
     }
 
     fun updateLibrary(): Boolean {

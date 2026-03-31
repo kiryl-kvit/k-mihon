@@ -9,10 +9,10 @@ import eu.kanade.tachiyomi.data.backup.models.backupTrackMapper
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
 import tachiyomi.data.ActiveProfileProvider
 import tachiyomi.data.DatabaseHandler
-import tachiyomi.domain.category.model.Category
-import tachiyomi.domain.history.model.History
 import tachiyomi.domain.category.interactor.GetCategories
+import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.history.interactor.GetHistory
+import tachiyomi.domain.history.model.History
 import tachiyomi.domain.manga.interactor.GetMergedManga
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.repository.MangaRepository

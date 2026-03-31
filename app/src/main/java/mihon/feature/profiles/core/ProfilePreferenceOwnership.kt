@@ -52,7 +52,10 @@ object ProfilePreferenceOwnership {
 
         override fun getBoolean(key: String, defaultValue: Boolean): Preference<Boolean> = record(key, defaultValue)
 
-        override fun getStringSet(key: String, defaultValue: Set<String>): Preference<Set<String>> = record(key, defaultValue)
+        override fun getStringSet(key: String, defaultValue: Set<String>): Preference<Set<String>> = record(
+            key,
+            defaultValue,
+        )
 
         override fun <T> getObjectFromString(
             key: String,

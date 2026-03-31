@@ -17,11 +17,11 @@ import eu.kanade.tachiyomi.data.backup.models.BackupManga
 import eu.kanade.tachiyomi.data.backup.models.BackupPreference
 import eu.kanade.tachiyomi.data.backup.models.BackupSource
 import eu.kanade.tachiyomi.data.backup.models.BackupSourcePreferences
+import kotlinx.serialization.protobuf.ProtoBuf
+import logcat.LogPriority
 import mihon.feature.profiles.core.ProfileBackup
 import mihon.feature.profiles.core.ProfileManager
 import mihon.feature.profiles.core.ProfileScopedBackup
-import kotlinx.serialization.protobuf.ProtoBuf
-import logcat.LogPriority
 import okio.buffer
 import okio.gzip
 import okio.sink

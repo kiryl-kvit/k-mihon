@@ -1,14 +1,13 @@
 package mihon.feature.profiles.core
 
 import android.app.Application
-import android.content.Intent
 import android.content.Context
+import android.content.Intent
 import androidx.core.content.edit
 import androidx.preference.PreferenceManager
 import eu.kanade.tachiyomi.core.security.SecurityPreferences
-import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
-import tachiyomi.core.common.preference.Preference
+import eu.kanade.tachiyomi.extension.ExtensionManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -19,6 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import tachiyomi.core.common.preference.Preference
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.io.File
@@ -57,11 +57,11 @@ class ProfileManager(
     }
 
     suspend fun ensureDefaultProfile() {
-        val defaultProfile = profileDatabase.getProfileById(ProfileConstants.defaultProfileId)
+        val defaultProfile = profileDatabase.getProfileById(ProfileConstants.DEFAULT_PROFILE_ID)
         if (defaultProfile == null) {
             profileDatabase.insertProfile(
-                uuid = ProfileConstants.defaultProfileUuid,
-                name = ProfileConstants.defaultProfileName,
+                uuid = ProfileConstants.DEFAULT_PROFILE_UUID,
+                name = ProfileConstants.DEFAULT_PROFILE_NAME,
                 colorSeed = 0x4F6AF2,
                 position = 0,
                 requiresAuth = false,
@@ -77,7 +77,7 @@ class ProfileManager(
         val activeId = profilesPreferences.activeProfileId.get()
         val profile = profileDatabase.getProfileById(activeId)
             ?: visibleProfiles.value.firstOrNull()
-            ?: profileDatabase.getProfileById(ProfileConstants.defaultProfileId)
+            ?: profileDatabase.getProfileById(ProfileConstants.DEFAULT_PROFILE_ID)
         if (profile != null) {
             setActiveProfile(profile.id, rescheduleJobs = false)
         }
@@ -121,17 +121,17 @@ class ProfileManager(
     }
 
     suspend fun setProfileArchived(profileId: Long, archived: Boolean) {
-        if (profileId == ProfileConstants.defaultProfileId && archived) return
+        if (profileId == ProfileConstants.DEFAULT_PROFILE_ID && archived) return
         if (archived && activeProfileId == profileId) return
         profileDatabase.updateProfile(id = profileId, isArchived = archived)
     }
 
     suspend fun permanentlyDeleteProfile(profileId: Long) {
-        if (profileId == ProfileConstants.defaultProfileId) return
+        if (profileId == ProfileConstants.DEFAULT_PROFILE_ID) return
         val profile = profileDatabase.getProfileById(profileId) ?: return
         if (!profile.isArchived) return
         val fallback = visibleProfiles.value.firstOrNull { it.id != profileId }
-            ?: profileDatabase.getProfileById(ProfileConstants.defaultProfileId)
+            ?: profileDatabase.getProfileById(ProfileConstants.DEFAULT_PROFILE_ID)
         if (activeProfileId == profileId && fallback != null) {
             setActiveProfile(fallback.id)
         }
@@ -159,7 +159,7 @@ class ProfileManager(
             PreferenceManager.getDefaultSharedPreferences(application),
         )
         migration.migrateLegacyPreferenceKeys(
-            profileId = ProfileConstants.defaultProfileId,
+            profileId = ProfileConstants.DEFAULT_PROFILE_ID,
             profileKeys = ownership.profile,
             appStateKeys = ownership.appState,
             privateKeys = ownership.private,
@@ -167,7 +167,7 @@ class ProfileManager(
         migrateLegacyProfileUnlockSettings()
         migrateLegacySourcePreferences()
         migration.cleanupLegacyPreferenceKeys(
-            profileId = ProfileConstants.defaultProfileId,
+            profileId = ProfileConstants.DEFAULT_PROFILE_ID,
             profileKeys = ownership.profile,
             appStateKeys = ownership.appState,
             privateKeys = ownership.private,
@@ -219,7 +219,10 @@ class ProfileManager(
         sharedPreferences: android.content.SharedPreferences,
         baseKey: String,
     ) {
-        val namespacedKey = ProfileAwarePreferenceStore.Namespace.namespacedKey(baseKey, ProfileConstants.defaultProfileId)
+        val namespacedKey = ProfileAwarePreferenceStore.Namespace.namespacedKey(
+            baseKey,
+            ProfileConstants.DEFAULT_PROFILE_ID,
+        )
         if (!sharedPreferences.contains(baseKey) || sharedPreferences.contains(namespacedKey)) return
 
         sharedPreferences.edit(commit = true) {
@@ -239,7 +242,10 @@ class ProfileManager(
         sharedPreferences: android.content.SharedPreferences,
         baseKey: String,
     ) {
-        val namespacedKey = ProfileAwarePreferenceStore.Namespace.namespacedKey(baseKey, ProfileConstants.defaultProfileId)
+        val namespacedKey = ProfileAwarePreferenceStore.Namespace.namespacedKey(
+            baseKey,
+            ProfileConstants.DEFAULT_PROFILE_ID,
+        )
         if (!sharedPreferences.contains(namespacedKey)) return
 
         sharedPreferences.edit(commit = true) {
@@ -280,7 +286,7 @@ class ProfileManager(
         val legacyPrefs = application.getSharedPreferences(legacyName, Context.MODE_PRIVATE)
         if (legacyPrefs.all.isEmpty()) return
 
-        val targetName = profileStore.sourcePreferenceKey(sourceId, ProfileConstants.defaultProfileId)
+        val targetName = profileStore.sourcePreferenceKey(sourceId, ProfileConstants.DEFAULT_PROFILE_ID)
         val targetPrefs = application.getSharedPreferences(targetName, Context.MODE_PRIVATE)
 
         targetPrefs.edit(commit = true) {

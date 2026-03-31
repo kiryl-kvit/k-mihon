@@ -142,7 +142,7 @@ fun MoreScreen(
                     onPreferenceClick = onClickSettings,
                 )
             }
-            if (profiles.size > 1){
+            if (profiles.size > 1) {
                 item {
                     TextPreferenceWidget(
                         title = stringResource(MR.strings.profiles_switch_summary),

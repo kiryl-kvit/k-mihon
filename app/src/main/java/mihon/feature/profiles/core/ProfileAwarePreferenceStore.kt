@@ -132,7 +132,13 @@ class ProfileAwarePreferenceStore(
             keyProvider = { key(key) },
             read = { prefs, prefKey, default ->
                 try {
-                    if (prefs.contains(prefKey)) serializer(default).let { prefs.getInt(prefKey, it) }.let(deserializer) else default
+                    if (prefs.contains(prefKey)) {
+                        serializer(default).let {
+                            prefs.getInt(prefKey, it)
+                        }.let(deserializer)
+                    } else {
+                        default
+                    }
                 } catch (_: Exception) {
                     default
                 }
@@ -202,20 +208,20 @@ class ProfileAwarePreferenceStore(
             fun namespacedKey(base: String, profileId: Long): String {
                 return when {
                     Preference.isAppState(base) -> Preference.appStateKey(
-                        "profile_${profileId}:${Preference.stripAppStateKey(base)}",
+                        "profile_$profileId:${Preference.stripAppStateKey(base)}",
                     )
                     Preference.isPrivate(base) -> Preference.privateKey(
-                        "profile_${profileId}:${Preference.stripPrivateKey(base)}",
+                        "profile_$profileId:${Preference.stripPrivateKey(base)}",
                     )
                     else -> profilePrefix(profileId) + base
                 }
             }
 
-            private fun profilePrefix(profileId: Long) = "profile_${profileId}:"
+            private fun profilePrefix(profileId: Long) = "profile_$profileId:"
 
-            private fun appStateProfilePrefix(profileId: Long) = Preference.appStateKey("profile_${profileId}:")
+            private fun appStateProfilePrefix(profileId: Long) = Preference.appStateKey("profile_$profileId:")
 
-            private fun privateProfilePrefix(profileId: Long) = Preference.privateKey("profile_${profileId}:")
+            private fun privateProfilePrefix(profileId: Long) = Preference.privateKey("profile_$profileId:")
 
             private fun hasNamespacedPrefix(key: String, prefix: String): Boolean {
                 if (!key.startsWith(prefix)) return false

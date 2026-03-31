@@ -37,8 +37,8 @@ import eu.kanade.tachiyomi.data.download.model.Download
 import eu.kanade.tachiyomi.data.track.EnhancedTracker
 import eu.kanade.tachiyomi.data.track.TrackerManager
 import eu.kanade.tachiyomi.network.HttpException
-import eu.kanade.tachiyomi.source.getNameForMangaInfo
 import eu.kanade.tachiyomi.source.Source
+import eu.kanade.tachiyomi.source.getNameForMangaInfo
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.util.chapter.getNextUnread
 import eu.kanade.tachiyomi.util.removeCovers
@@ -204,7 +204,11 @@ class MangaScreenModel(
                 .collectLatest {
                     val mergedMemberIds = getMergedMemberIds()
                     updateSuccessState {
-                        it.copy(excludedScanlators = mergedMemberIds.flatMapTo(linkedSetOf()) { memberId -> getExcludedScanlators.await(memberId) })
+                        it.copy(
+                            excludedScanlators = mergedMemberIds.flatMapTo(linkedSetOf()) { memberId ->
+                                getExcludedScanlators.await(memberId)
+                            },
+                        )
                     }
                 }
         }
@@ -218,7 +222,11 @@ class MangaScreenModel(
                 .collectLatest {
                     val mergedMemberIds = getMergedMemberIds()
                     updateSuccessState {
-                        it.copy(availableScanlators = mergedMemberIds.flatMapTo(linkedSetOf()) { memberId -> getAvailableScanlators.await(memberId) })
+                        it.copy(
+                            availableScanlators = mergedMemberIds.flatMapTo(linkedSetOf()) { memberId ->
+                                getAvailableScanlators.await(memberId)
+                            },
+                        )
                     }
                 }
         }
@@ -249,8 +257,12 @@ class MangaScreenModel(
                     mergedMemberTitles = mergePresentation.mergedMemberTitles,
                     isFromSource = isFromSource,
                     chapters = chapters,
-                    availableScanlators = mergePresentation.memberIds.flatMapTo(linkedSetOf()) { memberId -> getAvailableScanlators.await(memberId) },
-                    excludedScanlators = mergePresentation.memberIds.flatMapTo(linkedSetOf()) { memberId -> getExcludedScanlators.await(memberId) },
+                    availableScanlators = mergePresentation.memberIds.flatMapTo(linkedSetOf()) { memberId ->
+                        getAvailableScanlators.await(memberId)
+                    },
+                    excludedScanlators = mergePresentation.memberIds.flatMapTo(linkedSetOf()) { memberId ->
+                        getExcludedScanlators.await(memberId)
+                    },
                     isRefreshingData = needRefreshInfo || needRefreshChapter,
                     dialog = null,
                     hideMissingChapters = libraryPreferences.hideMissingChapters.get(),
@@ -1202,7 +1214,12 @@ class MangaScreenModel(
             val members = state.memberIds.mapNotNull { memberId -> mangaRepository.getMangaById(memberId) }
                 .toImmutableList()
             updateSuccessState {
-                it.copy(dialog = Dialog.RemoveMergedManga(members = members, containsLocalManga = members.any(Manga::isLocal)))
+                it.copy(
+                    dialog = Dialog.RemoveMergedManga(
+                        members = members,
+                        containsLocalManga = members.any(Manga::isLocal),
+                    ),
+                )
             }
         }
     }
@@ -1259,7 +1276,11 @@ class MangaScreenModel(
     fun reorderMergeMembers(fromIndex: Int, toIndex: Int) {
         updateSuccessState { state ->
             val dialog = state.dialog as? Dialog.ManageMerge ?: return@updateSuccessState state
-            if (fromIndex !in dialog.members.indices || toIndex !in dialog.members.indices) return@updateSuccessState state
+            if (fromIndex !in dialog.members.indices ||
+                toIndex !in dialog.members.indices
+            ) {
+                return@updateSuccessState state
+            }
             val reordered = dialog.members.toMutableList().apply {
                 val item = removeAt(fromIndex)
                 add(toIndex, item)
