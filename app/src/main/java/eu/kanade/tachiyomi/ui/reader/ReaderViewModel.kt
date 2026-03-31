@@ -137,6 +137,8 @@ class ReaderViewModel @JvmOverloads constructor(
             field = value
         }
 
+    private var initialPageIndexPending = chapterPageIndex >= 0
+
     /**
      * The chapter loader for the loaded manga. It'll be null until [manga] is set.
      */
@@ -249,9 +251,10 @@ class ReaderViewModel @JvmOverloads constructor(
             .distinctUntilChanged()
             .filterNotNull()
             .onEach { currentChapter ->
-                if (chapterPageIndex >= 0) {
+                if (initialPageIndexPending && chapterPageIndex >= 0) {
                     // Restore from SavedState
                     currentChapter.requestedPage = chapterPageIndex
+                    initialPageIndexPending = false
                 } else if (!currentChapter.chapter.read) {
                     currentChapter.requestedPage = currentChapter.chapter.last_page_read
                 }
@@ -290,6 +293,10 @@ class ReaderViewModel @JvmOverloads constructor(
      * fetch the manga from the database and initialize the initial chapter.
      */
     suspend fun init(mangaId: Long, initialChapterId: Long): Result<Boolean> {
+        return init(mangaId, initialChapterId, initialPageIndex = -1)
+    }
+
+    suspend fun init(mangaId: Long, initialChapterId: Long, initialPageIndex: Int): Result<Boolean> {
         if (!needsInit()) return Result.success(true)
         return withIOContext {
             try {
@@ -298,6 +305,10 @@ class ReaderViewModel @JvmOverloads constructor(
                     sourceManager.isInitialized.first { it }
                     mutableState.update { it.copy(manga = manga) }
                     if (chapterId == -1L) chapterId = initialChapterId
+                    if (initialPageIndex >= 0) {
+                        chapterPageIndex = initialPageIndex
+                        initialPageIndexPending = true
+                    }
 
                     val context = Injekt.get<Application>()
                     loader = ChapterLoader(context, downloadManager, downloadProvider, manga, sourceManager)

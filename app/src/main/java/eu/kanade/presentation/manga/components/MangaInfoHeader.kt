@@ -1,14 +1,19 @@
 package eu.kanade.presentation.manga.components
 
+import android.graphics.BitmapFactory
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.graphics.res.animatedVectorResource
 import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.animation.graphics.vector.AnimatedImageVector
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
@@ -16,19 +21,23 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BrokenImage
 import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.HourglassEmpty
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PersonOutline
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.AttachMoney
@@ -39,8 +48,10 @@ import androidx.compose.material.icons.outlined.DoneAll
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.Public
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
@@ -52,6 +63,9 @@ import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -66,6 +80,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
@@ -73,6 +88,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withLink
@@ -80,6 +96,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
@@ -89,11 +106,15 @@ import com.mikepenz.markdown.utils.getUnescapedTextInNode
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.components.DropdownMenu
 import eu.kanade.tachiyomi.R
+import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SManga
+import eu.kanade.tachiyomi.ui.manga.MangaScreenModel
 import eu.kanade.tachiyomi.util.system.copyToClipboard
+import kotlinx.coroutines.flow.collectLatest
 import org.intellij.markdown.MarkdownElementTypes
 import org.intellij.markdown.MarkdownTokenTypes
 import org.intellij.markdown.ast.findChildOfType
+import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.presentationTitle
 import tachiyomi.i18n.MR
@@ -257,6 +278,14 @@ fun ExpandableMangaDescription(
     onTagSearch: (String) -> Unit,
     onCopyTagToClipboard: (tag: String) -> Unit,
     onEditNotes: () -> Unit,
+    mangaPreviewEnabled: Boolean,
+    mangaPreviewSize: MangaPreviewSizeUi,
+    mangaPreviewState: MangaScreenModel.MangaPreviewState,
+    onPreviewExpandedChange: (Boolean) -> Unit,
+    onPreviewRetry: () -> Unit,
+    onPreviewPageLoad: (Int) -> Unit,
+    onPreviewPageStateSync: (Int) -> Unit,
+    onPreviewPageClick: (Long, Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
@@ -341,6 +370,310 @@ fun ExpandableMangaDescription(
                 }
             }
         }
+        if (mangaPreviewEnabled) {
+            MangaPreviewSection(
+                state = mangaPreviewState,
+                size = mangaPreviewSize,
+                onExpandedChange = onPreviewExpandedChange,
+                onRetry = onPreviewRetry,
+                onPageLoad = onPreviewPageLoad,
+                onPageStateSync = onPreviewPageStateSync,
+                onPageClick = onPreviewPageClick,
+            )
+        }
+    }
+}
+
+enum class MangaPreviewSizeUi {
+    SMALL,
+    MEDIUM,
+    LARGE,
+}
+
+@Composable
+private fun MangaPreviewSection(
+    state: MangaScreenModel.MangaPreviewState,
+    size: MangaPreviewSizeUi,
+    onExpandedChange: (Boolean) -> Unit,
+    onRetry: () -> Unit,
+    onPageLoad: (Int) -> Unit,
+    onPageStateSync: (Int) -> Unit,
+    onPageClick: (Long, Int) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 12.dp)
+            .fillMaxWidth()
+            .animateContentSize(animationSpec = spring()),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onExpandedChange(!state.isExpanded) },
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = stringResource(MR.strings.manga_preview_section_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = pluralStringResource(
+                        MR.plurals.pref_pages,
+                        state.pageCount.coerceIn(1, 30),
+                        state.pageCount.coerceIn(1, 30),
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.secondaryItemAlpha(),
+                )
+            }
+            val image = AnimatedImageVector.animatedVectorResource(R.drawable.anim_caret_down)
+            Icon(
+                painter = rememberAnimatedVectorPainter(image, !state.isExpanded),
+                contentDescription = stringResource(
+                    if (state.isExpanded) MR.strings.manga_info_collapse else MR.strings.manga_info_expand,
+                ),
+            )
+        }
+
+        if (state.isExpanded) {
+            when {
+                state.isLoading && state.pages.isEmpty() -> {
+                    MangaPreviewMessage(
+                        icon = Icons.Default.Image,
+                        text = stringResource(MR.strings.transition_pages_loading),
+                    )
+                }
+                state.error != null -> {
+                    MangaPreviewError(
+                        message = state.error.message ?: stringResource(MR.strings.unknown_error),
+                        onRetry = onRetry,
+                    )
+                }
+                state.pages.isEmpty() -> {
+                    MangaPreviewMessage(
+                        icon = Icons.Default.Warning,
+                        text = stringResource(MR.strings.manga_preview_empty),
+                    )
+                }
+                else -> {
+                    MangaPreviewGrid(
+                        pages = state.pages,
+                        size = size,
+                        chapterId = state.chapterId,
+                        onPageLoad = onPageLoad,
+                        onPageStateSync = onPageStateSync,
+                        onPageClick = onPageClick,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MangaPreviewGrid(
+    pages: List<MangaScreenModel.PreviewPage>,
+    size: MangaPreviewSizeUi,
+    chapterId: Long?,
+    onPageLoad: (Int) -> Unit,
+    onPageStateSync: (Int) -> Unit,
+    onPageClick: (Long, Int) -> Unit,
+) {
+    val minTileWidth = when (size) {
+        MangaPreviewSizeUi.SMALL -> 88.dp
+        MangaPreviewSizeUi.MEDIUM -> 112.dp
+        MangaPreviewSizeUi.LARGE -> 140.dp
+    }
+
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val columns = (maxWidth / minTileWidth).toInt().coerceAtLeast(1)
+        val rows = pages.chunked(columns)
+
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            rows.forEach { row ->
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    row.forEach { previewPage ->
+                        MangaPreviewTile(
+                            previewPage = previewPage,
+                            chapterId = chapterId,
+                            modifier = Modifier.weight(1f),
+                            onPageLoad = onPageLoad,
+                            onPageStateSync = onPageStateSync,
+                            onPageClick = onPageClick,
+                        )
+                    }
+                    repeat(columns - row.size) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MangaPreviewTile(
+    previewPage: MangaScreenModel.PreviewPage,
+    chapterId: Long?,
+    onPageLoad: (Int) -> Unit,
+    onPageStateSync: (Int) -> Unit,
+    onPageClick: (Long, Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val status by previewPage.page.statusFlow.collectAsState()
+    val progress by previewPage.page.progressFlow.collectAsState()
+
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(0.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(0.72f)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.medium)
+                .clickable(enabled = chapterId != null) {
+                    chapterId?.let { onPageClick(it, previewPage.page.index) }
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            when (status) {
+                Page.State.Ready -> {
+                    MangaPreviewImage(
+                        previewPage = previewPage,
+                        onPageStateSync = onPageStateSync,
+                    )
+                }
+                Page.State.Queue,
+                Page.State.LoadPage,
+                Page.State.DownloadImage,
+                -> {
+                    LaunchedEffect(previewPage.page.index) {
+                        onPageLoad(previewPage.page.index)
+                    }
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        if (status == Page.State.DownloadImage && progress in 0..100) {
+                            CircularProgressIndicator(progress = { progress / 100f })
+                        } else {
+                            CircularProgressIndicator()
+                        }
+                        Text(
+                            text = when (status) {
+                                Page.State.DownloadImage -> stringResource(MR.strings.ext_downloading)
+                                else -> stringResource(MR.strings.loading)
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+                is Page.State.Error -> {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.BrokenImage,
+                            contentDescription = null,
+                        )
+                        Text(
+                            text = stringResource(MR.strings.chapter_error),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MangaPreviewImage(
+    previewPage: MangaScreenModel.PreviewPage,
+    onPageStateSync: (Int) -> Unit,
+) {
+    var bitmap by remember(previewPage.page.index, previewPage.page.stream) {
+        mutableStateOf<android.graphics.Bitmap?>(null)
+    }
+
+    LaunchedEffect(previewPage.page.index, previewPage.page.stream) {
+        val streamFn = previewPage.page.stream ?: run {
+            onPageStateSync(previewPage.page.index)
+            return@LaunchedEffect
+        }
+
+        bitmap = runCatching {
+            withIOContext {
+                streamFn().use(BitmapFactory::decodeStream)
+            }
+        }.getOrElse {
+            onPageStateSync(previewPage.page.index)
+            null
+        }
+    }
+
+    val imageBitmap = bitmap ?: return
+    LaunchedEffect(imageBitmap) {
+        onPageStateSync(previewPage.page.index)
+    }
+
+    Image(
+        bitmap = imageBitmap.asImageBitmap(),
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(0.72f),
+    )
+}
+
+@Composable
+private fun MangaPreviewError(
+    message: String,
+    onRetry: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        MangaPreviewMessage(
+            icon = Icons.Default.Warning,
+            text = message,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = onRetry) {
+            Icon(imageVector = Icons.Outlined.Refresh, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(text = stringResource(MR.strings.action_retry))
+        }
+    }
+}
+
+@Composable
+private fun MangaPreviewMessage(
+    icon: ImageVector,
+    text: String,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(imageVector = icon, contentDescription = null)
+        Text(text = text, style = MaterialTheme.typography.bodyMedium)
     }
 }
 

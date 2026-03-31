@@ -19,6 +19,7 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.presentation.more.settings.Preference
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
+import kotlinx.collections.immutable.toImmutableMap
 import mihon.core.common.CustomPreferences
 import mihon.core.common.GlobalCustomPreferences
 import mihon.core.common.HomeScreenTabs
@@ -26,6 +27,7 @@ import mihon.feature.profiles.core.ProfilesPreferences
 import mihon.feature.profiles.ui.ProfilesSettingsScreen
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
+import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -41,6 +43,8 @@ object CustomSettingsScreen : SearchableSettings {
         val customPreferences = remember { Injekt.get<CustomPreferences>() }
         val globalCustomPreferences = remember { Injekt.get<GlobalCustomPreferences>() }
         val profilesPreferences = remember { Injekt.get<ProfilesPreferences>() }
+        val previewEnabled by customPreferences.enableMangaPreview.collectAsState()
+        val previewPageCount by customPreferences.mangaPreviewPageCount.collectAsState()
         val navigator = LocalNavigator.currentOrThrow
         var showProfilesInfo by rememberSaveable { mutableStateOf(false) }
 
@@ -98,6 +102,35 @@ object CustomSettingsScreen : SearchableSettings {
                     Preference.PreferenceItem.SwitchPreference(
                         preference = globalCustomPreferences.extensionsAutoUpdates,
                         title = stringResource(MR.strings.pref_extensions_auto_update),
+                    ),
+                ),
+            ),
+            Preference.PreferenceGroup(
+                title = stringResource(MR.strings.pref_manga_preview),
+                preferenceItems = persistentListOf(
+                    Preference.PreferenceItem.SwitchPreference(
+                        preference = customPreferences.enableMangaPreview,
+                        title = stringResource(MR.strings.pref_enable_manga_preview),
+                        subtitle = stringResource(MR.strings.pref_enable_manga_preview_summary),
+                    ),
+                    Preference.PreferenceItem.SliderPreference(
+                        value = previewPageCount.coerceIn(1, 30),
+                        preference = customPreferences.mangaPreviewPageCount,
+                        valueRange = 1..30,
+                        title = stringResource(MR.strings.pref_manga_preview_page_count),
+                        valueString = previewPageCount.coerceIn(1, 30).toString(),
+                        enabled = previewEnabled,
+                        onValueChanged = {
+                            customPreferences.mangaPreviewPageCount.set(it.coerceIn(1, 30))
+                        },
+                    ),
+                    Preference.PreferenceItem.ListPreference(
+                        preference = customPreferences.mangaPreviewSize,
+                        entries = CustomPreferences.MangaPreviewSize.entries
+                            .associateWith { stringResource(it.titleRes) }
+                            .toImmutableMap(),
+                        title = stringResource(MR.strings.pref_manga_preview_size),
+                        enabled = previewEnabled,
                     ),
                 ),
             ),
