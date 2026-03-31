@@ -17,18 +17,18 @@
       <br /><b>Manga Merge</b>
     </td>
     <td align="center">
-      <img src=".github/assets/User-Profiles.png" alt="User Profiles" width="300" />
-      <br /><b>User Profiles</b>
+      <img src=".github/assets/Manga-Preview.gif" alt="Manga Preview" width="300" />
+      <br /><b>Manga Preview</b>
     </td>
   </tr>
   <tr>
     <td align="center">
-      <img src=".github/assets/Library-Group.png" alt="Library Group" width="300" />
-      <br /><b>Library Group</b>
+      <img src=".github/assets/User-Profiles.png" alt="User Profiles" width="300" />
+      <br /><b>User Profiles</b>
     </td>
     <td align="center">
-      <img src=".github/assets/Manga-Preview.gif" alt="Manga Preview" width="300" />
-      <br /><b>Manga Preview</b>
+      <img src=".github/assets/Library-Group.png" alt="Library Group" width="300" />
+      <br /><b>Library Group</b>
     </td>
   </tr>
 </table>
