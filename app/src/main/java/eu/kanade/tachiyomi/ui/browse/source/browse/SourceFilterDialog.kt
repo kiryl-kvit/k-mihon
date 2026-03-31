@@ -7,7 +7,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -35,6 +39,7 @@ fun SourceFilterDialog(
     onDismissRequest: () -> Unit,
     filters: FilterList,
     onReset: () -> Unit,
+    onSave: () -> Unit,
     onFilter: () -> Unit,
     onUpdate: (FilterList) -> Unit,
 ) {
@@ -58,6 +63,13 @@ fun SourceFilterDialog(
                     }
 
                     Spacer(modifier = Modifier.weight(1f))
+
+                    IconButton(onClick = onSave) {
+                        Icon(
+                            imageVector = Icons.Outlined.Save,
+                            contentDescription = stringResource(MR.strings.action_save),
+                        )
+                    }
 
                     Button(onClick = {
                         onFilter()

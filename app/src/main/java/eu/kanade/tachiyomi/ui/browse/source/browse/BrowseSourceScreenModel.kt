@@ -14,6 +14,10 @@ import androidx.paging.map
 import cafe.adriel.voyager.core.model.StateScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import eu.kanade.core.preference.asState
+import eu.kanade.domain.source.model.FeedListingMode
+import eu.kanade.domain.source.model.SourceFeedPreset
+import eu.kanade.domain.source.model.snapshot
+import eu.kanade.domain.source.service.BrowseFeedService
 import eu.kanade.domain.manga.interactor.UpdateManga
 import eu.kanade.domain.source.interactor.GetIncognitoState
 import eu.kanade.domain.source.service.SourcePreferences
@@ -51,6 +55,7 @@ import tachiyomi.domain.source.service.SourceManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.time.Instant
+import java.util.UUID
 import eu.kanade.tachiyomi.source.model.Filter as SourceModelFilter
 
 class BrowseSourceScreenModel(
@@ -58,6 +63,7 @@ class BrowseSourceScreenModel(
     listingQuery: String?,
     sourceManager: SourceManager = Injekt.get(),
     sourcePreferences: SourcePreferences = Injekt.get(),
+    private val browseFeedService: BrowseFeedService = Injekt.get(),
     private val libraryPreferences: LibraryPreferences = Injekt.get(),
     private val coverCache: CoverCache = Injekt.get(),
     private val getRemoteManga: GetRemoteManga = Injekt.get(),
@@ -306,6 +312,36 @@ class BrowseSourceScreenModel(
         setDialog(Dialog.Filter)
     }
 
+    fun showSavePresetDialog() {
+        setDialog(Dialog.SavePreset)
+    }
+
+    fun hasPresetName(name: String): Boolean {
+        val trimmed = name.trim()
+        return browseFeedService.stateSnapshot().presets.any {
+            it.sourceId == sourceId && it.name.equals(trimmed, ignoreCase = true)
+        }
+    }
+
+    fun savePreset(name: String) {
+        if (source !is CatalogueSource) return
+
+        val trimmed = name.trim()
+        if (trimmed.isBlank()) return
+
+        browseFeedService.savePreset(
+            SourceFeedPreset(
+                id = UUID.randomUUID().toString(),
+                sourceId = sourceId,
+                name = trimmed,
+                listingMode = FeedListingMode.Search,
+                query = state.value.toolbarQuery?.trim()?.takeIf { it.isNotEmpty() },
+                filters = state.value.filters.snapshot(),
+            ),
+        )
+        setDialog(null)
+    }
+
     fun setDialog(dialog: Dialog?) {
         mutableState.update { it.copy(dialog = dialog) }
     }
@@ -335,6 +371,7 @@ class BrowseSourceScreenModel(
 
     sealed interface Dialog {
         data object Filter : Dialog
+        data object SavePreset : Dialog
         data class RemoveManga(val manga: Manga) : Dialog
         data class AddDuplicateManga(val manga: Manga, val duplicates: List<MangaWithChapterCount>) : Dialog
         data class ChangeMangaCategory(

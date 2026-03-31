@@ -53,6 +53,7 @@ class PreferenceModule(val app: Application) : InjektModule {
         addSingletonFactory {
             SourcePreferences(
                 preferenceStore = get<ProfileStore>().profileStore(),
+                json = get(),
             )
         }
         addSingletonFactory { GlobalSourcePreferences(get<ProfileStore>().basePreferenceStore()) }

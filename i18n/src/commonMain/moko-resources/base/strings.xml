@@ -755,6 +755,11 @@
     <string name="latest">Latest</string>
     <string name="popular">Popular</string>
     <string name="browse">Browse</string>
+    <string name="browse_feeds">Feeds</string>
+    <string name="browse_feeds_empty">No feeds configured yet</string>
+    <string name="browse_manage_feeds">Manage feeds</string>
+    <string name="browse_feed_save_preset">Save preset</string>
+    <string name="browse_feed_preset_exists">A preset with this name already exists</string>
     <string name="has_results">Has results</string>
     <string name="local_source_help_guide">Local source guide</string>
     <string name="no_pinned_sources">You have no pinned sources</string>

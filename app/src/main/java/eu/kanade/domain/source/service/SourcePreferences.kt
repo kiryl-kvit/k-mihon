@@ -1,7 +1,12 @@
 package eu.kanade.domain.source.service
 
 import eu.kanade.domain.source.interactor.SetMigrateSorting
+import eu.kanade.domain.source.model.SourceFeed
+import eu.kanade.domain.source.model.SourceFeedPreset
 import eu.kanade.tachiyomi.util.system.LocaleHelper
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import mihon.domain.migration.models.MigrationFlag
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
@@ -11,6 +16,7 @@ import tachiyomi.domain.library.model.LibraryDisplayMode
 
 class SourcePreferences(
     private val preferenceStore: PreferenceStore,
+    private val json: Json,
 ) {
 
     val sourceDisplayMode: Preference<LibraryDisplayMode> = preferenceStore.getObjectFromString(
@@ -76,5 +82,24 @@ class SourcePreferences(
     val migrationHideWithoutUpdates: Preference<Boolean> = preferenceStore.getBoolean(
         "migration_hide_without_updates",
         false,
+    )
+
+    val savedFeedPresets: Preference<List<SourceFeedPreset>> = preferenceStore.getObjectFromString(
+        key = "saved_feed_presets",
+        defaultValue = emptyList(),
+        serializer = { json.encodeToString(it) },
+        deserializer = { json.decodeFromString<List<SourceFeedPreset>>(it) },
+    )
+
+    val savedFeeds: Preference<List<SourceFeed>> = preferenceStore.getObjectFromString(
+        key = "saved_source_feeds",
+        defaultValue = emptyList(),
+        serializer = { json.encodeToString(it) },
+        deserializer = { json.decodeFromString<List<SourceFeed>>(it) },
+    )
+
+    val selectedFeedId: Preference<String> = preferenceStore.getString(
+        Preference.appStateKey("selected_source_feed_id"),
+        "",
     )
 }

@@ -38,6 +38,7 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.core.util.ifSourcesLoaded
 import eu.kanade.presentation.browse.BrowseSourceContent
 import eu.kanade.presentation.browse.MissingSourceScreen
+import eu.kanade.presentation.browse.components.BrowseFeedNameDialog
 import eu.kanade.presentation.browse.components.BrowseSourceToolbar
 import eu.kanade.presentation.browse.components.RemoveMangaDialog
 import eu.kanade.presentation.category.components.ChangeCategoryDialog
@@ -244,8 +245,17 @@ data class BrowseSourceScreen(
                     onDismissRequest = onDismissRequest,
                     filters = state.filters,
                     onReset = screenModel::resetFilters,
+                    onSave = screenModel::showSavePresetDialog,
                     onFilter = { screenModel.search(filters = state.filters) },
                     onUpdate = screenModel::setFilters,
+                )
+            }
+            BrowseSourceScreenModel.Dialog.SavePreset -> {
+                BrowseFeedNameDialog(
+                    title = MR.strings.browse_feed_save_preset,
+                    duplicateName = screenModel::hasPresetName,
+                    onDismissRequest = onDismissRequest,
+                    onConfirm = screenModel::savePreset,
                 )
             }
             is BrowseSourceScreenModel.Dialog.AddDuplicateManga -> {
