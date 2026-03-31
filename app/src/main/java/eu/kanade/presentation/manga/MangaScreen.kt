@@ -54,6 +54,7 @@ import eu.kanade.presentation.manga.components.MangaActionRow
 import eu.kanade.presentation.manga.components.MangaBottomActionMenu
 import eu.kanade.presentation.manga.components.MangaChapterListItem
 import eu.kanade.presentation.manga.components.MangaInfoBox
+import eu.kanade.presentation.manga.components.MangaPreviewSizeUi
 import eu.kanade.presentation.manga.components.MangaToolbar
 import eu.kanade.presentation.manga.components.MissingChapterCountListItem
 import eu.kanade.presentation.util.formatChapterNumber
@@ -128,6 +129,14 @@ fun MangaScreen(
     onChapterSelected: (ChapterList.Item, Boolean, Boolean) -> Unit,
     onAllChapterSelected: (Boolean) -> Unit,
     onInvertSelection: () -> Unit,
+    mangaPreviewEnabled: Boolean,
+    mangaPreviewSize: MangaPreviewSizeUi,
+    mangaPreviewState: MangaScreenModel.MangaPreviewState,
+    onPreviewExpandedChange: (Boolean) -> Unit,
+    onPreviewRetry: () -> Unit,
+    onPreviewPageLoad: (Int) -> Unit,
+    onPreviewPageStateSync: (Int) -> Unit,
+    onPreviewPageClick: (Long, Int) -> Unit,
 ) {
     val context = LocalContext.current
     val onCopyTagToClipboard: (tag: String) -> Unit = {
@@ -173,6 +182,14 @@ fun MangaScreen(
             onChapterSelected = onChapterSelected,
             onAllChapterSelected = onAllChapterSelected,
             onInvertSelection = onInvertSelection,
+            mangaPreviewEnabled = mangaPreviewEnabled,
+            mangaPreviewSize = mangaPreviewSize,
+            mangaPreviewState = mangaPreviewState,
+            onPreviewExpandedChange = onPreviewExpandedChange,
+            onPreviewRetry = onPreviewRetry,
+            onPreviewPageLoad = onPreviewPageLoad,
+            onPreviewPageStateSync = onPreviewPageStateSync,
+            onPreviewPageClick = onPreviewPageClick,
         )
     } else {
         MangaScreenLargeImpl(
@@ -211,6 +228,14 @@ fun MangaScreen(
             onChapterSelected = onChapterSelected,
             onAllChapterSelected = onAllChapterSelected,
             onInvertSelection = onInvertSelection,
+            mangaPreviewEnabled = mangaPreviewEnabled,
+            mangaPreviewSize = mangaPreviewSize,
+            mangaPreviewState = mangaPreviewState,
+            onPreviewExpandedChange = onPreviewExpandedChange,
+            onPreviewRetry = onPreviewRetry,
+            onPreviewPageLoad = onPreviewPageLoad,
+            onPreviewPageStateSync = onPreviewPageStateSync,
+            onPreviewPageClick = onPreviewPageClick,
         )
     }
 }
@@ -265,6 +290,14 @@ private fun MangaScreenSmallImpl(
     onChapterSelected: (ChapterList.Item, Boolean, Boolean) -> Unit,
     onAllChapterSelected: (Boolean) -> Unit,
     onInvertSelection: () -> Unit,
+    mangaPreviewEnabled: Boolean,
+    mangaPreviewSize: MangaPreviewSizeUi,
+    mangaPreviewState: MangaScreenModel.MangaPreviewState,
+    onPreviewExpandedChange: (Boolean) -> Unit,
+    onPreviewRetry: () -> Unit,
+    onPreviewPageLoad: (Int) -> Unit,
+    onPreviewPageStateSync: (Int) -> Unit,
+    onPreviewPageClick: (Long, Int) -> Unit,
 ) {
     val chapterListState = rememberLazyListState()
 
@@ -420,13 +453,21 @@ private fun MangaScreenSmallImpl(
                         contentType = MangaScreenItem.DESCRIPTION_WITH_TAG,
                     ) {
                         ExpandableMangaDescription(
-                            defaultExpandState = state.isFromSource,
+                            defaultExpandState = false,
                             description = state.manga.description,
                             tagsProvider = { state.manga.genre },
                             notes = state.manga.notes,
                             onTagSearch = onTagSearch,
                             onCopyTagToClipboard = onCopyTagToClipboard,
                             onEditNotes = onEditNotesClicked,
+                            mangaPreviewEnabled = mangaPreviewEnabled,
+                            mangaPreviewSize = mangaPreviewSize,
+                            mangaPreviewState = mangaPreviewState,
+                            onPreviewExpandedChange = onPreviewExpandedChange,
+                            onPreviewRetry = onPreviewRetry,
+                            onPreviewPageLoad = onPreviewPageLoad,
+                            onPreviewPageStateSync = onPreviewPageStateSync,
+                            onPreviewPageClick = onPreviewPageClick,
                         )
                     }
 
@@ -514,6 +555,14 @@ fun MangaScreenLargeImpl(
     onChapterSelected: (ChapterList.Item, Boolean, Boolean) -> Unit,
     onAllChapterSelected: (Boolean) -> Unit,
     onInvertSelection: () -> Unit,
+    mangaPreviewEnabled: Boolean,
+    mangaPreviewSize: MangaPreviewSizeUi,
+    mangaPreviewState: MangaScreenModel.MangaPreviewState,
+    onPreviewExpandedChange: (Boolean) -> Unit,
+    onPreviewRetry: () -> Unit,
+    onPreviewPageLoad: (Int) -> Unit,
+    onPreviewPageStateSync: (Int) -> Unit,
+    onPreviewPageClick: (Long, Int) -> Unit,
 ) {
     val layoutDirection = LocalLayoutDirection.current
     val density = LocalDensity.current
@@ -651,13 +700,21 @@ fun MangaScreenLargeImpl(
                             onEditCategory = onEditCategoryClicked,
                         )
                         ExpandableMangaDescription(
-                            defaultExpandState = true,
+                            defaultExpandState = false,
                             description = state.manga.description,
                             tagsProvider = { state.manga.genre },
                             notes = state.manga.notes,
                             onTagSearch = onTagSearch,
                             onCopyTagToClipboard = onCopyTagToClipboard,
                             onEditNotes = onEditNotesClicked,
+                            mangaPreviewEnabled = mangaPreviewEnabled,
+                            mangaPreviewSize = mangaPreviewSize,
+                            mangaPreviewState = mangaPreviewState,
+                            onPreviewExpandedChange = onPreviewExpandedChange,
+                            onPreviewRetry = onPreviewRetry,
+                            onPreviewPageLoad = onPreviewPageLoad,
+                            onPreviewPageStateSync = onPreviewPageStateSync,
+                            onPreviewPageClick = onPreviewPageClick,
                         )
                     }
                 },

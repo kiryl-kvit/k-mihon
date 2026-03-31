@@ -33,20 +33,27 @@ import eu.kanade.presentation.manga.components.ChapterDownloadAction
 import eu.kanade.presentation.util.formattedMessage
 import eu.kanade.tachiyomi.data.download.DownloadCache
 import eu.kanade.tachiyomi.data.download.DownloadManager
+import eu.kanade.tachiyomi.data.download.DownloadProvider
 import eu.kanade.tachiyomi.data.download.model.Download
 import eu.kanade.tachiyomi.data.track.EnhancedTracker
 import eu.kanade.tachiyomi.data.track.TrackerManager
 import eu.kanade.tachiyomi.network.HttpException
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.getNameForMangaInfo
+import eu.kanade.tachiyomi.ui.reader.loader.ChapterLoader
+import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
+import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.util.chapter.getNextUnread
 import eu.kanade.tachiyomi.util.removeCovers
 import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
@@ -56,6 +63,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import logcat.LogPriority
+import mihon.core.common.CustomPreferences
 import mihon.domain.chapter.interactor.FilterChaptersForDownload
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.preference.CheckboxState
@@ -108,6 +116,8 @@ class MangaScreenModel(
     private val trackChapter: TrackChapter = Injekt.get(),
     private val downloadManager: DownloadManager = Injekt.get(),
     private val downloadCache: DownloadCache = Injekt.get(),
+    private val downloadProvider: DownloadProvider = Injekt.get(),
+    private val customPreferences: CustomPreferences = Injekt.get(),
     private val getMangaAndChapters: GetMangaWithChapters = Injekt.get(),
     private val getDuplicateLibraryManga: GetDuplicateLibraryManga = Injekt.get(),
     private val getMergedManga: GetMergedManga = Injekt.get(),
@@ -153,6 +163,16 @@ class MangaScreenModel(
     var autoTrackState = trackPreferences.autoUpdateTrackOnMarkRead.get()
 
     private val skipFiltered by readerPreferences.skipFiltered.asState(screenModelScope)
+    val isMangaPreviewEnabled by customPreferences.enableMangaPreview.asState(screenModelScope)
+    val mangaPreviewPageCount by customPreferences.mangaPreviewPageCount.asState(screenModelScope)
+    val mangaPreviewSize by customPreferences.mangaPreviewSize.asState(screenModelScope)
+
+    private val previewLoaderState = MutableStateFlow(MangaPreviewState())
+    val previewState = previewLoaderState.asStateFlow()
+
+    private var previewReaderChapter: ReaderChapter? = null
+    private var previewLoadJob: Job? = null
+    private var previewPageJobs: Map<Int, Job> = emptyMap()
 
     val isUpdateIntervalEnabled =
         LibraryPreferences.MANGA_OUTSIDE_RELEASE_PERIOD in libraryPreferences.autoUpdateMangaRestrictions.get()
@@ -172,7 +192,28 @@ class MangaScreenModel(
         }
     }
 
+    private fun updatePreviewState(transform: (MangaPreviewState) -> MangaPreviewState) {
+        previewLoaderState.update(transform)
+    }
+
     init {
+        screenModelScope.launchIO {
+            customPreferences.mangaPreviewPageCount.changes().collectLatest { newCount ->
+                val clampedCount = newCount.coerceIn(1, 30)
+                updatePreviewState { preview ->
+                    val updatedPages = if (preview.isExpanded && preview.pages.isNotEmpty()) {
+                        preview.pages.take(clampedCount)
+                    } else {
+                        preview.pages
+                    }
+                    preview.copy(pageCount = clampedCount, pages = updatedPages)
+                }
+                if (previewState.value.isExpanded) {
+                    loadPreview(force = true)
+                }
+            }
+        }
+
         screenModelScope.launchIO {
             combine(
                 getMangaAndChapters.subscribe(mangaId, applyScanlatorFilter = true).distinctUntilChanged(),
@@ -296,6 +337,189 @@ class MangaScreenModel(
             fetchFromSourceTasks.awaitAll()
             updateSuccessState { it.copy(isRefreshingData = false) }
         }
+    }
+
+    fun setPreviewExpanded(expanded: Boolean) {
+        if (!isMangaPreviewEnabled) {
+            collapsePreview()
+            return
+        }
+
+        if (expanded) {
+            updatePreviewState { it.copy(isExpanded = true) }
+            if (!previewState.value.hasLoadedContent) {
+                loadPreview()
+            }
+        } else {
+            collapsePreview()
+        }
+    }
+
+    fun retryPreview() {
+        if (!previewState.value.isExpanded) return
+        loadPreview(force = true)
+    }
+
+    private fun loadPreview(force: Boolean = false) {
+        if (!isMangaPreviewEnabled) return
+
+        previewLoadJob?.cancel()
+        previewLoadJob = screenModelScope.launchIO {
+            val state = successState ?: return@launchIO
+
+            if (!force && previewState.value.hasLoadedContent) {
+                return@launchIO
+            }
+
+            clearPreviewResources(resetState = false, cancelLoadJob = false)
+            updatePreviewState {
+                it.copy(
+                    isExpanded = true,
+                    isLoading = true,
+                    error = null,
+                    chapterId = null,
+                    pages = emptyList(),
+                    pageCount = mangaPreviewPageCount.coerceIn(1, 30),
+                )
+            }
+
+            runCatching {
+                val previewChapter = getFirstPreviewChapter(state)
+                    ?: error(context.stringResource(MR.strings.no_chapters_error))
+                val readerChapter = ReaderChapter(
+                    chapter = previewChapter.chapter,
+                    manga = previewChapter.manga,
+                    source = previewChapter.source,
+                )
+                val chapterLoader = ChapterLoader(
+                    context = context,
+                    downloadManager = downloadManager,
+                    downloadProvider = downloadProvider,
+                    manga = state.manga,
+                    sourceManager = Injekt.get(),
+                )
+
+                readerChapter.ref()
+                previewReaderChapter = readerChapter
+                chapterLoader.loadChapter(readerChapter)
+
+                val loadedPages = readerChapter.pages
+                    .orEmpty()
+                    .take(mangaPreviewPageCount.coerceIn(1, 30))
+                    .map { page ->
+                        PreviewPage(
+                            page = page,
+                            status = page.status,
+                            progress = page.progress,
+                        )
+                    }
+
+                updatePreviewState {
+                    it.copy(
+                        isExpanded = true,
+                        isLoading = false,
+                        error = null,
+                        chapterId = previewChapter.chapter.id,
+                        pages = loadedPages,
+                        pageCount = mangaPreviewPageCount.coerceIn(1, 30),
+                    )
+                }
+            }.onFailure { error ->
+                clearPreviewResources(resetState = false, cancelLoadJob = false)
+                updatePreviewState {
+                    it.copy(
+                        isExpanded = true,
+                        isLoading = false,
+                        error = error,
+                        chapterId = null,
+                        pages = emptyList(),
+                        pageCount = mangaPreviewPageCount.coerceIn(1, 30),
+                    )
+                }
+            }
+        }
+    }
+
+    fun loadPreviewPage(pageIndex: Int) {
+        val chapter = previewReaderChapter ?: return
+        val page = chapter.pages?.getOrNull(pageIndex) ?: return
+        if (page.status == eu.kanade.tachiyomi.source.model.Page.State.Ready) {
+            updatePreviewPage(page)
+            return
+        }
+        if (previewPageJobs[pageIndex]?.isActive == true) return
+
+        previewPageJobs = previewPageJobs + (
+            pageIndex to screenModelScope.launchIO {
+                try {
+                    chapter.pageLoader?.loadPage(page)
+                } catch (_: Throwable) {
+                    // Page state carries the failure.
+                } finally {
+                    updatePreviewPage(page)
+                }
+            }
+            )
+    }
+
+    fun refreshPreviewPage(pageIndex: Int) {
+        val page = previewReaderChapter?.pages?.getOrNull(pageIndex) ?: return
+        updatePreviewPage(page)
+    }
+
+    private fun updatePreviewPage(page: ReaderPage) {
+        updatePreviewState { preview ->
+            preview.copy(
+                pages = preview.pages.map { previewPage ->
+                    if (previewPage.page.index == page.index) {
+                        previewPage.copy(
+                            page = page,
+                            status = page.status,
+                            progress = page.progress,
+                        )
+                    } else {
+                        previewPage
+                    }
+                },
+            )
+        }
+    }
+
+    private suspend fun getFirstPreviewChapter(state: State.Success): ChapterList.Item? {
+        return state.chapters
+            .sortedWith { item1, item2 ->
+                getChapterSort(state.manga, sortDescending = false).invoke(item1.chapter, item2.chapter)
+            }
+            .firstOrNull()
+    }
+
+    private fun collapsePreview() {
+        clearPreviewResources(resetState = true)
+        updatePreviewState {
+            MangaPreviewState(
+                isExpanded = false,
+                pageCount = mangaPreviewPageCount.coerceIn(1, 30),
+            )
+        }
+    }
+
+    private fun clearPreviewResources(resetState: Boolean, cancelLoadJob: Boolean = true) {
+        if (cancelLoadJob) {
+            previewLoadJob?.cancel()
+            previewLoadJob = null
+        }
+        previewPageJobs.values.forEach(Job::cancel)
+        previewPageJobs = emptyMap()
+        previewReaderChapter?.unref()
+        previewReaderChapter = null
+        if (resetState) {
+            previewLoaderState.value = MangaPreviewState(pageCount = mangaPreviewPageCount.coerceIn(1, 30))
+        }
+    }
+
+    override fun onDispose() {
+        super.onDispose()
+        clearPreviewResources(resetState = false)
     }
 
     // Manga info - start
@@ -1507,6 +1731,26 @@ class MangaScreenModel(
             }
         }
     }
+
+    @Immutable
+    data class MangaPreviewState(
+        val isExpanded: Boolean = false,
+        val isLoading: Boolean = false,
+        val error: Throwable? = null,
+        val chapterId: Long? = null,
+        val pages: List<PreviewPage> = emptyList(),
+        val pageCount: Int = 5,
+    ) {
+        val hasLoadedContent: Boolean
+            get() = chapterId != null && pages.size == pageCount
+    }
+
+    @Immutable
+    data class PreviewPage(
+        val page: ReaderPage,
+        val status: eu.kanade.tachiyomi.source.model.Page.State,
+        val progress: Int,
+    )
 }
 
 @Immutable

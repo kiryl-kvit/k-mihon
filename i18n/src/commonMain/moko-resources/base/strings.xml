@@ -692,6 +692,16 @@
     <string name="profiles_delete_profile_confirmation">Delete %1$s permanently?</string>
     <string name="pref_startup_screen">Application startup screen</string>
     <string name="pref_extensions_auto_update">Enable extensions auto-update</string>
+    <string name="pref_manga_preview">Manga preview</string>
+    <string name="pref_enable_manga_preview">Show manga preview</string>
+    <string name="pref_enable_manga_preview_summary">Display preview pages on the manga screen</string>
+    <string name="pref_manga_preview_page_count">Preview page count</string>
+    <string name="pref_manga_preview_size">Preview page size</string>
+    <string name="pref_manga_preview_size_small">Small</string>
+    <string name="pref_manga_preview_size_medium">Medium</string>
+    <string name="pref_manga_preview_size_large">Large</string>
+    <string name="manga_preview_section_title">Preview</string>
+    <string name="manga_preview_empty">No preview pages available</string>
 
       <!-- About section -->
     <string name="website">Website</string>

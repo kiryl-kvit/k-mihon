@@ -37,6 +37,7 @@ import eu.kanade.presentation.manga.components.DeleteChaptersDialog
 import eu.kanade.presentation.manga.components.EditDisplayNameDialog
 import eu.kanade.presentation.manga.components.ManageMergeDialog
 import eu.kanade.presentation.manga.components.MangaCoverDialog
+import eu.kanade.presentation.manga.components.MangaPreviewSizeUi
 import eu.kanade.presentation.manga.components.ScanlatorFilterDialog
 import eu.kanade.presentation.manga.components.SetIntervalDialog
 import eu.kanade.presentation.util.AssistContentScreen
@@ -101,6 +102,7 @@ class MangaScreen(
         }
 
         val successState = state as MangaScreenModel.State.Success
+        val previewState by screenModel.previewState.collectAsStateWithLifecycle()
         val isHttpSource = remember { successState.source is HttpSource }
 
         LaunchedEffect(successState.manga, screenModel.source) {
@@ -184,6 +186,29 @@ class MangaScreen(
             onChapterSelected = screenModel::toggleSelection,
             onAllChapterSelected = screenModel::toggleAllSelection,
             onInvertSelection = screenModel::invertSelection,
+            mangaPreviewEnabled = screenModel.isMangaPreviewEnabled,
+            mangaPreviewSize = when (screenModel.mangaPreviewSize) {
+                mihon.core.common.CustomPreferences.MangaPreviewSize.SMALL -> MangaPreviewSizeUi.SMALL
+                mihon.core.common.CustomPreferences.MangaPreviewSize.MEDIUM -> MangaPreviewSizeUi.MEDIUM
+                mihon.core.common.CustomPreferences.MangaPreviewSize.LARGE -> MangaPreviewSizeUi.LARGE
+            },
+            mangaPreviewState = previewState,
+            onPreviewExpandedChange = screenModel::setPreviewExpanded,
+            onPreviewRetry = screenModel::retryPreview,
+            onPreviewPageLoad = screenModel::loadPreviewPage,
+            onPreviewPageStateSync = screenModel::refreshPreviewPage,
+            onPreviewPageClick = { chapterId, pageIndex ->
+                scope.launch {
+                    openChapter(
+                        context,
+                        screenModel,
+                        successState.chapters.first {
+                            it.chapter.id == chapterId
+                        }.chapter,
+                        pageIndex,
+                    )
+                }
+            },
         )
 
         var showScanlatorsDialog by remember { mutableStateOf(false) }
@@ -338,9 +363,14 @@ class MangaScreen(
         if (unreadChapter != null) openChapter(context, screenModel, unreadChapter)
     }
 
-    private suspend fun openChapter(context: Context, screenModel: MangaScreenModel, chapter: Chapter) {
+    private suspend fun openChapter(
+        context: Context,
+        screenModel: MangaScreenModel,
+        chapter: Chapter,
+        pageIndex: Int? = null,
+    ) {
         val visibleMangaId = screenModel.getVisibleMangaId(chapter.mangaId)
-        context.startActivity(ReaderActivity.newIntent(context, visibleMangaId, chapter.id))
+        context.startActivity(ReaderActivity.newIntent(context, visibleMangaId, chapter.id, pageIndex))
     }
 
     private fun getMangaUrl(manga_: Manga?, source_: Source?): String? {

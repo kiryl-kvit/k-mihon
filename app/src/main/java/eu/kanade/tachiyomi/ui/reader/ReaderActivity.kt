@@ -108,10 +108,15 @@ import java.io.ByteArrayOutputStream
 class ReaderActivity : BaseActivity() {
 
     companion object {
-        fun newIntent(context: Context, mangaId: Long?, chapterId: Long?): Intent {
+        private const val EXTRA_MANGA = "manga"
+        private const val EXTRA_CHAPTER = "chapter"
+        private const val EXTRA_PAGE = "page"
+
+        fun newIntent(context: Context, mangaId: Long?, chapterId: Long?, pageIndex: Int? = null): Intent {
             return Intent(context, ReaderActivity::class.java).apply {
-                putExtra("manga", mangaId)
-                putExtra("chapter", chapterId)
+                putExtra(EXTRA_MANGA, mangaId)
+                putExtra(EXTRA_CHAPTER, chapterId)
+                pageIndex?.let { putExtra(EXTRA_PAGE, it) }
                 addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
         }
@@ -170,8 +175,9 @@ class ReaderActivity : BaseActivity() {
         binding.setComposeOverlay()
 
         if (viewModel.needsInit()) {
-            val manga = intent.extras?.getLong("manga", -1) ?: -1L
-            val chapter = intent.extras?.getLong("chapter", -1) ?: -1L
+            val manga = intent.extras?.getLong(EXTRA_MANGA, -1) ?: -1L
+            val chapter = intent.extras?.getLong(EXTRA_CHAPTER, -1) ?: -1L
+            val pageIndex = intent.extras?.getInt(EXTRA_PAGE, -1) ?: -1
             if (manga == -1L || chapter == -1L) {
                 finish()
                 return
@@ -179,7 +185,7 @@ class ReaderActivity : BaseActivity() {
             NotificationReceiver.dismissNotification(this, manga.hashCode(), Notifications.ID_NEW_CHAPTERS)
 
             lifecycleScope.launchNonCancellable {
-                val initResult = viewModel.init(manga, chapter)
+                val initResult = viewModel.init(manga, chapter, pageIndex)
                 if (!initResult.getOrDefault(false)) {
                     val exception = initResult.exceptionOrNull() ?: IllegalStateException("Unknown err")
                     withUIContext {
