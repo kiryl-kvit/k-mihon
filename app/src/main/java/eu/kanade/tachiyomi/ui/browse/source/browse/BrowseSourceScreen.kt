@@ -244,7 +244,9 @@ data class BrowseSourceScreen(
                 SourceFilterDialog(
                     onDismissRequest = onDismissRequest,
                     filters = state.filters,
+                    presets = screenModel.feedPresets(),
                     onReset = screenModel::resetFilters,
+                    onApplyPreset = screenModel::applyPreset,
                     onSave = screenModel::showSavePresetDialog,
                     onFilter = { screenModel.search(filters = state.filters) },
                     onUpdate = screenModel::setFilters,

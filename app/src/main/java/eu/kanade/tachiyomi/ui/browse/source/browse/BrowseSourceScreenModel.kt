@@ -16,6 +16,9 @@ import cafe.adriel.voyager.core.model.screenModelScope
 import eu.kanade.core.preference.asState
 import eu.kanade.domain.source.model.FeedListingMode
 import eu.kanade.domain.source.model.SourceFeedPreset
+import eu.kanade.domain.source.model.applySnapshot
+import eu.kanade.domain.source.model.latestFeedPreset
+import eu.kanade.domain.source.model.popularFeedPreset
 import eu.kanade.domain.source.model.snapshot
 import eu.kanade.domain.source.service.BrowseFeedService
 import eu.kanade.domain.manga.interactor.UpdateManga
@@ -316,6 +319,46 @@ class BrowseSourceScreenModel(
         setDialog(Dialog.SavePreset)
     }
 
+    fun feedPresets(): List<SourceFeedPreset> {
+        val custom = browseFeedService.stateSnapshot().presets
+            .filter { it.sourceId == sourceId }
+            .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
+
+        if (source !is CatalogueSource) return custom
+
+        return buildList {
+            add(popularFeedPreset(sourceId, "Popular"))
+            if (source.supportsLatest) {
+                add(latestFeedPreset(sourceId, "Latest"))
+            }
+            addAll(custom)
+        }
+    }
+
+    fun applyPreset(presetId: String) {
+        if (source !is CatalogueSource) return
+
+        val preset = feedPresets().firstOrNull { it.id == presetId } ?: return
+        when (preset.listingMode) {
+            FeedListingMode.Popular -> {
+                resetFilters()
+                setListing(Listing.Popular)
+            }
+            FeedListingMode.Latest -> {
+                resetFilters()
+                setListing(Listing.Latest)
+            }
+            FeedListingMode.Search -> {
+                val filters = source.getFilterList().applySnapshot(preset.filters)
+                setFilters(filters)
+                search(
+                    query = preset.query,
+                    filters = filters,
+                )
+            }
+        }
+    }
+
     fun hasPresetName(name: String): Boolean {
         val trimmed = name.trim()
         return browseFeedService.stateSnapshot().presets.any {
@@ -334,8 +377,12 @@ class BrowseSourceScreenModel(
                 id = UUID.randomUUID().toString(),
                 sourceId = sourceId,
                 name = trimmed,
-                listingMode = FeedListingMode.Search,
-                query = state.value.toolbarQuery?.trim()?.takeIf { it.isNotEmpty() },
+                listingMode = when (state.value.listing) {
+                    Listing.Popular -> FeedListingMode.Popular
+                    Listing.Latest -> FeedListingMode.Latest
+                    is Listing.Search -> FeedListingMode.Search
+                },
+                query = state.value.listing.query?.trim()?.takeIf { it.isNotEmpty() },
                 filters = state.value.filters.snapshot(),
             ),
         )
