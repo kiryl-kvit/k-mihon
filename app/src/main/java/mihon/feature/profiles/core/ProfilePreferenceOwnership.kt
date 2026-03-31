@@ -5,6 +5,7 @@ import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.tachiyomi.core.security.SecurityPreferences
 import eu.kanade.tachiyomi.data.track.TrackerManager
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
+import kotlinx.serialization.json.Json
 import mihon.core.common.CustomPreferences
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
@@ -12,6 +13,11 @@ import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.updates.service.UpdatesPreferences
 
 object ProfilePreferenceOwnership {
+    private val json = Json {
+        ignoreUnknownKeys = true
+        explicitNulls = false
+    }
+
     data class Keys(
         val profile: Set<String>,
         val appState: Set<String>,
@@ -21,7 +27,7 @@ object ProfilePreferenceOwnership {
     fun derive(): Keys {
         val recorder = KeyRecordingPreferenceStore()
 
-        SourcePreferences(recorder)
+        SourcePreferences(recorder, json)
         SecurityPreferences(recorder)
         LibraryPreferences(recorder)
         UpdatesPreferences(recorder)
