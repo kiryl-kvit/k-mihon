@@ -1,15 +1,15 @@
 package eu.kanade.tachiyomi.util.chapter
 
 import android.content.Context
+import eu.kanade.domain.base.BasePreferences
+import eu.kanade.tachiyomi.data.download.model.Download
+import eu.kanade.tachiyomi.source.Source
+import eu.kanade.tachiyomi.ui.manga.ChapterList
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import eu.kanade.domain.base.BasePreferences
-import eu.kanade.tachiyomi.data.download.model.Download
-import eu.kanade.tachiyomi.source.Source
-import eu.kanade.tachiyomi.ui.manga.ChapterList
 import tachiyomi.core.common.preference.InMemoryPreferenceStore
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.manga.model.Manga

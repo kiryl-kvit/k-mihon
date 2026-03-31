@@ -11,8 +11,8 @@ import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.extension.installer.Installer
 import eu.kanade.tachiyomi.extension.installer.PackageInstallerInstaller
 import eu.kanade.tachiyomi.extension.installer.ShizukuInstaller
-import eu.kanade.tachiyomi.extension.util.ExtensionInstaller.UserActionBehavior
 import eu.kanade.tachiyomi.extension.util.ExtensionInstaller.Companion.EXTRA_DOWNLOAD_ID
+import eu.kanade.tachiyomi.extension.util.ExtensionInstaller.UserActionBehavior
 import eu.kanade.tachiyomi.util.system.getSerializableExtraCompat
 import eu.kanade.tachiyomi.util.system.notificationBuilder
 import logcat.LogPriority

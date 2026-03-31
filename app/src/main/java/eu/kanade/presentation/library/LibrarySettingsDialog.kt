@@ -335,7 +335,7 @@ private fun GroupPage(
             selected = mode == groupState,
             onClick = {
                 screenModel.setGroup(mode)
-            }
+            },
         )
     }
 }

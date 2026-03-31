@@ -1,8 +1,8 @@
 package mihon.feature.profiles.core
 
 import kotlinx.coroutines.flow.Flow
-import tachiyomi.data.ActiveProfileProvider
 import tachiyomi.core.common.preference.PreferenceStore
+import tachiyomi.data.ActiveProfileProvider
 
 interface ProfileStore {
     val currentProfileId: Long

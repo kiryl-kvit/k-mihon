@@ -2,6 +2,7 @@ package eu.kanade.tachiyomi.data.backup.restore
 
 import android.content.Context
 import android.net.Uri
+import eu.kanade.tachiyomi.core.security.SecurityPreferences
 import eu.kanade.tachiyomi.data.backup.BackupDecoder
 import eu.kanade.tachiyomi.data.backup.BackupNotifier
 import eu.kanade.tachiyomi.data.backup.create.BackupCreateJob
@@ -10,24 +11,23 @@ import eu.kanade.tachiyomi.data.backup.models.BackupExtensionRepos
 import eu.kanade.tachiyomi.data.backup.models.BackupManga
 import eu.kanade.tachiyomi.data.backup.models.BackupPreference
 import eu.kanade.tachiyomi.data.backup.models.BackupSourcePreferences
-import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
-import eu.kanade.tachiyomi.core.security.SecurityPreferences
 import eu.kanade.tachiyomi.data.backup.restore.restorers.CategoriesRestorer
 import eu.kanade.tachiyomi.data.backup.restore.restorers.ExtensionRepoRestorer
 import eu.kanade.tachiyomi.data.backup.restore.restorers.MangaRestorer
 import eu.kanade.tachiyomi.data.backup.restore.restorers.PreferenceRestorer
+import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
 import eu.kanade.tachiyomi.util.system.createFileInCacheDir
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
-import mihon.feature.profiles.core.ProfileDatabase
 import mihon.feature.profiles.core.ProfileConstants
+import mihon.feature.profiles.core.ProfileDatabase
 import mihon.feature.profiles.core.ProfileManager
 import mihon.feature.profiles.core.ProfileScopedBackup
 import mihon.feature.profiles.core.ProfileStore
-import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.i18n.stringResource
+import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.i18n.MR
 import uy.kohesive.injekt.Injekt
@@ -182,7 +182,7 @@ class BackupRestorer(
                     profileId = profile.id,
                     preferences = profileBackup.preferences,
                     backupCategories = profileBackup.categories.takeIf { options.categories },
-                    includeGlobalRestore = profile.id == ProfileConstants.defaultProfileId,
+                    includeGlobalRestore = profile.id == ProfileConstants.DEFAULT_PROFILE_ID,
                     scheduleJobs = false,
                 )
                 restoreProgress += 1

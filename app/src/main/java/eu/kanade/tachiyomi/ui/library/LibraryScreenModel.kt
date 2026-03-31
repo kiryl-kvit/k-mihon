@@ -41,15 +41,15 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.updateAndGet
 import mihon.core.common.utils.mutate
+import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.preference.CheckboxState
 import tachiyomi.core.common.preference.TriState
-import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.lang.compareToWithCollator
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.lang.launchNonCancellable
-import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.interactor.SetMangaCategories
+import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.chapter.interactor.GetBookmarkedChaptersByMangaId
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.history.interactor.GetNextChapters
@@ -66,8 +66,8 @@ import tachiyomi.domain.manga.interactor.GetMergedManga
 import tachiyomi.domain.manga.interactor.UpdateMergedManga
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.MangaUpdate
-import tachiyomi.domain.manga.model.presentationTitle
 import tachiyomi.domain.manga.model.applyFilter
+import tachiyomi.domain.manga.model.presentationTitle
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.track.interactor.GetTracksPerManga
 import tachiyomi.domain.track.model.Track
@@ -388,7 +388,9 @@ class LibraryScreenModel(
                                         secondaryTab = sourceTabs.getValue(sourceId),
                                         category = category,
                                         sourceId = sourceId,
-                                        itemIds = categoryItems.fastFilter { it.libraryManga.displaySourceId == sourceId }
+                                        itemIds = categoryItems.fastFilter {
+                                            it.libraryManga.displaySourceId == sourceId
+                                        }
                                             .fastMap(LibraryItem::id),
                                     ),
                                 )

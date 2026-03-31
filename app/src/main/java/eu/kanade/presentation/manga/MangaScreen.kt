@@ -689,12 +689,12 @@ fun MangaScreenLargeImpl(
                                 )
                             }
 
-                    sharedChapterItems(
-                        manga = state.manga,
-                        mergedMemberIds = state.memberIds,
-                        memberTitleById = state.memberTitleById,
-                        chapters = listItem,
-                        isAnyChapterSelected = chapters.fastAny { it.selected },
+                            sharedChapterItems(
+                                manga = state.manga,
+                                mergedMemberIds = state.memberIds,
+                                memberTitleById = state.memberTitleById,
+                                chapters = listItem,
+                                isAnyChapterSelected = chapters.fastAny { it.selected },
                                 chapterSwipeStartAction = chapterSwipeStartAction,
                                 chapterSwipeEndAction = chapterSwipeEndAction,
                                 onChapterClicked = onChapterClicked,
@@ -803,7 +803,10 @@ private fun LazyListScope.sharedChapterItems(
                     scanlator = item.chapter.scanlator.takeIf { !it.isNullOrBlank() }
                         ?.let { scanlator ->
                             val originTitle = memberTitleById[item.chapter.mangaId]
-                                ?.takeIf { mergedMemberIds.size > 1 && it.isNotBlank() && it != manga.presentationTitle() }
+                                ?.takeIf {
+                                    mergedMemberIds.size > 1 && it.isNotBlank() &&
+                                        it != manga.presentationTitle()
+                                }
                             if (originTitle != null) {
                                 "$originTitle · $scanlator"
                             } else {

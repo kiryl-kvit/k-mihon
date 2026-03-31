@@ -28,10 +28,10 @@ import eu.kanade.presentation.theme.TachiyomiPreviewTheme
 import eu.kanade.presentation.util.formatChapterNumber
 import eu.kanade.tachiyomi.util.lang.toTimestampString
 import tachiyomi.domain.history.model.HistoryWithRelations
-import tachiyomi.domain.manga.model.MangaCover as MangaCoverData
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
+import tachiyomi.domain.manga.model.MangaCover as MangaCoverData
 
 private val HistoryItemHeight = 96.dp
 

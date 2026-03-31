@@ -86,7 +86,8 @@ object AuthenticatorUtil {
      */
     fun Context.isAuthenticationSupported(): Boolean {
         val biometricManager = BiometricManager.from(this)
-        return biometricManager.canAuthenticate(Authenticators.BIOMETRIC_WEAK or Authenticators.DEVICE_CREDENTIAL) == BiometricManager.BIOMETRIC_SUCCESS ||
+        return biometricManager.canAuthenticate(Authenticators.BIOMETRIC_WEAK or Authenticators.DEVICE_CREDENTIAL) ==
+            BiometricManager.BIOMETRIC_SUCCESS ||
             biometricManager.canAuthenticate(Authenticators.DEVICE_CREDENTIAL) == BiometricManager.BIOMETRIC_SUCCESS ||
             biometricManager.canAuthenticate(Authenticators.BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS
     }

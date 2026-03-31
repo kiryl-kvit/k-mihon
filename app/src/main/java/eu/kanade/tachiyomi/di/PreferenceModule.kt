@@ -18,10 +18,10 @@ import mihon.feature.profiles.core.ProfileAwareStore
 import mihon.feature.profiles.core.ProfileStore
 import mihon.feature.profiles.core.ProfileStoreImpl
 import mihon.feature.profiles.core.ProfilesPreferences
-import tachiyomi.data.ActiveProfileProvider
 import tachiyomi.core.common.preference.AndroidPreferenceStore
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.storage.AndroidStorageFolderProvider
+import tachiyomi.data.ActiveProfileProvider
 import tachiyomi.domain.backup.service.BackupPreferences
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.library.service.GlobalLibraryPreferences
