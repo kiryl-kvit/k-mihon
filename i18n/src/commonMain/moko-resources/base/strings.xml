@@ -761,6 +761,7 @@
     <string name="browse_feed_save_preset">Save preset</string>
     <string name="browse_feed_preset_exists">A preset with this name already exists</string>
     <string name="browse_filter_presets">Filter presets</string>
+    <string name="browse_delete_preset_confirmation">Delete preset "%1$s"? Feeds using it will also be removed.</string>
     <string name="has_results">Has results</string>
     <string name="local_source_help_guide">Local source guide</string>
     <string name="no_pinned_sources">You have no pinned sources</string>

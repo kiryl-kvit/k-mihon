@@ -24,8 +24,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -39,6 +42,7 @@ import eu.kanade.core.util.ifSourcesLoaded
 import eu.kanade.presentation.browse.BrowseSourceContent
 import eu.kanade.presentation.browse.MissingSourceScreen
 import eu.kanade.presentation.browse.components.BrowseFeedNameDialog
+import eu.kanade.presentation.browse.components.DeleteBrowsePresetDialog
 import eu.kanade.presentation.browse.components.BrowseSourceToolbar
 import eu.kanade.presentation.browse.components.RemoveMangaDialog
 import eu.kanade.presentation.category.components.ChangeCategoryDialog
@@ -106,6 +110,7 @@ data class BrowseSourceScreen(
         val haptic = LocalHapticFeedback.current
         val uriHandler = LocalUriHandler.current
         val snackbarHostState = remember { SnackbarHostState() }
+        var presetPendingDeletion by rememberSaveable { mutableStateOf<String?>(null) }
 
         val onHelpClick = { uriHandler.openUri(LocalSource.HELP_URL) }
         val onWebViewClick = f@{
@@ -247,6 +252,8 @@ data class BrowseSourceScreen(
                     presets = screenModel.feedPresets(),
                     onReset = screenModel::resetFilters,
                     onApplyPreset = screenModel::applyPreset,
+                    onDeletePreset = { presetPendingDeletion = it },
+                    canDeletePreset = screenModel::canDeletePreset,
                     onSave = screenModel::showSavePresetDialog,
                     onFilter = { screenModel.search(filters = state.filters) },
                     onUpdate = screenModel::setFilters,
@@ -301,6 +308,16 @@ data class BrowseSourceScreen(
             }
             else -> {}
         }
+
+        presetPendingDeletion
+            ?.let { presetId -> screenModel.feedPresets().firstOrNull { it.id == presetId } }
+            ?.let { preset ->
+                DeleteBrowsePresetDialog(
+                    presetName = preset.name,
+                    onDismissRequest = { presetPendingDeletion = null },
+                    onConfirm = { screenModel.removePreset(preset.id) },
+                )
+            }
 
         LaunchedEffect(Unit) {
             queryEvent.receiveAsFlow()

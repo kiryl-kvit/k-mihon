@@ -16,6 +16,8 @@ import cafe.adriel.voyager.core.model.screenModelScope
 import eu.kanade.core.preference.asState
 import eu.kanade.domain.source.model.FeedListingMode
 import eu.kanade.domain.source.model.SourceFeedPreset
+import eu.kanade.domain.source.model.BUILTIN_LATEST_PRESET_ID
+import eu.kanade.domain.source.model.BUILTIN_POPULAR_PRESET_ID
 import eu.kanade.domain.source.model.applySnapshot
 import eu.kanade.domain.source.model.latestFeedPreset
 import eu.kanade.domain.source.model.popularFeedPreset
@@ -357,6 +359,16 @@ class BrowseSourceScreenModel(
                 )
             }
         }
+    }
+
+    fun canDeletePreset(presetId: String): Boolean {
+        return presetId != BUILTIN_POPULAR_PRESET_ID && presetId != BUILTIN_LATEST_PRESET_ID
+    }
+
+    fun removePreset(presetId: String) {
+        if (!canDeletePreset(presetId)) return
+
+        browseFeedService.removePreset(presetId)
     }
 
     fun hasPresetName(name: String): Boolean {

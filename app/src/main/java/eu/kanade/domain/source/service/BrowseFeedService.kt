@@ -48,6 +48,20 @@ class BrowseFeedService(
         )
     }
 
+    fun removePreset(presetId: String) {
+        preferences.savedFeedPresets.set(
+            preferences.savedFeedPresets.get().filterNot { it.id == presetId },
+        )
+
+        val remainingFeeds = preferences.savedFeeds.get().filterNot { it.presetId == presetId }
+        preferences.savedFeeds.set(remainingFeeds)
+
+        val selectedFeedId = preferences.selectedFeedId.get()
+        if (selectedFeedId.isNotBlank() && remainingFeeds.none { it.id == selectedFeedId }) {
+            preferences.selectedFeedId.set(remainingFeeds.firstOrNull { it.enabled }?.id.orEmpty())
+        }
+    }
+
     fun createFeed(feed: SourceFeed) {
         preferences.savedFeeds.set(
             preferences.savedFeeds.get()

@@ -70,3 +70,35 @@ fun BrowseFeedNameDialog(
         },
     )
 }
+
+@Composable
+fun DeleteBrowsePresetDialog(
+    presetName: String,
+    onDismissRequest: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text(text = stringResource(MR.strings.action_cancel))
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onDismissRequest()
+                    onConfirm()
+                },
+            ) {
+                Text(text = stringResource(MR.strings.action_delete))
+            }
+        },
+        title = {
+            Text(text = stringResource(MR.strings.are_you_sure))
+        },
+        text = {
+            Text(text = stringResource(MR.strings.browse_delete_preset_confirmation, presetName))
+        },
+    )
+}

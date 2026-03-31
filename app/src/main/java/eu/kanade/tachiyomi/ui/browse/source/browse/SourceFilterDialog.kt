@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowDropDown
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -50,6 +51,8 @@ fun SourceFilterDialog(
     presets: List<SourceFeedPreset>,
     onReset: () -> Unit,
     onApplyPreset: (String) -> Unit,
+    onDeletePreset: (String) -> Unit,
+    canDeletePreset: (String) -> Boolean,
     onSave: () -> Unit,
     onFilter: () -> Unit,
     onUpdate: (FilterList) -> Unit,
@@ -92,6 +95,21 @@ fun SourceFilterDialog(
                                 presets.forEach { preset ->
                                     DropdownMenuItem(
                                         text = { Text(text = preset.name) },
+                                        trailingIcon = {
+                                            if (canDeletePreset(preset.id)) {
+                                                IconButton(
+                                                    onClick = {
+                                                        presetMenuExpanded = false
+                                                        onDeletePreset(preset.id)
+                                                    },
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Outlined.Delete,
+                                                        contentDescription = stringResource(MR.strings.action_delete),
+                                                    )
+                                                }
+                                            }
+                                        },
                                         onClick = {
                                             presetMenuExpanded = false
                                             onApplyPreset(preset.id)
