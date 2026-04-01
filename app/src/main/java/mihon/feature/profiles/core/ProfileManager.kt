@@ -18,6 +18,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import mihon.core.common.CustomPreferences
+import mihon.core.common.HomeScreenTabs
+import mihon.core.common.defaultHomeScreenTabs
+import mihon.core.common.toHomeScreenTabPreferenceValue
 import tachiyomi.core.common.preference.Preference
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -202,6 +206,9 @@ class ProfileManager(
                 baseKey = Preference.appStateKey("pref_downloaded_only"),
             )
         }
+        if (currentVersion < 6) {
+            migrateLegacyProfileShortcutToHomeTabs(sharedPreferences)
+        }
 
         migrateKeyBackToGlobal(
             sharedPreferences = sharedPreferences,
@@ -219,6 +226,34 @@ class ProfileManager(
             sharedPreferences = sharedPreferences,
             baseKey = "disallow_non_ascii_filenames",
         )
+        sharedPreferences.edit(commit = true) {
+            remove(Preference.appStateKey("profiles_switch_shortcut_enabled"))
+        }
+    }
+
+    private fun migrateLegacyProfileShortcutToHomeTabs(
+        sharedPreferences: android.content.SharedPreferences,
+    ) {
+        val legacyKey = Preference.appStateKey("profiles_switch_shortcut_enabled")
+        if (!sharedPreferences.contains(legacyKey) || sharedPreferences.getBoolean(legacyKey, false).not()) return
+
+        val profileIds = runCatching {
+            kotlinx.coroutines.runBlocking { profileDatabase.getProfiles(includeArchived = true) }
+        }
+            .getOrDefault(emptyList())
+            .map(Profile::id)
+            .ifEmpty { listOf(ProfileConstants.DEFAULT_PROFILE_ID) }
+
+        profileIds.forEach { profileId ->
+            val customPreferences = CustomPreferences(profileStore.appStateStore(profileId))
+            val updatedTabs = (customPreferences.homeScreenTabs.get().ifEmpty { defaultHomeScreenTabs() })
+                .toMutableSet()
+                .apply { add(HomeScreenTabs.Profiles.name) }
+                .mapNotNullTo(linkedSetOf()) { name ->
+                    HomeScreenTabs.entries.find { it.name == name }
+                }
+            customPreferences.homeScreenTabs.set(updatedTabs.toHomeScreenTabPreferenceValue())
+        }
     }
 
     private fun migrateProfileOwnedKeyToNamespaced(
@@ -349,6 +384,6 @@ class ProfileManager(
     }
 
     companion object {
-        private const val LEGACY_PROFILE_MIGRATION_VERSION = 5
+        private const val LEGACY_PROFILE_MIGRATION_VERSION = 6
     }
 }

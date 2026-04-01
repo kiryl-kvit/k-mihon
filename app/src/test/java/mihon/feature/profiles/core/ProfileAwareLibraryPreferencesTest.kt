@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import mihon.core.common.CustomPreferences
+import mihon.core.common.HomeScreenTabs
+import mihon.core.common.defaultHomeScreenTabs
 import org.junit.jupiter.api.Test
 import tachiyomi.core.common.preference.AndroidPreferenceStore
 import tachiyomi.core.common.preference.Preference
@@ -105,16 +108,22 @@ class ProfileAwareLibraryPreferencesTest {
     }
 
     @Test
-    fun `switch profile shortcut setting stays global across profiles`() {
+    fun `home screen tab visibility stays isolated per profile`() {
         val fixture = createFixture()
 
-        fixture.profilesPreferences.switchProfileShortcutEnabled.set(true)
+        fixture.customPreferences.homeScreenTabs.set(
+            setOf(HomeScreenTabs.Library.name, HomeScreenTabs.More.name, HomeScreenTabs.Profiles.name),
+        )
         fixture.activeProfileId.value = 2L
-        fixture.profilesPreferences.switchProfileShortcutEnabled.get() shouldBe true
+        fixture.customPreferences.homeScreenTabs.get() shouldBe defaultHomeScreenTabs()
 
-        fixture.profilesPreferences.switchProfileShortcutEnabled.set(false)
+        fixture.customPreferences.homeScreenTabs.set(setOf(HomeScreenTabs.More.name))
         fixture.activeProfileId.value = 1L
-        fixture.profilesPreferences.switchProfileShortcutEnabled.get() shouldBe false
+        fixture.customPreferences.homeScreenTabs.get() shouldBe setOf(
+            HomeScreenTabs.Library.name,
+            HomeScreenTabs.More.name,
+            HomeScreenTabs.Profiles.name,
+        )
     }
 
     private fun createFixture(): Fixture {
@@ -132,14 +141,14 @@ class ProfileAwareLibraryPreferencesTest {
         return Fixture(
             activeProfileId = activeProfileId,
             libraryPreferences = LibraryPreferences(preferenceStore),
-            profilesPreferences = ProfilesPreferences(backing),
+            customPreferences = CustomPreferences(preferenceStore),
         )
     }
 
     private data class Fixture(
         val activeProfileId: MutableStateFlow<Long>,
         val libraryPreferences: LibraryPreferences,
-        val profilesPreferences: ProfilesPreferences,
+        val customPreferences: CustomPreferences,
     )
 
     private class FakeSharedPreferences : SharedPreferences {

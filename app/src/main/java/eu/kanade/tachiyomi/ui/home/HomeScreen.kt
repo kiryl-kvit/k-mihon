@@ -23,7 +23,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -56,8 +55,11 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import mihon.core.common.CustomPreferences
 import mihon.core.common.HomeScreenTabs
+import mihon.core.common.homeScreenContentTabOrder
+import mihon.core.common.resolveHomeScreenTab
+import mihon.core.common.resolveVisibleHomeScreenTabs
+import mihon.core.common.toHomeScreenTabs
 import mihon.feature.profiles.core.ProfileManager
-import mihon.feature.profiles.core.ProfilesPreferences
 import mihon.feature.profiles.ui.ProfilePickerScreen
 import soup.compose.material.motion.animation.materialFadeThroughIn
 import soup.compose.material.motion.animation.materialFadeThroughOut
@@ -68,8 +70,11 @@ import tachiyomi.presentation.core.components.material.NavigationRail
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.pluralStringResource
 import tachiyomi.presentation.core.i18n.stringResource
+import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import androidx.compose.runtime.collectAsState as collectFlowAsState
+import cafe.adriel.voyager.navigator.tab.Tab as VoyagerTab
 
 object HomeScreen : Screen() {
 
@@ -83,34 +88,30 @@ object HomeScreen : Screen() {
     @Suppress("ConstPropertyName")
     private const val TabNavigatorKey = "HomeTabs"
 
-    private val TABS = listOf(
-        LibraryTab,
-        UpdatesTab,
-        HistoryTab,
-        BrowseTab,
-        MoreTab,
-    )
-
     @Composable
     override fun Content() {
         val customPreferences = remember { Injekt.get<CustomPreferences>() }
-        val profilesPreferences = remember { Injekt.get<ProfilesPreferences>() }
         val profileManager = remember { Injekt.get<ProfileManager>() }
-        val configuredTab = customPreferences.homeScreenStartupTab.get()
-        val visibleProfiles by profileManager.visibleProfiles.collectAsState()
-        val showSwitchProfileShortcut by produceState(
-            initialValue = profilesPreferences.switchProfileShortcutEnabled.get(),
-            key1 = profilesPreferences,
-        ) {
-            profilesPreferences.switchProfileShortcutEnabled.changes().collectLatest { value = it }
+        val configuredTab by customPreferences.homeScreenStartupTab.collectAsState()
+        val configuredTabs by customPreferences.homeScreenTabs.collectAsState()
+        val visibleProfiles by profileManager.visibleProfiles.collectFlowAsState()
+        val enabledTabs = remember(configuredTabs, visibleProfiles) {
+            resolveVisibleHomeScreenTabs(
+                tabs = configuredTabs.toHomeScreenTabs(),
+                showProfilesTab = visibleProfiles.size > 1,
+            )
         }
-        val shouldShowProfileShortcut = showSwitchProfileShortcut && visibleProfiles.size > 1
-        val launchTab = when (configuredTab) {
-            HomeScreenTabs.Library -> LibraryTab
-            HomeScreenTabs.Updates -> UpdatesTab
-            HomeScreenTabs.History -> HistoryTab
-            HomeScreenTabs.Browse -> BrowseTab
-            HomeScreenTabs.More -> MoreTab
+        val contentTabs = remember(enabledTabs) {
+            enabledTabs.filter { it in homeScreenContentTabOrder }
+        }
+        val launchTab = remember(configuredTab, contentTabs) {
+            resolveContentTab(resolveHomeScreenTab(configuredTab, contentTabs))
+        }
+        val renderedTabs = remember(enabledTabs) {
+            enabledTabs
+        }
+        val fallbackTab = remember(contentTabs) {
+            resolveContentTab(resolveHomeScreenTab(HomeScreenTabs.Library, contentTabs))
         }
         val navigator = LocalNavigator.currentOrThrow
         TabNavigator(
@@ -123,13 +124,14 @@ object HomeScreen : Screen() {
                     startBar = {
                         if (isTabletUi()) {
                             NavigationRail {
-                                TABS.fastForEach {
-                                    TabNavigationRailItem(it)
-                                }
-                                if (shouldShowProfileShortcut) {
-                                    ProfileShortcutNavigationRailItem(
-                                        onClick = { navigator.push(ProfilePickerScreen()) },
-                                    )
+                                renderedTabs.fastForEach {
+                                    if (it == HomeScreenTabs.Profiles) {
+                                        ProfileShortcutNavigationRailItem(onClick = {
+                                            navigator.push(ProfilePickerScreen())
+                                        })
+                                    } else {
+                                        TabNavigationRailItem(resolveContentTab(it))
+                                    }
                                 }
                             }
                         }
@@ -145,13 +147,14 @@ object HomeScreen : Screen() {
                                 exit = shrinkVertically(),
                             ) {
                                 NavigationBar {
-                                    TABS.fastForEach {
-                                        TabNavigationBarItem(it)
-                                    }
-                                    if (shouldShowProfileShortcut) {
-                                        ProfileShortcutNavigationBarItem(
-                                            onClick = { navigator.push(ProfilePickerScreen()) },
-                                        )
+                                    renderedTabs.fastForEach {
+                                        if (it == HomeScreenTabs.Profiles) {
+                                            ProfileShortcutNavigationBarItem(
+                                                onClick = { navigator.push(ProfilePickerScreen()) },
+                                            )
+                                        } else {
+                                            TabNavigationBarItem(resolveContentTab(it))
+                                        }
                                     }
                                 }
                             }
@@ -180,36 +183,61 @@ object HomeScreen : Screen() {
                 }
             }
 
-            val goToLibraryTab = { tabNavigator.current = LibraryTab }
+            val goToFallbackTab = { tabNavigator.current = fallbackTab }
 
-            BackHandler(enabled = tabNavigator.current != LibraryTab, onBack = goToLibraryTab)
+            BackHandler(enabled = tabNavigator.current != fallbackTab, onBack = goToFallbackTab)
+
+            LaunchedEffect(contentTabs) {
+                val resolvedCurrentTab = resolveVisibleTab(tabNavigator.current, contentTabs)
+                if (resolvedCurrentTab::class != tabNavigator.current::class) {
+                    tabNavigator.current = resolvedCurrentTab
+                }
+                val resolvedStartupTab = resolveHomeScreenTab(configuredTab, contentTabs)
+                if (resolvedStartupTab != configuredTab) {
+                    customPreferences.homeScreenStartupTab.set(resolvedStartupTab)
+                }
+            }
 
             LaunchedEffect(Unit) {
                 launch {
                     librarySearchEvent.receiveAsFlow().collectLatest {
-                        goToLibraryTab()
-                        LibraryTab.search(it)
+                        if (HomeScreenTabs.Library in contentTabs) {
+                            tabNavigator.current = LibraryTab
+                            LibraryTab.search(it)
+                        } else {
+                            goToFallbackTab()
+                        }
                     }
                 }
                 launch {
                     openTabEvent.receiveAsFlow().collectLatest {
-                        tabNavigator.current = when (it) {
+                        if (it == Tab.Profiles) {
+                            if (HomeScreenTabs.Profiles in enabledTabs) {
+                                navigator.push(ProfilePickerScreen())
+                            } else {
+                                goToFallbackTab()
+                            }
+                            return@collectLatest
+                        }
+                        val requestedTab = when (it) {
                             is Tab.Library -> LibraryTab
                             Tab.Updates -> UpdatesTab
                             Tab.History -> HistoryTab
-                            is Tab.Browse -> {
-                                if (it.toExtensions) {
-                                    BrowseTab.showExtension()
-                                }
-                                BrowseTab
-                            }
+                            is Tab.Browse -> BrowseTab
                             is Tab.More -> MoreTab
+                            Tab.Profiles -> error("Handled above")
+                        }
+                        val resolvedTab = resolveVisibleTab(requestedTab, contentTabs)
+                        tabNavigator.current = resolvedTab
+
+                        if (it is Tab.Browse && resolvedTab::class == BrowseTab::class && it.toExtensions) {
+                            BrowseTab.showExtension()
                         }
 
                         if (it is Tab.Library && it.mangaIdToOpen != null) {
                             navigator.push(MangaScreen(it.mangaIdToOpen))
                         }
-                        if (it is Tab.More && it.toDownloads) {
+                        if (it is Tab.More && resolvedTab::class == MoreTab::class && it.toDownloads) {
                             navigator.push(DownloadQueueScreen)
                         }
                     }
@@ -398,11 +426,41 @@ object HomeScreen : Screen() {
         showBottomNavEvent.send(show)
     }
 
+    private fun resolveVisibleTab(
+        tab: VoyagerTab,
+        contentTabs: Collection<HomeScreenTabs>,
+    ): eu.kanade.presentation.util.Tab {
+        return resolveContentTab(resolveHomeScreenTab(tab.toHomeScreenTab(), contentTabs))
+    }
+
+    private fun resolveContentTab(tab: HomeScreenTabs): eu.kanade.presentation.util.Tab {
+        return when (tab) {
+            HomeScreenTabs.Library -> LibraryTab
+            HomeScreenTabs.Updates -> UpdatesTab
+            HomeScreenTabs.History -> HistoryTab
+            HomeScreenTabs.Browse -> BrowseTab
+            HomeScreenTabs.More -> MoreTab
+            HomeScreenTabs.Profiles -> error("Profiles is a navigation item, not a content tab")
+        }
+    }
+
+    private fun VoyagerTab.toHomeScreenTab(): HomeScreenTabs {
+        return when (this) {
+            is LibraryTab -> HomeScreenTabs.Library
+            is UpdatesTab -> HomeScreenTabs.Updates
+            is HistoryTab -> HomeScreenTabs.History
+            is BrowseTab -> HomeScreenTabs.Browse
+            is MoreTab -> HomeScreenTabs.More
+            else -> HomeScreenTabs.More
+        }
+    }
+
     sealed interface Tab {
         data class Library(val mangaIdToOpen: Long? = null) : Tab
         data object Updates : Tab
         data object History : Tab
         data class Browse(val toExtensions: Boolean = false) : Tab
         data class More(val toDownloads: Boolean) : Tab
+        data object Profiles : Tab
     }
 }
