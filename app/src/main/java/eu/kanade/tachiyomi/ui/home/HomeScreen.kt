@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
@@ -21,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -53,6 +56,9 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import mihon.core.common.CustomPreferences
 import mihon.core.common.HomeScreenTabs
+import mihon.feature.profiles.core.ProfileManager
+import mihon.feature.profiles.core.ProfilesPreferences
+import mihon.feature.profiles.ui.ProfilePickerScreen
 import soup.compose.material.motion.animation.materialFadeThroughIn
 import soup.compose.material.motion.animation.materialFadeThroughOut
 import tachiyomi.domain.library.service.LibraryPreferences
@@ -61,6 +67,7 @@ import tachiyomi.presentation.core.components.material.NavigationBar
 import tachiyomi.presentation.core.components.material.NavigationRail
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.pluralStringResource
+import tachiyomi.presentation.core.i18n.stringResource
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -87,7 +94,17 @@ object HomeScreen : Screen() {
     @Composable
     override fun Content() {
         val customPreferences = remember { Injekt.get<CustomPreferences>() }
+        val profilesPreferences = remember { Injekt.get<ProfilesPreferences>() }
+        val profileManager = remember { Injekt.get<ProfileManager>() }
         val configuredTab = customPreferences.homeScreenStartupTab.get()
+        val visibleProfiles by profileManager.visibleProfiles.collectAsState()
+        val showSwitchProfileShortcut by produceState(
+            initialValue = profilesPreferences.switchProfileShortcutEnabled.get(),
+            key1 = profilesPreferences,
+        ) {
+            profilesPreferences.switchProfileShortcutEnabled.changes().collectLatest { value = it }
+        }
+        val shouldShowProfileShortcut = showSwitchProfileShortcut && visibleProfiles.size > 1
         val launchTab = when (configuredTab) {
             HomeScreenTabs.Library -> LibraryTab
             HomeScreenTabs.Updates -> UpdatesTab
@@ -107,7 +124,12 @@ object HomeScreen : Screen() {
                         if (isTabletUi()) {
                             NavigationRail {
                                 TABS.fastForEach {
-                                    NavigationRailItem(it)
+                                    TabNavigationRailItem(it)
+                                }
+                                if (shouldShowProfileShortcut) {
+                                    ProfileShortcutNavigationRailItem(
+                                        onClick = { navigator.push(ProfilePickerScreen()) },
+                                    )
                                 }
                             }
                         }
@@ -124,7 +146,12 @@ object HomeScreen : Screen() {
                             ) {
                                 NavigationBar {
                                     TABS.fastForEach {
-                                        NavigationBarItem(it)
+                                        TabNavigationBarItem(it)
+                                    }
+                                    if (shouldShowProfileShortcut) {
+                                        ProfileShortcutNavigationBarItem(
+                                            onClick = { navigator.push(ProfilePickerScreen()) },
+                                        )
                                     }
                                 }
                             }
@@ -192,7 +219,7 @@ object HomeScreen : Screen() {
     }
 
     @Composable
-    private fun RowScope.NavigationBarItem(tab: eu.kanade.presentation.util.Tab) {
+    private fun RowScope.TabNavigationBarItem(tab: eu.kanade.presentation.util.Tab) {
         val tabNavigator = LocalTabNavigator.current
         val navigator = LocalNavigator.currentOrThrow
         val scope = rememberCoroutineScope()
@@ -220,7 +247,7 @@ object HomeScreen : Screen() {
     }
 
     @Composable
-    fun NavigationRailItem(tab: eu.kanade.presentation.util.Tab) {
+    private fun TabNavigationRailItem(tab: eu.kanade.presentation.util.Tab) {
         val tabNavigator = LocalTabNavigator.current
         val navigator = LocalNavigator.currentOrThrow
         val scope = rememberCoroutineScope()
@@ -238,6 +265,54 @@ object HomeScreen : Screen() {
             label = {
                 Text(
                     text = tab.options.title,
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            },
+            alwaysShowLabel = true,
+        )
+    }
+
+    @Composable
+    private fun RowScope.ProfileShortcutNavigationBarItem(onClick: () -> Unit) {
+        val title = stringResource(MR.strings.profiles_title)
+        NavigationBarItem(
+            selected = false,
+            onClick = onClick,
+            icon = {
+                Icon(
+                    imageVector = Icons.Outlined.AccountCircle,
+                    contentDescription = title,
+                )
+            },
+            label = {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            },
+            alwaysShowLabel = true,
+        )
+    }
+
+    @Composable
+    private fun ProfileShortcutNavigationRailItem(onClick: () -> Unit) {
+        val title = stringResource(MR.strings.profiles_title)
+        NavigationRailItem(
+            selected = false,
+            onClick = onClick,
+            icon = {
+                Icon(
+                    imageVector = Icons.Outlined.AccountCircle,
+                    contentDescription = title,
+                )
+            },
+            label = {
+                Text(
+                    text = title,
                     style = MaterialTheme.typography.labelLarge,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

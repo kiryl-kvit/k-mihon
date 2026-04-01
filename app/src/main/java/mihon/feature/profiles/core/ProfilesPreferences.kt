@@ -21,6 +21,11 @@ class ProfilesPreferences(
         true,
     )
 
+    val switchProfileShortcutEnabled: Preference<Boolean> = preferenceStore.getBoolean(
+        Preference.appStateKey("profiles_switch_shortcut_enabled"),
+        false,
+    )
+
     val pendingIntentUri: Preference<String> = preferenceStore.getString(
         Preference.appStateKey("pending_profile_intent_uri"),
         "",

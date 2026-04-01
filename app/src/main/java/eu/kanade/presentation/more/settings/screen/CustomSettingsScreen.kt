@@ -84,6 +84,10 @@ object CustomSettingsScreen : SearchableSettings {
                         preference = profilesPreferences.pickerEnabled,
                         title = stringResource(MR.strings.profiles_choose_on_launch),
                     ),
+                    Preference.PreferenceItem.SwitchPreference(
+                        preference = profilesPreferences.switchProfileShortcutEnabled,
+                        title = stringResource(MR.strings.profiles_enable_switch_shortcut),
+                    ),
                 ),
             ),
             Preference.PreferenceGroup(
