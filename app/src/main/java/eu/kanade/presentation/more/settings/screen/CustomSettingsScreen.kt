@@ -14,18 +14,26 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.toMutableStateList
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.presentation.more.settings.Preference
+import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableMap
 import mihon.core.common.CustomPreferences
 import mihon.core.common.GlobalCustomPreferences
 import mihon.core.common.HomeScreenTabs
+import mihon.core.common.homeScreenTabOrder
+import mihon.core.common.resolveHomeScreenTab
+import mihon.core.common.sanitizeHomeScreenTabs
+import mihon.core.common.toHomeScreenTabPreferenceValue
+import mihon.core.common.toHomeScreenTabs
 import mihon.feature.profiles.core.ProfilesPreferences
 import mihon.feature.profiles.ui.ProfilesSettingsScreen
 import tachiyomi.i18n.MR
+import tachiyomi.presentation.core.components.LabeledCheckbox
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
@@ -45,8 +53,21 @@ object CustomSettingsScreen : SearchableSettings {
         val profilesPreferences = remember { Injekt.get<ProfilesPreferences>() }
         val previewEnabled by customPreferences.enableMangaPreview.collectAsState()
         val previewPageCount by customPreferences.mangaPreviewPageCount.collectAsState()
+        val startupTab by customPreferences.homeScreenStartupTab.collectAsState()
+        val homeScreenTabs by customPreferences.homeScreenTabs.collectAsState()
         val navigator = LocalNavigator.currentOrThrow
         var showProfilesInfo by rememberSaveable { mutableStateOf(false) }
+        var showHomeTabsDialog by rememberSaveable { mutableStateOf(false) }
+        val homeTabEntries = rememberHomeTabEntries()
+        val enabledHomeTabs = remember(homeScreenTabs) {
+            sanitizeHomeScreenTabs(homeScreenTabs.toHomeScreenTabs())
+        }
+        val startupTabEntries = remember(enabledHomeTabs, homeTabEntries) {
+            enabledHomeTabs
+                .filterNot { it == HomeScreenTabs.Profiles }
+                .associateWith { homeTabEntries.getValue(it) }
+                .toImmutableMap()
+        }
 
         if (showProfilesInfo) {
             AlertDialog(
@@ -56,6 +77,63 @@ object CustomSettingsScreen : SearchableSettings {
                 confirmButton = {
                     TextButton(onClick = { showProfilesInfo = false }) {
                         Text(text = stringResource(MR.strings.action_close))
+                    }
+                },
+            )
+        }
+
+        if (showHomeTabsDialog) {
+            val selectedTabs = remember(homeScreenTabs) {
+                enabledHomeTabs.toMutableStateList()
+            }
+            AlertDialog(
+                onDismissRequest = { showHomeTabsDialog = false },
+                title = { Text(text = stringResource(MR.strings.pref_home_screen_tabs)) },
+                text = {
+                    androidx.compose.foundation.lazy.LazyColumn {
+                        homeScreenTabOrder.forEach { tab ->
+                            item {
+                                val isSelected = tab in selectedTabs
+                                val isLocked = tab == HomeScreenTabs.More
+                                LabeledCheckbox(
+                                    label = homeTabEntries.getValue(tab),
+                                    checked = isSelected,
+                                    enabled = !isLocked,
+                                    onCheckedChange = { checked ->
+                                        if (checked) {
+                                            if (tab !in selectedTabs) {
+                                                selectedTabs.add(tab)
+                                            }
+                                        } else {
+                                            selectedTabs.remove(tab)
+                                        }
+                                    },
+                                )
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            val newTabs = sanitizeHomeScreenTabs(selectedTabs.toSet())
+                            customPreferences.homeScreenTabs.set(newTabs.toHomeScreenTabPreferenceValue())
+                            val resolvedStartupTab = resolveHomeScreenTab(
+                                requestedTab = startupTab,
+                                enabledTabs = newTabs.filterNot { it == HomeScreenTabs.Profiles },
+                            )
+                            if (resolvedStartupTab != startupTab) {
+                                customPreferences.homeScreenStartupTab.set(resolvedStartupTab)
+                            }
+                            showHomeTabsDialog = false
+                        },
+                    ) {
+                        Text(text = stringResource(MR.strings.action_ok))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showHomeTabsDialog = false }) {
+                        Text(text = stringResource(MR.strings.action_cancel))
                     }
                 },
             )
@@ -84,24 +162,29 @@ object CustomSettingsScreen : SearchableSettings {
                         preference = profilesPreferences.pickerEnabled,
                         title = stringResource(MR.strings.profiles_choose_on_launch),
                     ),
-                    Preference.PreferenceItem.SwitchPreference(
-                        preference = profilesPreferences.switchProfileShortcutEnabled,
-                        title = stringResource(MR.strings.profiles_enable_switch_shortcut),
-                    ),
                 ),
             ),
             Preference.PreferenceGroup(
                 title = stringResource(MR.strings.pref_category_general),
                 preferenceItems = persistentListOf(
+                    Preference.PreferenceItem.TextPreference(
+                        title = stringResource(MR.strings.pref_home_screen_tabs),
+                        subtitle = enabledHomeTabs.joinToString { homeTabEntries.getValue(it) },
+                        onClick = { showHomeTabsDialog = true },
+                    ),
                     Preference.PreferenceItem.ListPreference(
                         preference = customPreferences.homeScreenStartupTab,
-                        entries = persistentMapOf(
-                            HomeScreenTabs.Library to stringResource(MR.strings.label_library),
-                            HomeScreenTabs.Updates to stringResource(MR.strings.label_recent_updates),
-                            HomeScreenTabs.History to stringResource(MR.strings.history),
-                            HomeScreenTabs.Browse to stringResource(MR.strings.browse),
-                        ),
+                        entries = startupTabEntries,
                         title = stringResource(MR.strings.pref_startup_screen),
+                        onValueChanged = {
+                            customPreferences.homeScreenStartupTab.set(
+                                resolveHomeScreenTab(
+                                    requestedTab = it,
+                                    enabledTabs = enabledHomeTabs.filterNot { it == HomeScreenTabs.Profiles },
+                                ),
+                            )
+                            false
+                        },
                     ),
                     Preference.PreferenceItem.SwitchPreference(
                         preference = globalCustomPreferences.extensionsAutoUpdates,
@@ -138,6 +221,18 @@ object CustomSettingsScreen : SearchableSettings {
                     ),
                 ),
             ),
+        )
+    }
+
+    @Composable
+    private fun rememberHomeTabEntries(): ImmutableMap<HomeScreenTabs, String> {
+        return persistentMapOf(
+            HomeScreenTabs.Library to stringResource(MR.strings.label_library),
+            HomeScreenTabs.Updates to stringResource(MR.strings.label_recent_updates),
+            HomeScreenTabs.History to stringResource(MR.strings.history),
+            HomeScreenTabs.Browse to stringResource(MR.strings.browse),
+            HomeScreenTabs.More to stringResource(MR.strings.label_more),
+            HomeScreenTabs.Profiles to stringResource(MR.strings.profiles_title),
         )
     }
 }

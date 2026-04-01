@@ -14,6 +14,11 @@ class CustomPreferences(
         HomeScreenTabs.Library,
     )
 
+    val homeScreenTabs: Preference<Set<String>> = preferenceStore.getStringSet(
+        Preference.appStateKey("home_screen_tabs"),
+        defaultHomeScreenTabs(),
+    )
+
     val enableMangaPreview: Preference<Boolean> = preferenceStore.getBoolean(
         Preference.appStateKey("enable_manga_preview"),
         false,
