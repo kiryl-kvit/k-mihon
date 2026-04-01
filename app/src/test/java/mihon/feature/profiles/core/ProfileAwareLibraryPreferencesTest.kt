@@ -104,6 +104,19 @@ class ProfileAwareLibraryPreferencesTest {
         )
     }
 
+    @Test
+    fun `switch profile shortcut setting stays global across profiles`() {
+        val fixture = createFixture()
+
+        fixture.profilesPreferences.switchProfileShortcutEnabled.set(true)
+        fixture.activeProfileId.value = 2L
+        fixture.profilesPreferences.switchProfileShortcutEnabled.get() shouldBe true
+
+        fixture.profilesPreferences.switchProfileShortcutEnabled.set(false)
+        fixture.activeProfileId.value = 1L
+        fixture.profilesPreferences.switchProfileShortcutEnabled.get() shouldBe false
+    }
+
     private fun createFixture(): Fixture {
         val activeProfileId = MutableStateFlow(1L)
         val backing = AndroidPreferenceStore(
@@ -119,12 +132,14 @@ class ProfileAwareLibraryPreferencesTest {
         return Fixture(
             activeProfileId = activeProfileId,
             libraryPreferences = LibraryPreferences(preferenceStore),
+            profilesPreferences = ProfilesPreferences(backing),
         )
     }
 
     private data class Fixture(
         val activeProfileId: MutableStateFlow<Long>,
         val libraryPreferences: LibraryPreferences,
+        val profilesPreferences: ProfilesPreferences,
     )
 
     private class FakeSharedPreferences : SharedPreferences {
