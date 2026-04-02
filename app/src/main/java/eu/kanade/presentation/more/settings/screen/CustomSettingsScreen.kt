@@ -228,6 +228,11 @@ object CustomSettingsScreen : SearchableSettings {
                         },
                     ),
                     Preference.PreferenceItem.SwitchPreference(
+                        preference = customPreferences.enableFeeds,
+                        title = stringResource(MR.strings.pref_enable_feeds),
+                        subtitle = stringResource(MR.strings.pref_enable_feeds_summary),
+                    ),
+                    Preference.PreferenceItem.SwitchPreference(
                         preference = globalCustomPreferences.extensionsAutoUpdates,
                         title = stringResource(MR.strings.pref_extensions_auto_update),
                     ),

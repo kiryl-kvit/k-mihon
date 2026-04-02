@@ -165,6 +165,19 @@ class ProfileAwareLibraryPreferencesTest {
     }
 
     @Test
+    fun `feeds toggle stays isolated per profile`() {
+        val fixture = createFixture()
+
+        fixture.customPreferences.enableFeeds.set(false)
+        fixture.activeProfileId.value = 2L
+        fixture.customPreferences.enableFeeds.get() shouldBe true
+
+        fixture.customPreferences.enableFeeds.set(true)
+        fixture.activeProfileId.value = 1L
+        fixture.customPreferences.enableFeeds.get() shouldBe false
+    }
+
+    @Test
     fun `home screen tab order stays isolated per profile`() {
         val fixture = createFixture()
 

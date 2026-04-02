@@ -43,6 +43,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import mihon.core.common.CustomPreferences
 import tachiyomi.core.common.preference.CheckboxState
 import tachiyomi.core.common.preference.mapAsCheckboxState
 import tachiyomi.core.common.util.lang.launchIO
@@ -70,6 +71,7 @@ class BrowseSourceScreenModel(
     initialFilterSnapshot: List<FilterStateNode> = emptyList(),
     sourceManager: SourceManager = Injekt.get(),
     sourcePreferences: SourcePreferences = Injekt.get(),
+    customPreferences: CustomPreferences = Injekt.get(),
     private val browseFeedService: BrowseFeedService = Injekt.get(),
     private val libraryPreferences: LibraryPreferences = Injekt.get(),
     private val coverCache: CoverCache = Injekt.get(),
@@ -85,6 +87,7 @@ class BrowseSourceScreenModel(
 ) : StateScreenModel<BrowseSourceScreenModel.State>(State(Listing.valueOf(listingQuery))) {
 
     var displayMode by sourcePreferences.sourceDisplayMode.asState(screenModelScope)
+    var feedsEnabled by customPreferences.enableFeeds.asState(screenModelScope)
 
     val source = sourceManager.getOrStub(sourceId)
 
@@ -311,10 +314,13 @@ class BrowseSourceScreenModel(
     }
 
     fun showSavePresetDialog() {
+        if (!feedsEnabled) return
         setDialog(Dialog.SavePreset)
     }
 
     fun feedPresets(): List<SourceFeedPreset> {
+        if (!feedsEnabled) return emptyList()
+
         val custom = browseFeedService.stateSnapshot().presets
             .filter { it.sourceId == sourceId }
             .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
@@ -331,6 +337,7 @@ class BrowseSourceScreenModel(
     }
 
     fun applyPreset(presetId: String) {
+        if (!feedsEnabled) return
         if (source !is CatalogueSource) return
 
         val preset = feedPresets().firstOrNull { it.id == presetId } ?: return
@@ -359,12 +366,14 @@ class BrowseSourceScreenModel(
     }
 
     fun removePreset(presetId: String) {
+        if (!feedsEnabled) return
         if (!canDeletePreset(presetId)) return
 
         browseFeedService.removePreset(presetId)
     }
 
     fun hasPresetName(name: String): Boolean {
+        if (!feedsEnabled) return false
         val trimmed = name.trim()
         return browseFeedService.stateSnapshot().presets.any {
             it.sourceId == sourceId && it.name.equals(trimmed, ignoreCase = true)
@@ -372,6 +381,7 @@ class BrowseSourceScreenModel(
     }
 
     fun savePreset(name: String) {
+        if (!feedsEnabled) return
         if (source !is CatalogueSource) return
 
         val trimmed = name.trim()

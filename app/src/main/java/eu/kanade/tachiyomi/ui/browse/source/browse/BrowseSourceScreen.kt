@@ -89,6 +89,7 @@ data class BrowseSourceScreen(
 
         val screenModel = rememberScreenModel { BrowseSourceScreenModel(sourceId, listingQuery) }
         val state by screenModel.state.collectAsState()
+        val feedsEnabled = screenModel.feedsEnabled
 
         val navigator = LocalNavigator.currentOrThrow
         val navigateUp: () -> Unit = {
@@ -122,6 +123,15 @@ data class BrowseSourceScreen(
                     sourceId = source.id,
                 ),
             )
+        }
+
+        LaunchedEffect(feedsEnabled, state.dialog) {
+            if (!feedsEnabled) {
+                if (state.dialog == BrowseSourceScreenModel.Dialog.SavePreset) {
+                    screenModel.setDialog(null)
+                }
+                presetPendingDeletion = null
+            }
         }
 
         LaunchedEffect(screenModel.source) {
@@ -249,17 +259,17 @@ data class BrowseSourceScreen(
                 SourceFilterDialog(
                     onDismissRequest = onDismissRequest,
                     filters = state.filters,
-                    presets = screenModel.feedPresets(),
+                    presets = if (feedsEnabled) screenModel.feedPresets() else emptyList(),
                     onReset = screenModel::resetFilters,
                     onApplyPreset = screenModel::applyPreset,
                     onDeletePreset = { presetPendingDeletion = it },
                     canDeletePreset = screenModel::canDeletePreset,
-                    onSave = screenModel::showSavePresetDialog,
+                    onSave = if (feedsEnabled) screenModel::showSavePresetDialog else null,
                     onFilter = { screenModel.search(filters = state.filters) },
                     onUpdate = screenModel::setFilters,
                 )
             }
-            BrowseSourceScreenModel.Dialog.SavePreset -> {
+            BrowseSourceScreenModel.Dialog.SavePreset -> if (feedsEnabled) {
                 BrowseFeedNameDialog(
                     title = MR.strings.browse_feed_save_preset,
                     duplicateName = screenModel::hasPresetName,
@@ -310,6 +320,7 @@ data class BrowseSourceScreen(
         }
 
         presetPendingDeletion
+            ?.takeIf { feedsEnabled }
             ?.let { presetId -> screenModel.feedPresets().firstOrNull { it.id == presetId } }
             ?.let { preset ->
                 DeleteBrowsePresetDialog(
