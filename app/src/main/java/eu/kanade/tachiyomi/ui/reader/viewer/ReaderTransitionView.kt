@@ -33,19 +33,19 @@ class ReaderTransitionView @JvmOverloads constructor(context: Context, attrs: At
             transition = transition,
             currChapterDownloaded = transition.from.pageLoader?.isLocal == true,
             goingToChapterDownloaded =
-                if (toManga == null) {
-                    false
-                } else {
-                    toManga.source == tachiyomi.source.local.LocalSource.ID ||
-                        downloadManager.isChapterDownloaded(
-                            chapterName = toChapter.chapter.name,
-                            chapterScanlator = toChapter.chapter.scanlator,
-                            chapterUrl = toChapter.chapter.url,
-                            mangaTitle = toManga.title,
-                            sourceId = toManga.source,
-                            skipCache = true,
-                        )
-                },
+            if (toManga == null) {
+                false
+            } else {
+                toManga.source == tachiyomi.source.local.LocalSource.ID ||
+                    downloadManager.isChapterDownloaded(
+                        chapterName = toChapter.chapter.name,
+                        chapterScanlator = toChapter.chapter.scanlator,
+                        chapterUrl = toChapter.chapter.url,
+                        mangaTitle = toManga.title,
+                        sourceId = toManga.source,
+                        skipCache = true,
+                    )
+            },
         )
     }
 
