@@ -42,6 +42,11 @@ class CustomPreferences(
         MangaPreviewSize.MEDIUM,
     )
 
+    val enableFeeds: Preference<Boolean> = preferenceStore.getBoolean(
+        Preference.appStateKey("enable_feeds"),
+        true,
+    )
+
     enum class MangaPreviewSize(val titleRes: StringResource) {
         SMALL(MR.strings.pref_manga_preview_size_small),
         MEDIUM(MR.strings.pref_manga_preview_size_medium),
