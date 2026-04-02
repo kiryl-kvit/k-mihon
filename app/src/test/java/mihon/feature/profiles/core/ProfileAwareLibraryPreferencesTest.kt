@@ -128,6 +128,43 @@ class ProfileAwareLibraryPreferencesTest {
     }
 
     @Test
+    fun `home screen startup tab stays isolated per profile`() {
+        val fixture = createFixture()
+
+        fixture.customPreferences.homeScreenStartupTab.set(HomeScreenTabs.History)
+        fixture.activeProfileId.value = 2L
+        fixture.customPreferences.homeScreenStartupTab.get() shouldBe HomeScreenTabs.Library
+
+        fixture.customPreferences.homeScreenStartupTab.set(HomeScreenTabs.Browse)
+        fixture.activeProfileId.value = 1L
+        fixture.customPreferences.homeScreenStartupTab.get() shouldBe HomeScreenTabs.History
+    }
+
+    @Test
+    fun `home screen startup tab flow follows active profile`() = runTest {
+        val fixture = createFixture()
+        fixture.customPreferences.homeScreenStartupTab.set(HomeScreenTabs.Updates)
+
+        val values = mutableListOf<HomeScreenTabs>()
+        val job = launch {
+            fixture.customPreferences.homeScreenStartupTab.changes().take(4).toList(values)
+        }
+
+        advanceUntilIdle()
+        values.last() shouldBe HomeScreenTabs.Updates
+
+        fixture.activeProfileId.value = 2L
+        advanceUntilIdle()
+        values.last() shouldBe HomeScreenTabs.Library
+
+        fixture.customPreferences.homeScreenStartupTab.set(HomeScreenTabs.More)
+        advanceUntilIdle()
+        values.last() shouldBe HomeScreenTabs.More
+
+        job.cancel()
+    }
+
+    @Test
     fun `home screen tab order stays isolated per profile`() {
         val fixture = createFixture()
 

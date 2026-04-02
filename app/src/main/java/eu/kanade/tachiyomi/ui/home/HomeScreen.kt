@@ -24,9 +24,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
@@ -61,6 +64,7 @@ import mihon.core.common.resolveHomeScreenTab
 import mihon.core.common.resolveVisibleHomeScreenTabs
 import mihon.core.common.toHomeScreenTabs
 import mihon.feature.profiles.core.ProfileManager
+import mihon.feature.profiles.core.ProfileStore
 import mihon.feature.profiles.ui.ProfilePickerScreen
 import mihon.feature.profiles.ui.handleProfileShortcut
 import soup.compose.material.motion.animation.materialFadeThroughIn
@@ -95,10 +99,12 @@ object HomeScreen : Screen() {
         val context = LocalContext.current
         val customPreferences = remember { Injekt.get<CustomPreferences>() }
         val profileManager = remember { Injekt.get<ProfileManager>() }
+        val profileStore = remember { Injekt.get<ProfileStore>() }
         val uiPreferences = remember { Injekt.get<UiPreferences>() }
         val configuredTab by customPreferences.homeScreenStartupTab.collectAsState()
         val configuredTabs by customPreferences.homeScreenTabs.collectAsState()
         val configuredTabOrder by customPreferences.homeScreenTabOrder.collectAsState()
+        val activeProfile by profileManager.activeProfile.collectFlowAsState()
         val visibleProfiles by profileManager.visibleProfiles.collectFlowAsState()
         val enabledTabs = remember(configuredTabs, configuredTabOrder, visibleProfiles) {
             resolveVisibleHomeScreenTabs(
@@ -110,8 +116,13 @@ object HomeScreen : Screen() {
         val contentTabs = remember(enabledTabs) {
             enabledTabs.filter { it in homeScreenContentTabOrder }
         }
-        val launchTab = remember(configuredTab, contentTabs, configuredTabOrder) {
-            resolveContentTab(resolveHomeScreenTab(configuredTab, contentTabs, configuredTabOrder))
+        val launchTab = remember(configuredTab, configuredTabs, configuredTabOrder, visibleProfiles.size) {
+            resolveLaunchTab(
+                configuredTab = configuredTab,
+                configuredTabs = configuredTabs,
+                configuredTabOrder = configuredTabOrder,
+                showProfilesTab = visibleProfiles.size > 1,
+            )
         }
         val renderedTabs = remember(enabledTabs) {
             enabledTabs
@@ -125,6 +136,8 @@ object HomeScreen : Screen() {
             tab = launchTab,
             key = TabNavigatorKey,
         ) { tabNavigator ->
+            var previousProfileId by rememberSaveable { mutableStateOf(activeProfile?.id) }
+
             // Provide usable navigator to content screen
             CompositionLocalProvider(LocalNavigator provides navigator) {
                 Scaffold(
@@ -220,6 +233,29 @@ object HomeScreen : Screen() {
                 val resolvedStartupTab = resolveHomeScreenTab(configuredTab, contentTabs, configuredTabOrder)
                 if (resolvedStartupTab != configuredTab) {
                     customPreferences.homeScreenStartupTab.set(resolvedStartupTab)
+                }
+            }
+
+            LaunchedEffect(activeProfile?.id) {
+                val currentProfileId = activeProfile?.id
+                val lastProfileId = previousProfileId
+                previousProfileId = currentProfileId
+
+                if (currentProfileId == null || lastProfileId == null || currentProfileId == lastProfileId) {
+                    return@LaunchedEffect
+                }
+
+                // Keep profile switches aligned with the newly active profile's startup tab.
+                val profilePreferences = CustomPreferences(profileStore.appStateStore(currentProfileId))
+                val profileLaunchTab = resolveLaunchTab(
+                    configuredTab = profilePreferences.homeScreenStartupTab.get(),
+                    configuredTabs = profilePreferences.homeScreenTabs.get(),
+                    configuredTabOrder = profilePreferences.homeScreenTabOrder.get(),
+                    showProfilesTab = visibleProfiles.size > 1,
+                )
+
+                if (tabNavigator.current::class != profileLaunchTab::class) {
+                    tabNavigator.current = profileLaunchTab
                 }
             }
 
@@ -464,6 +500,21 @@ object HomeScreen : Screen() {
         tabOrder: Collection<HomeScreenTabs>,
     ): eu.kanade.presentation.util.Tab {
         return resolveContentTab(resolveHomeScreenTab(tab.toHomeScreenTab(), contentTabs, tabOrder))
+    }
+
+    private fun resolveLaunchTab(
+        configuredTab: HomeScreenTabs,
+        configuredTabs: Set<String>,
+        configuredTabOrder: Collection<HomeScreenTabs>,
+        showProfilesTab: Boolean,
+    ): eu.kanade.presentation.util.Tab {
+        val enabledTabs = resolveVisibleHomeScreenTabs(
+            tabs = configuredTabs.toHomeScreenTabs(),
+            tabOrder = configuredTabOrder,
+            showProfilesTab = showProfilesTab,
+        )
+        val contentTabs = enabledTabs.filter { it in homeScreenContentTabOrder }
+        return resolveContentTab(resolveHomeScreenTab(configuredTab, contentTabs, configuredTabOrder))
     }
 
     private fun resolveContentTab(tab: HomeScreenTabs): eu.kanade.presentation.util.Tab {
