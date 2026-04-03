@@ -50,7 +50,9 @@ class LibrarySettingsScreenModel(
 
     fun setSort(category: Category?, mode: LibrarySort.Type, direction: LibrarySort.Direction) {
         screenModelScope.launchIO {
-            val targetCategory = category.takeIf { libraryPreferences.groupType.get() == LibraryGroupType.Category }
+            val targetCategory = category
+                ?.takeIf { !it.isSystemCategory }
+                ?.takeIf { libraryPreferences.groupType.get() == LibraryGroupType.Category }
             setSortModeForCategory.await(targetCategory, mode, direction)
         }
     }

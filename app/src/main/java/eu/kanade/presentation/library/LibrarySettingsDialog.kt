@@ -26,6 +26,7 @@ import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.library.model.LibraryDisplayMode
 import tachiyomi.domain.library.model.LibraryGroupType
 import tachiyomi.domain.library.model.LibrarySort
+import tachiyomi.domain.library.model.effectiveLibrarySort
 import tachiyomi.domain.library.model.sort
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.i18n.MR
@@ -166,7 +167,7 @@ private fun SortPage(
 ) {
     val trackers by screenModel.trackersFlow.collectAsState()
     val globalSort by screenModel.libraryPreferences.sortingMode.collectAsState()
-    val currentSort = category?.sort ?: globalSort
+    val currentSort = category.effectiveLibrarySort(globalSort)
     val sortingMode = currentSort.type
     val sortDescending = !currentSort.isAscending
 

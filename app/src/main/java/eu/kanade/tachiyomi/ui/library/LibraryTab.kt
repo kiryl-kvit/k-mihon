@@ -78,6 +78,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import mihon.feature.migration.config.MigrationConfigScreen
+import mihon.feature.profiles.core.ProfileManager
 import sh.calvin.reorderable.ReorderableCollectionItemScope
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
@@ -94,6 +95,9 @@ import tachiyomi.presentation.core.screens.EmptyScreen
 import tachiyomi.presentation.core.screens.EmptyScreenAction
 import tachiyomi.presentation.core.screens.LoadingScreen
 import tachiyomi.source.local.isLocal
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
+import androidx.compose.runtime.collectAsState as collectFlowAsState
 
 data object LibraryTab : Tab {
 
@@ -119,9 +123,12 @@ data object LibraryTab : Tab {
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
         val haptic = LocalHapticFeedback.current
+        val profileManager = remember { Injekt.get<ProfileManager>() }
+        val activeProfile by profileManager.activeProfile.collectFlowAsState()
 
         val screenModel = rememberScreenModel { LibraryScreenModel(context.applicationContext) }
-        val settingsScreenModel = rememberScreenModel { LibrarySettingsScreenModel() }
+        val settingsScreenModel =
+            rememberScreenModel(tag = activeProfile?.id?.toString()) { LibrarySettingsScreenModel() }
         val state by screenModel.state.collectAsState()
 
         val snackbarHostState = remember { SnackbarHostState() }
@@ -336,6 +343,10 @@ data object LibraryTab : Tab {
             if (!state.isLoading) {
                 (context as? MainActivity)?.ready = true
             }
+        }
+
+        LaunchedEffect(activeProfile?.id) {
+            screenModel.closeDialog()
         }
 
         LaunchedEffect(Unit) {

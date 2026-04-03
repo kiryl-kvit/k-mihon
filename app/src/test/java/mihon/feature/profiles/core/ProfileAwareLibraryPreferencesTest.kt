@@ -99,6 +99,67 @@ class ProfileAwareLibraryPreferencesTest {
     }
 
     @Test
+    fun `all library settings flows follow active profile`() = runTest {
+        val fixture = createFixture()
+
+        with(fixture.libraryPreferences) {
+            filterDownloaded.set(TriState.ENABLED_IS)
+            filterUnread.set(TriState.ENABLED_NOT)
+            filterStarted.set(TriState.ENABLED_IS)
+            filterBookmarked.set(TriState.ENABLED_NOT)
+            filterCompleted.set(TriState.ENABLED_IS)
+            sortingMode.set(LibrarySort(LibrarySort.Type.LastRead, LibrarySort.Direction.Descending))
+            displayMode.set(LibraryDisplayMode.List)
+            groupType.set(LibraryGroupType.Extension)
+        }
+
+        val filterDownloadedValues = mutableListOf<TriState>()
+        val filterUnreadValues = mutableListOf<TriState>()
+        val filterStartedValues = mutableListOf<TriState>()
+        val filterBookmarkedValues = mutableListOf<TriState>()
+        val filterCompletedValues = mutableListOf<TriState>()
+        val sortingValues = mutableListOf<LibrarySort>()
+        val displayValues = mutableListOf<LibraryDisplayMode>()
+        val groupValues = mutableListOf<LibraryGroupType>()
+
+        val jobs = listOf(
+            launch { fixture.libraryPreferences.filterDownloaded.changes().take(3).toList(filterDownloadedValues) },
+            launch { fixture.libraryPreferences.filterUnread.changes().take(3).toList(filterUnreadValues) },
+            launch { fixture.libraryPreferences.filterStarted.changes().take(3).toList(filterStartedValues) },
+            launch { fixture.libraryPreferences.filterBookmarked.changes().take(3).toList(filterBookmarkedValues) },
+            launch { fixture.libraryPreferences.filterCompleted.changes().take(3).toList(filterCompletedValues) },
+            launch { fixture.libraryPreferences.sortingMode.changes().take(3).toList(sortingValues) },
+            launch { fixture.libraryPreferences.displayMode.changes().take(3).toList(displayValues) },
+            launch { fixture.libraryPreferences.groupType.changes().take(3).toList(groupValues) },
+        )
+
+        advanceUntilIdle()
+
+        filterDownloadedValues.last() shouldBe TriState.ENABLED_IS
+        filterUnreadValues.last() shouldBe TriState.ENABLED_NOT
+        filterStartedValues.last() shouldBe TriState.ENABLED_IS
+        filterBookmarkedValues.last() shouldBe TriState.ENABLED_NOT
+        filterCompletedValues.last() shouldBe TriState.ENABLED_IS
+        sortingValues.last() shouldBe LibrarySort(LibrarySort.Type.LastRead, LibrarySort.Direction.Descending)
+        displayValues.last() shouldBe LibraryDisplayMode.List
+        groupValues.last() shouldBe LibraryGroupType.Extension
+
+        fixture.activeProfileId.value = 2L
+        advanceUntilIdle()
+
+        filterDownloadedValues.last() shouldBe TriState.DISABLED
+        filterUnreadValues.last() shouldBe TriState.DISABLED
+        filterStartedValues.last() shouldBe TriState.DISABLED
+        filterBookmarkedValues.last() shouldBe TriState.DISABLED
+        filterCompletedValues.last() shouldBe TriState.DISABLED
+        sortingValues.last() shouldBe LibrarySort.default
+        displayValues.last() shouldBe LibraryDisplayMode.default
+        groupValues.last() shouldBe LibraryGroupType.Category
+
+        jobs.forEach { it.cancel() }
+    }
+
+    @Test
     fun `downloaded only is included in profile-owned library preferences`() {
         val key = createFixture().libraryPreferences.downloadedOnly.key()
 

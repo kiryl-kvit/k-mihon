@@ -70,12 +70,14 @@ SET name = coalesce(:name, name),
     sort = coalesce(:order, sort),
     flags = coalesce(:flags, flags)
 WHERE _id = :categoryId
-AND (_id = 0 OR profile_id = :profileId);
+AND _id != 0
+AND profile_id = :profileId;
 
 updateAllFlags:
 UPDATE categories SET
 flags = coalesce(:flags, flags)
-WHERE _id = 0 OR profile_id = :profileId;
+WHERE _id != 0
+AND profile_id = :profileId;
 
 selectLastInsertedRowId:
 SELECT last_insert_rowid();
