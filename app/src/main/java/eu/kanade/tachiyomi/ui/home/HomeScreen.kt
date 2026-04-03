@@ -136,7 +136,7 @@ object HomeScreen : Screen() {
             tab = launchTab,
             key = TabNavigatorKey,
         ) { tabNavigator ->
-            var previousProfileId by rememberSaveable { mutableStateOf(activeProfile?.id) }
+            var previousProfileId by remember { mutableStateOf(activeProfile?.id) }
 
             // Provide usable navigator to content screen
             CompositionLocalProvider(LocalNavigator provides navigator) {

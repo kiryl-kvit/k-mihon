@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.dropWhile
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -40,6 +41,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.updateAndGet
 import mihon.core.common.utils.mutate
+import mihon.feature.profiles.core.ProfileAwareStore
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.preference.CheckboxState
 import tachiyomi.core.common.preference.TriState
@@ -56,6 +58,7 @@ import tachiyomi.domain.library.model.LibraryDisplayMode
 import tachiyomi.domain.library.model.LibraryGroupType
 import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.domain.library.model.LibrarySort
+import tachiyomi.domain.library.model.effectiveLibrarySort
 import tachiyomi.domain.library.model.sort
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.interactor.GetLibraryManga
@@ -97,12 +100,26 @@ class LibraryScreenModel(
     private val downloadManager: DownloadManager = Injekt.get(),
     private val downloadCache: DownloadCache = Injekt.get(),
     private val trackerManager: TrackerManager = Injekt.get(),
+    private val profileStore: ProfileAwareStore = Injekt.get(),
 ) : StateScreenModel<LibraryScreenModel.State>(State()) {
 
     init {
         mutableState.update { state ->
             state.copy(activePageIndex = libraryPreferences.lastUsedCategory.get())
         }
+        profileStore.currentProfileIdFlow
+            .drop(1)
+            .onEach {
+                mutableState.update { state ->
+                    state.copy(
+                        activePageIndex = libraryPreferences.lastUsedCategory.get(),
+                        selection = emptySet(),
+                        dialog = null,
+                    )
+                }
+                lastSelectionPageId = null
+            }
+            .launchIn(screenModelScope)
         screenModelScope.launchIO {
             combine(
                 state.map { it.searchQuery }.distinctUntilChanged().debounce(SEARCH_DEBOUNCE_MILLIS),
@@ -469,7 +486,7 @@ class LibraryScreenModel(
 
         return map { page ->
             val sort = if (groupType == LibraryGroupType.Category) {
-                page.category?.sort ?: libraryPreferences.sortingMode.get()
+                page.category.effectiveLibrarySort(libraryPreferences.sortingMode.get())
             } else {
                 libraryPreferences.sortingMode.get()
             }
