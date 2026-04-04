@@ -36,7 +36,6 @@ class GetDuplicateLibraryManga(
 ) {
 
     private val normalizedLevenshtein = NormalizedLevenshtein()
-    private var librarySnapshot: StateFlow<DuplicateLibrarySnapshot>? = null
 
     suspend operator fun invoke(manga: Manga): List<DuplicateMangaCandidate> {
         val libraryManga = mangaRepository.getLibraryManga()
@@ -70,7 +69,7 @@ class GetDuplicateLibraryManga(
             duplicatePreferences.toConfig()
         }
 
-        val snapshot = librarySnapshot ?: combine(
+        val snapshot = combine(
             mangaRepository.getLibraryMangaAsFlow(),
             mergedMangaRepository.subscribeAll(),
             trackRepository.getTracksAsFlow(),
@@ -88,7 +87,6 @@ class GetDuplicateLibraryManga(
                 started = SharingStarted.WhileSubscribed(SUBSCRIPTION_TIMEOUT_MILLIS),
                 initialValue = DuplicateLibrarySnapshot(config = duplicatePreferences.toConfig()),
             )
-            .also { librarySnapshot = it }
 
         return combine(manga, snapshot) { currentManga, duplicateLibrarySnapshot ->
             detectDuplicates(
@@ -223,7 +221,7 @@ class GetDuplicateLibraryManga(
             manga = libraryItem.manga,
             chapterCount = libraryItem.totalChapters,
             cheapScore = bestMatch.score,
-            scoreMax = weights.totalScoreMax(),
+            scoreMax = weights.baseScoreMax(),
             score = if (libraryItem.memberMangaIds.any { it in trackerDuplicateIds }) {
                 max(bestMatch.score, LEGACY_TRACKER_MATCH_SCORE)
             } else {
@@ -597,8 +595,8 @@ class GetDuplicateLibraryManga(
         )
     }
 
-    private fun ExtendedWeights.totalScoreMax(): Int {
-        return (description + author + artist + cover + genre + status + chapterCount + title).coerceAtLeast(1)
+    private fun ExtendedWeights.baseScoreMax(): Int {
+        return (description + author + artist + genre + status + chapterCount + title).coerceAtLeast(1)
     }
 
     private data class PreparedDuplicateManga(

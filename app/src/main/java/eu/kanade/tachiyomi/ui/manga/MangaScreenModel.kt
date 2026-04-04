@@ -62,6 +62,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -184,6 +185,7 @@ class MangaScreenModel(
     private var previewLoadJob: Job? = null
     private var previewPageJobs: Map<Int, Job> = emptyMap()
     private var duplicateEnhancementJob: Job? = null
+    private var duplicateObservationJob: Job? = null
 
     val isUpdateIntervalEnabled =
         LibraryPreferences.MANGA_OUTSIDE_RELEASE_PERIOD in libraryPreferences.autoUpdateMangaRestrictions.get()
@@ -528,6 +530,8 @@ class MangaScreenModel(
 
     override fun onDispose() {
         super.onDispose()
+        duplicateObservationJob?.cancel()
+        duplicateEnhancementJob?.cancel()
         clearPreviewResources(resetState = false)
     }
 
@@ -1409,7 +1413,8 @@ class MangaScreenModel(
         val state = successState ?: return
         if (!state.isFromSource || state.manga.favorite) return
 
-        screenModelScope.launchIO {
+        duplicateObservationJob?.cancel()
+        duplicateObservationJob = screenModelScope.launchIO {
             getDuplicateLibraryManga.subscribe(
                 manga = this@MangaScreenModel.state
                     .filter { it is State.Success }
@@ -1419,7 +1424,6 @@ class MangaScreenModel(
             )
                 .flowWithLifecycle(lifecycle)
                 .collectLatest { duplicates ->
-                    val extendedEnabled = duplicatePreferences.extendedDuplicateDetectionEnabled.get()
                     updateSuccessState {
                         if (!it.isFromSource || it.manga.favorite) {
                             it.copy(duplicateCandidates = emptyList())
@@ -1427,27 +1431,50 @@ class MangaScreenModel(
                             it.copy(duplicateCandidates = duplicates)
                         }
                     }
+                }
+        }
 
-                    val latestState = successState ?: return@collectLatest
-                    if (
-                        !extendedEnabled || !latestState.isFromSource || latestState.manga.favorite ||
-                        duplicates.isEmpty()
-                    ) {
-                        duplicateEnhancementJob?.cancel()
-                    } else {
-                        duplicateEnhancementJob?.cancel()
-                        duplicateEnhancementJob = screenModelScope.launchIO {
-                            val enrichedCandidates =
-                                enhanceDuplicateLibraryManga(context, latestState.manga, duplicates)
-                            updateSuccessState { currentState ->
-                                if (!currentState.isFromSource || currentState.manga.favorite) {
-                                    currentState.copy(duplicateCandidates = emptyList())
-                                } else if (currentState.manga.id != latestState.manga.id) {
-                                    currentState
-                                } else {
-                                    currentState.copy(duplicateCandidates = enrichedCandidates)
-                                }
-                            }
+        duplicateEnhancementJob?.cancel()
+        duplicateEnhancementJob = screenModelScope.launchIO {
+            combine(
+                this@MangaScreenModel.state
+                    .filter { it is State.Success }
+                    .map { it as State.Success }
+                    .map { state ->
+                        state.manga to state.duplicateCandidates.filterNot(DuplicateMangaCandidate::coverHashChecked)
+                    }
+                    .distinctUntilChanged(),
+                duplicatePreferences.extendedDuplicateDetectionEnabled.changes(),
+            ) { (manga, duplicates), extendedEnabled ->
+                Triple(manga, duplicates, extendedEnabled)
+            }
+                .flowWithLifecycle(lifecycle)
+                .mapLatest { (manga, duplicates, extendedEnabled) ->
+                    if (!extendedEnabled || duplicates.isEmpty() || manga.favorite) {
+                        return@mapLatest null
+                    }
+
+                    val request = enhanceDuplicateLibraryManga.requestFor(manga, duplicates)
+                    request to enhanceDuplicateLibraryManga(context, manga, duplicates)
+                }
+                .collectLatest { enhancement ->
+                    if (enhancement == null) return@collectLatest
+
+                    val (request, enrichedCandidates) = enhancement
+                    updateSuccessState { currentState ->
+                        val currentManga = currentState.manga
+                        val currentSignatures = currentState.duplicateCandidates.map {
+                            it.manga.id to it.contentSignature
+                        }
+                        if (
+                            !currentState.isFromSource || currentManga.favorite ||
+                            currentManga.id != request.mangaId ||
+                            currentManga.lastModifiedAt != request.contentSignature ||
+                            currentSignatures != request.candidateSignatures
+                        ) {
+                            currentState
+                        } else {
+                            currentState.copy(duplicateCandidates = enrichedCandidates)
                         }
                     }
                 }

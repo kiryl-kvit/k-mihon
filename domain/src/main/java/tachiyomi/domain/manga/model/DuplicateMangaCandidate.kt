@@ -12,6 +12,7 @@ data class DuplicateMangaCandidate(
     val score: Int,
     val reasons: List<DuplicateMangaMatchReason>,
     val coverHashChecked: Boolean = false,
+    val contentSignature: Long = manga.lastModifiedAt,
 ) {
     val scorePercent: Int
         get() = if (scoreMax <= 0) 0 else ((score.toDouble() / scoreMax.toDouble()) * 100).toInt().coerceIn(0, 100)

@@ -25,6 +25,12 @@ class EnhanceDuplicateLibraryManga(
     private val duplicatePreferences: GlobalDuplicatePreferences,
 ) {
 
+    data class EnhancementRequest(
+        val mangaId: Long,
+        val contentSignature: Long,
+        val candidateSignatures: List<Pair<Long, Long>>,
+    )
+
     suspend operator fun invoke(
         context: Context,
         manga: Manga,
@@ -83,6 +89,14 @@ class EnhanceDuplicateLibraryManga(
                     .thenByDescending { it.coverHashChecked }
                     .thenBy { it.manga.title.lowercase() },
             )
+    }
+
+    fun requestFor(manga: Manga, candidates: List<DuplicateMangaCandidate>): EnhancementRequest {
+        return EnhancementRequest(
+            mangaId = manga.id,
+            contentSignature = manga.lastModifiedAt,
+            candidateSignatures = candidates.map { it.manga.id to it.contentSignature },
+        )
     }
 
     private suspend fun getOrComputeCoverHash(context: Context, manga: Manga): Long? {

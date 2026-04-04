@@ -7,7 +7,17 @@ import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 import tachiyomi.core.common.preference.Preference
@@ -18,6 +28,7 @@ import tachiyomi.domain.manga.model.MangaMerge
 import tachiyomi.domain.manga.repository.MangaRepository
 import tachiyomi.domain.manga.repository.MergedMangaRepository
 import tachiyomi.domain.manga.service.GlobalDuplicatePreferences
+import tachiyomi.domain.track.model.Track
 import tachiyomi.domain.track.repository.TrackRepository
 
 class GetDuplicateLibraryMangaTest {
@@ -26,7 +37,18 @@ class GetDuplicateLibraryMangaTest {
     private val mergedMangaRepository = mockk<MergedMangaRepository>()
     private val trackRepository = mockk<TrackRepository>()
     private val duplicatePreferences = mockk<GlobalDuplicatePreferences>()
-    private val extendedEnabledPreference = mockk<Preference<Boolean>>()
+    private val extendedEnabledPreference = MutablePreference(true)
+    private val descriptionWeightPreference = MutablePreference(GlobalDuplicatePreferences.DEFAULT_DESCRIPTION_WEIGHT)
+    private val authorWeightPreference = MutablePreference(GlobalDuplicatePreferences.DEFAULT_AUTHOR_WEIGHT)
+    private val artistWeightPreference = MutablePreference(GlobalDuplicatePreferences.DEFAULT_ARTIST_WEIGHT)
+    private val coverWeightPreference = MutablePreference(GlobalDuplicatePreferences.DEFAULT_COVER_WEIGHT)
+    private val genreWeightPreference = MutablePreference(GlobalDuplicatePreferences.DEFAULT_GENRE_WEIGHT)
+    private val statusWeightPreference = MutablePreference(GlobalDuplicatePreferences.DEFAULT_STATUS_WEIGHT)
+    private val chapterCountWeightPreference = MutablePreference(GlobalDuplicatePreferences.DEFAULT_CHAPTER_COUNT_WEIGHT)
+    private val titleWeightPreference = MutablePreference(GlobalDuplicatePreferences.DEFAULT_TITLE_WEIGHT)
+    private val libraryFlow = MutableStateFlow<List<LibraryManga>>(emptyList())
+    private val mergeFlow = MutableStateFlow<List<MangaMerge>>(emptyList())
+    private val trackFlow = MutableStateFlow<List<Track>>(emptyList())
 
     private val getDuplicateLibraryManga = GetDuplicateLibraryManga(
         mangaRepository = mangaRepository,
@@ -37,10 +59,29 @@ class GetDuplicateLibraryMangaTest {
 
     init {
         every { duplicatePreferences.extendedDuplicateDetectionEnabled } returns extendedEnabledPreference
-        every { extendedEnabledPreference.get() } returns true
-        every { duplicatePreferences.getWeightBudget() } returns
-            GlobalDuplicatePreferences.DuplicateWeightBudget.defaults()
-        every { trackRepository.getTracksAsFlow() } returns flowOf(emptyList())
+        every { duplicatePreferences.descriptionWeight } returns descriptionWeightPreference
+        every { duplicatePreferences.authorWeight } returns authorWeightPreference
+        every { duplicatePreferences.artistWeight } returns artistWeightPreference
+        every { duplicatePreferences.coverWeight } returns coverWeightPreference
+        every { duplicatePreferences.genreWeight } returns genreWeightPreference
+        every { duplicatePreferences.statusWeight } returns statusWeightPreference
+        every { duplicatePreferences.chapterCountWeight } returns chapterCountWeightPreference
+        every { duplicatePreferences.titleWeight } returns titleWeightPreference
+        every { duplicatePreferences.getWeightBudget() } answers {
+            GlobalDuplicatePreferences.DuplicateWeightBudget(
+                description = descriptionWeightPreference.get(),
+                author = authorWeightPreference.get(),
+                artist = artistWeightPreference.get(),
+                cover = coverWeightPreference.get(),
+                genre = genreWeightPreference.get(),
+                status = statusWeightPreference.get(),
+                chapterCount = chapterCountWeightPreference.get(),
+                title = titleWeightPreference.get(),
+            ).normalized()
+        }
+        every { mangaRepository.getLibraryMangaAsFlow() } returns libraryFlow.asStateFlow()
+        every { mergedMangaRepository.subscribeAll() } returns mergeFlow.asStateFlow()
+        every { trackRepository.getTracksAsFlow() } returns trackFlow.asStateFlow()
     }
 
     @Test
@@ -194,6 +235,96 @@ class GetDuplicateLibraryMangaTest {
         result.score shouldBeGreaterThanOrEqual 32
     }
 
+    @Test
+    fun `keeps tracker-only matches even below content thresholds`() = runTest {
+        val current = manga(id = 1, title = "Alpha Series", description = "Short description")
+        val duplicate = libraryManga(manga = manga(id = 2, title = "Totally Different Title"), totalChapters = 12)
+        val trackerId = 7L
+        val remoteId = 99L
+
+        coEvery { mangaRepository.getLibraryManga() } returns listOf(duplicate)
+        coEvery { mergedMangaRepository.getAll() } returns emptyList()
+        trackFlow.value = listOf(
+            track(id = 1, mangaId = 1, trackerId = trackerId, remoteId = remoteId),
+            track(id = 2, mangaId = 2, trackerId = trackerId, remoteId = remoteId),
+        )
+
+        val result = getDuplicateLibraryManga(current).single()
+
+        result.reasons shouldContain DuplicateMangaMatchReason.TRACKER
+        result.score shouldBe 58
+    }
+
+    @Test
+    fun `subscribe updates when library entries change`() = runTest {
+        val current = manga(id = 1, title = "Alpha Series", description = "Short description")
+        val trackedDuplicate = libraryManga(manga = manga(id = 2, title = "Totally Different Title"), totalChapters = 12)
+        val trackerId = 7L
+        val remoteId = 99L
+
+        libraryFlow.value = emptyList()
+        mergeFlow.value = emptyList()
+        trackFlow.value = listOf(
+            track(id = 1, mangaId = 1, trackerId = trackerId, remoteId = remoteId),
+        )
+
+        val results = getDuplicateLibraryManga.subscribe(flowOf(current), backgroundScope)
+        val emissions = mutableListOf<List<tachiyomi.domain.manga.model.DuplicateMangaCandidate>>()
+        val job = backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            results.take(2).toList(emissions)
+        }
+
+        libraryFlow.value = listOf(trackedDuplicate)
+        trackFlow.value = listOf(
+            track(id = 1, mangaId = 1, trackerId = trackerId, remoteId = remoteId),
+            track(id = 2, mangaId = 2, trackerId = trackerId, remoteId = remoteId),
+        )
+
+        testScheduler.advanceUntilIdle()
+        job.join()
+
+        emissions shouldHaveSize 2
+        emissions.first() shouldBe emptyList()
+        emissions.last() shouldHaveSize 1
+        emissions.last().single().manga.id shouldBe 2L
+    }
+
+    @Test
+    fun `invoke reflects updated title weight without counting cover budget upfront`() = runTest {
+        val description =
+            "The mage Frieren journeys onward after the demon king falls and reflects on the lives she outlived."
+        val current = manga(
+            id = 1,
+            title = "Frieren: Beyond Journey's End",
+            description = description,
+        )
+        val duplicate = libraryManga(
+            manga = manga(
+                id = 2,
+                title = "Frieren Beyond Journeys End",
+                author = "Kanehito Yamada",
+                description = description,
+            ),
+            totalChapters = 140,
+        )
+
+        coEvery { mangaRepository.getLibraryManga() } returns listOf(duplicate)
+        coEvery { mergedMangaRepository.getAll() } returns emptyList()
+        trackFlow.value = emptyList()
+
+        val initialResult = getDuplicateLibraryManga(current).single()
+
+        initialResult.scoreMax shouldBe
+            GlobalDuplicatePreferences.TOTAL_SCORE_BUDGET - GlobalDuplicatePreferences.DEFAULT_COVER_WEIGHT
+
+        titleWeightPreference.set(0)
+
+        val updatedResult = getDuplicateLibraryManga(current).single()
+
+        updatedResult.scoreMax shouldBe initialResult.scoreMax - GlobalDuplicatePreferences.DEFAULT_TITLE_WEIGHT
+        (updatedResult.score < initialResult.score) shouldBe true
+    }
+
     private fun manga(
         id: Long,
         title: String,
@@ -227,5 +358,62 @@ class GetDuplicateLibraryMangaTest {
             chapterFetchedAt = 0,
             lastRead = 0,
         )
+    }
+
+    private fun track(
+        id: Long,
+        mangaId: Long,
+        trackerId: Long,
+        remoteId: Long,
+    ): Track {
+        return Track(
+            id = id,
+            mangaId = mangaId,
+            trackerId = trackerId,
+            remoteId = remoteId,
+            libraryId = null,
+            title = "",
+            lastChapterRead = 0.0,
+            totalChapters = 0,
+            status = 0,
+            score = 0.0,
+            remoteUrl = "",
+            startDate = 0,
+            finishDate = 0,
+            private = false,
+        )
+    }
+
+    private class MutablePreference<T>(
+        private val initialDefault: T,
+    ) : Preference<T> {
+        private val state = MutableStateFlow(initialDefault)
+
+        override fun key(): String = "test"
+
+        override fun get(): T = state.value
+
+        override fun set(value: T) {
+            state.value = value
+        }
+
+        override fun isSet(): Boolean = true
+
+        override fun delete() {
+            state.value = initialDefault
+        }
+
+        override fun defaultValue(): T = initialDefault
+
+        override fun changes(): Flow<T> = state.asStateFlow()
+
+        override fun stateIn(scope: CoroutineScope): StateFlow<T> {
+            return changes().stateIn(scope, kotlinx.coroutines.flow.SharingStarted.Eagerly, get())
+        }
+    }
+
+    private companion object {
+        private const val LONG_DESCRIPTION =
+            "Long enough description text to pass normalization and act as stable duplicate evidence for tests."
     }
 }
