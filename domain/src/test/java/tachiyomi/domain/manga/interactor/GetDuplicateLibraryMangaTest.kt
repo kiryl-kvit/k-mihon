@@ -39,6 +39,7 @@ class GetDuplicateLibraryMangaTest {
     private val trackRepository = mockk<TrackRepository>()
     private val duplicatePreferences = mockk<GlobalDuplicatePreferences>()
     private val extendedEnabledPreference = MutablePreference(true)
+    private val minimumMatchScorePreference = MutablePreference(GlobalDuplicatePreferences.DEFAULT_MINIMUM_MATCH_SCORE)
     private val descriptionWeightPreference = MutablePreference(GlobalDuplicatePreferences.DEFAULT_DESCRIPTION_WEIGHT)
     private val authorWeightPreference = MutablePreference(GlobalDuplicatePreferences.DEFAULT_AUTHOR_WEIGHT)
     private val artistWeightPreference = MutablePreference(GlobalDuplicatePreferences.DEFAULT_ARTIST_WEIGHT)
@@ -60,6 +61,7 @@ class GetDuplicateLibraryMangaTest {
 
     init {
         every { duplicatePreferences.extendedDuplicateDetectionEnabled } returns extendedEnabledPreference
+        every { duplicatePreferences.minimumMatchScore } returns minimumMatchScorePreference
         every { duplicatePreferences.descriptionWeight } returns descriptionWeightPreference
         every { duplicatePreferences.authorWeight } returns authorWeightPreference
         every { duplicatePreferences.artistWeight } returns artistWeightPreference
@@ -289,6 +291,43 @@ class GetDuplicateLibraryMangaTest {
     }
 
     @Test
+    fun `filters weak matches below configured minimum score`() = runTest {
+        descriptionWeightPreference.set(0)
+        authorWeightPreference.set(0)
+        artistWeightPreference.set(0)
+        coverWeightPreference.set(0)
+        genreWeightPreference.set(0)
+        statusWeightPreference.set(0)
+        chapterCountWeightPreference.set(0)
+        titleWeightPreference.set(40)
+        minimumMatchScorePreference.set(45)
+
+        val current = manga(
+            id = 1,
+            title = "One-Punch Man",
+        )
+        val duplicate = libraryManga(
+            manga = manga(
+                id = 2,
+                title = "One Punch Man",
+            ),
+            totalChapters = 140,
+        )
+
+        coEvery { mangaRepository.getLibraryManga() } returns listOf(duplicate)
+        coEvery { mergedMangaRepository.getAll() } returns emptyList()
+
+        getDuplicateLibraryManga(current) shouldBe emptyList()
+
+        minimumMatchScorePreference.set(40)
+
+        val result = getDuplicateLibraryManga(current).single()
+
+        result.reasons shouldContain DuplicateMangaMatchReason.TITLE
+        result.score shouldBe 40
+    }
+
+    @Test
     fun `keeps tracker-only matches even below content thresholds`() = runTest {
         val current = manga(id = 1, title = "Alpha Series", description = "Short description")
         val duplicate = libraryManga(manga = manga(id = 2, title = "Totally Different Title"), totalChapters = 12)
@@ -340,6 +379,50 @@ class GetDuplicateLibraryMangaTest {
         emissions.first() shouldBe emptyList()
         emissions.last() shouldHaveSize 1
         emissions.last().single().manga.id shouldBe 2L
+    }
+
+    @Test
+    fun `subscribe updates when minimum score changes`() = runTest {
+        descriptionWeightPreference.set(0)
+        authorWeightPreference.set(0)
+        artistWeightPreference.set(0)
+        coverWeightPreference.set(0)
+        genreWeightPreference.set(0)
+        statusWeightPreference.set(0)
+        chapterCountWeightPreference.set(0)
+        titleWeightPreference.set(40)
+        minimumMatchScorePreference.set(45)
+
+        val current = manga(
+            id = 1,
+            title = "One-Punch Man",
+        )
+        val duplicate = libraryManga(
+            manga = manga(
+                id = 2,
+                title = "One Punch Man",
+            ),
+            totalChapters = 140,
+        )
+
+        libraryFlow.value = listOf(duplicate)
+        mergeFlow.value = emptyList()
+        trackFlow.value = emptyList()
+
+        val results = getDuplicateLibraryManga.subscribe(flowOf(current), backgroundScope)
+        val emissions = mutableListOf<List<tachiyomi.domain.manga.model.DuplicateMangaCandidate>>()
+        val job = backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            results.take(2).toList(emissions)
+        }
+
+        minimumMatchScorePreference.set(40)
+
+        testScheduler.advanceUntilIdle()
+        job.join()
+
+        emissions shouldHaveSize 2
+        emissions.first() shouldBe emptyList()
+        emissions.last().single().score shouldBe 40
     }
 
     @Test

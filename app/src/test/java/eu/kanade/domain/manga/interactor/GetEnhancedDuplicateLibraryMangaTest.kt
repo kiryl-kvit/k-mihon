@@ -35,6 +35,7 @@ class GetEnhancedDuplicateLibraryMangaTest {
     private val enhanceDuplicateLibraryManga = mockk<EnhanceDuplicateLibraryManga>()
     private val duplicatePreferences = mockk<GlobalDuplicatePreferences>()
     private val extendedEnabledPreference = MutablePreference(true)
+    private val minimumMatchScorePreference = MutablePreference(GlobalDuplicatePreferences.DEFAULT_MINIMUM_MATCH_SCORE)
     private val coverWeightPreference = MutablePreference(GlobalDuplicatePreferences.DEFAULT_COVER_WEIGHT)
 
     private val interactor = GetEnhancedDuplicateLibraryManga(
@@ -46,6 +47,7 @@ class GetEnhancedDuplicateLibraryMangaTest {
 
     init {
         every { duplicatePreferences.extendedDuplicateDetectionEnabled } returns extendedEnabledPreference
+        every { duplicatePreferences.minimumMatchScore } returns minimumMatchScorePreference
         every { duplicatePreferences.coverWeight } returns coverWeightPreference
     }
 

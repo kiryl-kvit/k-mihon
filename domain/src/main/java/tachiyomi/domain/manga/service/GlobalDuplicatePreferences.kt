@@ -11,6 +11,11 @@ class GlobalDuplicatePreferences(
         defaultValue = false,
     )
 
+    val minimumMatchScore: Preference<Int> = preferenceStore.getInt(
+        key = "extended_duplicate_detection_minimum_match_score",
+        defaultValue = DEFAULT_MINIMUM_MATCH_SCORE,
+    )
+
     val descriptionWeight: Preference<Int> = preferenceStore.getInt(
         key = "extended_duplicate_detection_description_weight",
         defaultValue = DEFAULT_DESCRIPTION_WEIGHT,
@@ -64,7 +69,8 @@ class GlobalDuplicatePreferences(
         ).normalized()
     }
 
-    fun resetWeightBudget() {
+    fun resetDetectionSettings() {
+        minimumMatchScore.set(DEFAULT_MINIMUM_MATCH_SCORE)
         setWeightBudget(DuplicateWeightBudget.defaults())
     }
 
@@ -174,5 +180,6 @@ class GlobalDuplicatePreferences(
         const val DEFAULT_STATUS_WEIGHT = 0
         const val DEFAULT_CHAPTER_COUNT_WEIGHT = 0
         const val DEFAULT_TITLE_WEIGHT = 40
+        const val DEFAULT_MINIMUM_MATCH_SCORE = 25
     }
 }

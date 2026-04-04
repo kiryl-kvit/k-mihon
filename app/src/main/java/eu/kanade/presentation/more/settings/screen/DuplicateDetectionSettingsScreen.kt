@@ -25,6 +25,7 @@ object DuplicateDetectionSettingsScreen : SearchableSettings {
         val duplicatePreferences = remember { Injekt.get<GlobalDuplicatePreferences>() }
 
         val extendedEnabled by duplicatePreferences.extendedDuplicateDetectionEnabled.collectAsState()
+        val minimumMatchScore by duplicatePreferences.minimumMatchScore.collectAsState()
         val descriptionWeight by duplicatePreferences.descriptionWeight.collectAsState()
         val authorWeight by duplicatePreferences.authorWeight.collectAsState()
         val artistWeight by duplicatePreferences.artistWeight.collectAsState()
@@ -65,11 +66,25 @@ object DuplicateDetectionSettingsScreen : SearchableSettings {
                         title = stringResource(MR.strings.pref_enable_extended_duplicate_detection),
                         subtitle = stringResource(MR.strings.pref_enable_extended_duplicate_detection_summary),
                     ),
-                    Preference.PreferenceItem.TextPreference(
-                        title = stringResource(MR.strings.pref_duplicate_detection_reset_weights),
-                        subtitle = stringResource(MR.strings.pref_duplicate_detection_reset_weights_summary),
+                    Preference.PreferenceItem.InfoPreference(
+                        title = stringResource(MR.strings.pref_duplicate_detection_matching_info),
+                        showIcon = false,
+                    ),
+                    Preference.PreferenceItem.SliderPreference(
+                        preference = duplicatePreferences.minimumMatchScore,
+                        title = stringResource(MR.strings.pref_duplicate_detection_minimum_score),
+                        value = minimumMatchScore,
+                        valueString = minimumMatchScore.toString(),
+                        subtitle = stringResource(MR.strings.pref_duplicate_detection_minimum_score_summary),
                         enabled = extendedEnabled,
-                        onClick = duplicatePreferences::resetWeightBudget,
+                        valueRange = 0..GlobalDuplicatePreferences.TOTAL_SCORE_BUDGET,
+                        onValueChanged = { duplicatePreferences.minimumMatchScore.set(it) },
+                    ),
+                    Preference.PreferenceItem.TextPreference(
+                        title = stringResource(MR.strings.pref_duplicate_detection_reset_settings),
+                        subtitle = stringResource(MR.strings.pref_duplicate_detection_reset_settings_summary),
+                        enabled = extendedEnabled,
+                        onClick = duplicatePreferences::resetDetectionSettings,
                     ),
                 ),
             ),
@@ -85,12 +100,13 @@ object DuplicateDetectionSettingsScreen : SearchableSettings {
                                     budget.remainingBudget,
                                     GlobalDuplicatePreferences.TOTAL_SCORE_BUDGET,
                                 ),
+                                showIcon = false,
                             ),
                             Preference.PreferenceItem.SliderPreference(
                                 title = stringResource(MR.strings.pref_duplicate_detection_weight_description),
                                 value = budget.description,
                                 subtitle = stringResource(
-                                    MR.strings.pref_duplicate_detection_weight_summary,
+                                    MR.strings.pref_duplicate_detection_weight_summary_description,
                                     budget.description,
                                     budget.description + budget.remainingBudget,
                                 ),
@@ -102,7 +118,7 @@ object DuplicateDetectionSettingsScreen : SearchableSettings {
                                 title = stringResource(MR.strings.pref_duplicate_detection_weight_author),
                                 value = budget.author,
                                 subtitle = stringResource(
-                                    MR.strings.pref_duplicate_detection_weight_summary,
+                                    MR.strings.pref_duplicate_detection_weight_summary_author,
                                     budget.author,
                                     budget.author + budget.remainingBudget,
                                 ),
@@ -114,7 +130,7 @@ object DuplicateDetectionSettingsScreen : SearchableSettings {
                                 title = stringResource(MR.strings.pref_duplicate_detection_weight_artist),
                                 value = budget.artist,
                                 subtitle = stringResource(
-                                    MR.strings.pref_duplicate_detection_weight_summary,
+                                    MR.strings.pref_duplicate_detection_weight_summary_artist,
                                     budget.artist,
                                     budget.artist + budget.remainingBudget,
                                 ),
@@ -126,7 +142,7 @@ object DuplicateDetectionSettingsScreen : SearchableSettings {
                                 title = stringResource(MR.strings.pref_duplicate_detection_weight_cover),
                                 value = budget.cover,
                                 subtitle = stringResource(
-                                    MR.strings.pref_duplicate_detection_weight_summary,
+                                    MR.strings.pref_duplicate_detection_weight_summary_cover,
                                     budget.cover,
                                     budget.cover + budget.remainingBudget,
                                 ),
@@ -138,7 +154,7 @@ object DuplicateDetectionSettingsScreen : SearchableSettings {
                                 title = stringResource(MR.strings.pref_duplicate_detection_weight_genre),
                                 value = budget.genre,
                                 subtitle = stringResource(
-                                    MR.strings.pref_duplicate_detection_weight_summary,
+                                    MR.strings.pref_duplicate_detection_weight_summary_genre,
                                     budget.genre,
                                     budget.genre + budget.remainingBudget,
                                 ),
@@ -150,7 +166,7 @@ object DuplicateDetectionSettingsScreen : SearchableSettings {
                                 title = stringResource(MR.strings.pref_duplicate_detection_weight_status),
                                 value = budget.status,
                                 subtitle = stringResource(
-                                    MR.strings.pref_duplicate_detection_weight_summary,
+                                    MR.strings.pref_duplicate_detection_weight_summary_status,
                                     budget.status,
                                     budget.status + budget.remainingBudget,
                                 ),
@@ -162,7 +178,7 @@ object DuplicateDetectionSettingsScreen : SearchableSettings {
                                 title = stringResource(MR.strings.pref_duplicate_detection_weight_chapter_count),
                                 value = budget.chapterCount,
                                 subtitle = stringResource(
-                                    MR.strings.pref_duplicate_detection_weight_summary,
+                                    MR.strings.pref_duplicate_detection_weight_summary_chapter_count,
                                     budget.chapterCount,
                                     budget.chapterCount + budget.remainingBudget,
                                 ),
@@ -174,13 +190,25 @@ object DuplicateDetectionSettingsScreen : SearchableSettings {
                                 title = stringResource(MR.strings.pref_duplicate_detection_weight_title),
                                 value = budget.title,
                                 subtitle = stringResource(
-                                    MR.strings.pref_duplicate_detection_weight_summary,
+                                    MR.strings.pref_duplicate_detection_weight_summary_title,
                                     budget.title,
                                     budget.title + budget.remainingBudget,
                                 ),
                                 enabled = true,
                                 valueRange = 0..(budget.title + budget.remainingBudget),
                                 onValueChanged = { duplicatePreferences.titleWeight.set(it) },
+                            ),
+                        ),
+                    ),
+                )
+                add(
+                    Preference.PreferenceGroup(
+                        title = stringResource(MR.strings.pref_duplicate_detection_preview),
+                        preferenceItems = persistentListOf(
+                            Preference.PreferenceItem.TextPreference(
+                                title = stringResource(MR.strings.pref_duplicate_detection_match_preview),
+                                subtitle = stringResource(MR.strings.pref_duplicate_detection_match_preview_summary),
+                                enabled = false,
                             ),
                         ),
                     ),

@@ -53,6 +53,7 @@ class GetDuplicateLibraryManga(
     ): StateFlow<List<DuplicateMangaCandidate>> {
         val duplicateConfigFlow = combine(
             duplicatePreferences.extendedDuplicateDetectionEnabled.changes(),
+            duplicatePreferences.minimumMatchScore.changes(),
             combine(
                 duplicatePreferences.descriptionWeight.changes(),
                 duplicatePreferences.authorWeight.changes(),
@@ -65,7 +66,7 @@ class GetDuplicateLibraryManga(
                 duplicatePreferences.chapterCountWeight.changes(),
                 duplicatePreferences.titleWeight.changes(),
             ) { _, _, _, _ -> Unit },
-        ) { _, _, _ ->
+        ) { _, _, _, _ ->
             duplicatePreferences.toConfig()
         }
 
@@ -123,7 +124,7 @@ class GetDuplicateLibraryManga(
             .filterNot { libraryItem -> libraryItem.memberMangaIds.any { it in excludedIds } }
             .mapNotNull { libraryItem ->
                 if (config.extendedEnabled) {
-                    scoreExtendedDuplicate(current, libraryItem, trackerDuplicateIds, config.weights)
+                    scoreExtendedDuplicate(current, libraryItem, trackerDuplicateIds, config)
                 } else {
                     scoreLegacyDuplicate(current, libraryItem, trackerDuplicateIds)
                 }
@@ -209,11 +210,12 @@ class GetDuplicateLibraryManga(
         current: PreparedDuplicateManga,
         libraryItem: LibraryManga,
         trackerDuplicateIds: Set<Long>,
-        weights: ExtendedWeights,
+        config: DuplicateConfig,
     ): DuplicateMangaCandidate? {
+        val weights = config.weights
         val bestMatch = libraryItem.memberMangas.asSequence()
             .map { it.toPreparedDuplicateManga(chapterCount = libraryItem.totalChapters) }
-            .mapNotNull { candidate -> scoreExtendedDuplicate(current, candidate, trackerDuplicateIds, weights) }
+            .mapNotNull { candidate -> scoreExtendedDuplicate(current, candidate, trackerDuplicateIds, config) }
             .maxByOrNull { it.score }
             ?: return null
 
@@ -242,8 +244,9 @@ class GetDuplicateLibraryManga(
         current: PreparedDuplicateManga,
         candidate: PreparedDuplicateManga,
         trackerDuplicateIds: Set<Long>,
-        weights: ExtendedWeights,
+        config: DuplicateConfig,
     ): ScoredDuplicate? {
+        val weights = config.weights
         if (current.normalizedTitle.isBlank() || candidate.normalizedTitle.isBlank()) return null
 
         val titleSimilarity = calculateTitleSimilarity(current, candidate)
@@ -307,7 +310,7 @@ class GetDuplicateLibraryManga(
         if (reasons.isEmpty()) return null
 
         score = score.coerceIn(0, GlobalDuplicatePreferences.TOTAL_SCORE_BUDGET)
-        if (score < MIN_MATCH_SCORE && DuplicateMangaMatchReason.TRACKER !in reasons) return null
+        if (score < config.minimumMatchScore && DuplicateMangaMatchReason.TRACKER !in reasons) return null
 
         val hasCreatorMatch = authorMatched || artistMatched
         val hasStrongNonTitleEvidence =
@@ -573,6 +576,7 @@ class GetDuplicateLibraryManga(
     private fun GlobalDuplicatePreferences.toConfig(): DuplicateConfig {
         return DuplicateConfig(
             extendedEnabled = extendedDuplicateDetectionEnabled.get(),
+            minimumMatchScore = minimumMatchScore.get().coerceIn(0, GlobalDuplicatePreferences.TOTAL_SCORE_BUDGET),
             weights = getWeightBudget().toExtendedWeights(),
         )
     }
@@ -623,6 +627,7 @@ class GetDuplicateLibraryManga(
 
     data class DuplicateConfig(
         val extendedEnabled: Boolean,
+        val minimumMatchScore: Int,
         val weights: ExtendedWeights,
     )
 
@@ -641,7 +646,6 @@ class GetDuplicateLibraryManga(
         private const val SUBSCRIPTION_TIMEOUT_MILLIS = 5_000L
         private const val CREATOR_MISMATCH_PENALTY = 10
         private const val STATUS_MISMATCH_PENALTY = 2
-        private const val MIN_MATCH_SCORE = 28
         private const val LEGACY_TITLE_MATCH_SCORE = 46
         private const val LEGACY_TRACKER_MATCH_SCORE = 58
         private const val LEGACY_SCORE_MAX = 100

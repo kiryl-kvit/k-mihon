@@ -169,6 +169,7 @@ sealed class Preference {
 
         data class InfoPreference(
             override val title: String,
+            val showIcon: Boolean = true,
         ) : PreferenceItem<String, Unit>() {
             override val enabled: Boolean = true
             override val subtitle: String? = null
