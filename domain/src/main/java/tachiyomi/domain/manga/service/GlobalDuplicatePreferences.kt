@@ -166,13 +166,13 @@ class GlobalDuplicatePreferences(
     companion object {
         const val TOTAL_SCORE_BUDGET = 100
 
-        const val DEFAULT_DESCRIPTION_WEIGHT = 34
-        const val DEFAULT_AUTHOR_WEIGHT = 11
-        const val DEFAULT_ARTIST_WEIGHT = 7
-        const val DEFAULT_COVER_WEIGHT = 14
-        const val DEFAULT_GENRE_WEIGHT = 9
-        const val DEFAULT_STATUS_WEIGHT = 4
-        const val DEFAULT_CHAPTER_COUNT_WEIGHT = 4
-        const val DEFAULT_TITLE_WEIGHT = 17
+        const val DEFAULT_DESCRIPTION_WEIGHT = 35
+        const val DEFAULT_AUTHOR_WEIGHT = 5
+        const val DEFAULT_ARTIST_WEIGHT = 5
+        const val DEFAULT_COVER_WEIGHT = 15
+        const val DEFAULT_GENRE_WEIGHT = 0
+        const val DEFAULT_STATUS_WEIGHT = 0
+        const val DEFAULT_CHAPTER_COUNT_WEIGHT = 0
+        const val DEFAULT_TITLE_WEIGHT = 40
     }
 }

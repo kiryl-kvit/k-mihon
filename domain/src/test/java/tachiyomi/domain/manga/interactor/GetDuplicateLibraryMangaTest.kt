@@ -154,6 +154,14 @@ class GetDuplicateLibraryMangaTest {
 
     @Test
     fun `uses creator and status markers to boost likely duplicate`() = runTest {
+        descriptionWeightPreference.set(34)
+        authorWeightPreference.set(11)
+        artistWeightPreference.set(7)
+        coverWeightPreference.set(14)
+        genreWeightPreference.set(9)
+        statusWeightPreference.set(4)
+        chapterCountWeightPreference.set(4)
+        titleWeightPreference.set(17)
         val description =
             "Noor keeps parrying impossible attacks and accidentally becomes the strongest while believing he is weak."
         val current = manga(
@@ -239,6 +247,14 @@ class GetDuplicateLibraryMangaTest {
 
     @Test
     fun `matches on strong description despite different title`() = runTest {
+        descriptionWeightPreference.set(34)
+        authorWeightPreference.set(11)
+        artistWeightPreference.set(7)
+        coverWeightPreference.set(14)
+        genreWeightPreference.set(9)
+        statusWeightPreference.set(4)
+        chapterCountWeightPreference.set(4)
+        titleWeightPreference.set(17)
         val description =
             "Encrid dreamed of becoming a knight, but those words poisoned his childhood and he keeps returning to today."
         val current = manga(
@@ -328,6 +344,14 @@ class GetDuplicateLibraryMangaTest {
 
     @Test
     fun `invoke reflects updated title weight without counting cover budget upfront`() = runTest {
+        descriptionWeightPreference.set(34)
+        authorWeightPreference.set(11)
+        artistWeightPreference.set(7)
+        coverWeightPreference.set(14)
+        genreWeightPreference.set(9)
+        statusWeightPreference.set(4)
+        chapterCountWeightPreference.set(4)
+        titleWeightPreference.set(17)
         val description =
             "The mage Frieren journeys onward after the demon king falls and reflects on the lives she outlived."
         val current = manga(
