@@ -263,11 +263,6 @@ class GetDuplicateLibraryManga(
         }
         score += scaledSimilarity(titleSimilarity, weights.title)
 
-        if (weights.title > 0 && current.normalizedTitle == candidate.normalizedTitle) {
-            reasons += DuplicateMangaMatchReason.TITLE
-            score += weights.title
-        }
-
         val authorMatched = current.author != null && candidate.creators.any { namesMatch(current.author, it) }
         val artistMatched = current.artist != null && candidate.creators.any { namesMatch(current.artist, it) }
 

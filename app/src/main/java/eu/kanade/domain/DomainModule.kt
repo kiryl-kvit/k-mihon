@@ -9,6 +9,7 @@ import eu.kanade.domain.extension.interactor.GetExtensionSources
 import eu.kanade.domain.extension.interactor.GetExtensionsByType
 import eu.kanade.domain.extension.interactor.TrustExtension
 import eu.kanade.domain.manga.interactor.EnhanceDuplicateLibraryManga
+import eu.kanade.domain.manga.interactor.GetEnhancedDuplicateLibraryManga
 import eu.kanade.domain.manga.interactor.GetExcludedScanlators
 import eu.kanade.domain.manga.interactor.SetExcludedScanlators
 import eu.kanade.domain.manga.interactor.SetMangaViewerFlags
@@ -129,6 +130,7 @@ class DomainModule : InjektModule {
         addSingletonFactory<MergedMangaRepository> { MergedMangaRepositoryImpl(get(), get()) }
         addFactory { GetDuplicateLibraryManga(get(), get(), get(), get()) }
         addFactory { EnhanceDuplicateLibraryManga(get(), get()) }
+        addFactory { GetEnhancedDuplicateLibraryManga(get(), get(), get(), get()) }
         addFactory { GetFavorites(get()) }
         addFactory { GetLibraryManga(get(), get(), get()) }
         addFactory { GetMergedManga(get()) }

@@ -15,9 +15,9 @@ import eu.kanade.core.preference.asState
 import eu.kanade.core.util.addOrRemove
 import eu.kanade.core.util.insertSeparators
 import eu.kanade.domain.chapter.interactor.GetAvailableScanlators
+import eu.kanade.domain.manga.interactor.GetEnhancedDuplicateLibraryManga
 import eu.kanade.domain.chapter.interactor.SetReadStatus
 import eu.kanade.domain.chapter.interactor.SyncChaptersWithSource
-import eu.kanade.domain.manga.interactor.EnhanceDuplicateLibraryManga
 import eu.kanade.domain.manga.interactor.GetExcludedScanlators
 import eu.kanade.domain.manga.interactor.SetExcludedScanlators
 import eu.kanade.domain.manga.interactor.UpdateManga
@@ -62,7 +62,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -90,7 +89,6 @@ import tachiyomi.domain.chapter.model.NoChaptersException
 import tachiyomi.domain.chapter.service.calculateChapterGap
 import tachiyomi.domain.chapter.service.getChapterSort
 import tachiyomi.domain.library.service.LibraryPreferences
-import tachiyomi.domain.manga.interactor.GetDuplicateLibraryManga
 import tachiyomi.domain.manga.interactor.GetMangaWithChapters
 import tachiyomi.domain.manga.interactor.GetMergedManga
 import tachiyomi.domain.manga.interactor.SetMangaChapterFlags
@@ -101,7 +99,6 @@ import tachiyomi.domain.manga.model.MangaUpdate
 import tachiyomi.domain.manga.model.applyFilter
 import tachiyomi.domain.manga.model.presentationTitle
 import tachiyomi.domain.manga.repository.MangaRepository
-import tachiyomi.domain.manga.service.GlobalDuplicatePreferences
 import tachiyomi.domain.source.model.SourceNotInstalledException
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.track.interactor.GetTracks
@@ -126,10 +123,8 @@ class MangaScreenModel(
     private val downloadCache: DownloadCache = Injekt.get(),
     private val downloadProvider: DownloadProvider = Injekt.get(),
     private val customPreferences: CustomPreferences = Injekt.get(),
-    private val duplicatePreferences: GlobalDuplicatePreferences = Injekt.get(),
     private val getMangaAndChapters: GetMangaWithChapters = Injekt.get(),
-    private val getDuplicateLibraryManga: GetDuplicateLibraryManga = Injekt.get(),
-    private val enhanceDuplicateLibraryManga: EnhanceDuplicateLibraryManga = Injekt.get(),
+    private val getEnhancedDuplicateLibraryManga: GetEnhancedDuplicateLibraryManga = Injekt.get(),
     private val getMergedManga: GetMergedManga = Injekt.get(),
     private val updateMergedManga: UpdateMergedManga = Injekt.get(),
     private val getAvailableScanlators: GetAvailableScanlators = Injekt.get(),
@@ -184,7 +179,6 @@ class MangaScreenModel(
     private var previewReaderChapter: ReaderChapter? = null
     private var previewLoadJob: Job? = null
     private var previewPageJobs: Map<Int, Job> = emptyMap()
-    private var duplicateEnhancementJob: Job? = null
     private var duplicateObservationJob: Job? = null
 
     val isUpdateIntervalEnabled =
@@ -531,7 +525,6 @@ class MangaScreenModel(
     override fun onDispose() {
         super.onDispose()
         duplicateObservationJob?.cancel()
-        duplicateEnhancementJob?.cancel()
         clearPreviewResources(resetState = false)
     }
 
@@ -608,7 +601,7 @@ class MangaScreenModel(
                 // Add to library
                 // First, check if duplicate exists if callback is provided
                 if (checkDuplicate) {
-                    val duplicates = getDuplicateLibraryManga(manga)
+                    val duplicates = getEnhancedDuplicateLibraryManga(manga)
 
                     if (duplicates.isNotEmpty()) {
                         updateSuccessState { it.copy(dialog = Dialog.DuplicateManga(manga, duplicates)) }
@@ -1415,7 +1408,7 @@ class MangaScreenModel(
 
         duplicateObservationJob?.cancel()
         duplicateObservationJob = screenModelScope.launchIO {
-            getDuplicateLibraryManga.subscribe(
+            getEnhancedDuplicateLibraryManga.subscribe(
                 manga = this@MangaScreenModel.state
                     .filter { it is State.Success }
                     .map { (it as State.Success).manga }
@@ -1429,52 +1422,6 @@ class MangaScreenModel(
                             it.copy(duplicateCandidates = emptyList())
                         } else {
                             it.copy(duplicateCandidates = duplicates)
-                        }
-                    }
-                }
-        }
-
-        duplicateEnhancementJob?.cancel()
-        duplicateEnhancementJob = screenModelScope.launchIO {
-            combine(
-                this@MangaScreenModel.state
-                    .filter { it is State.Success }
-                    .map { it as State.Success }
-                    .map { state ->
-                        state.manga to state.duplicateCandidates.filterNot(DuplicateMangaCandidate::coverHashChecked)
-                    }
-                    .distinctUntilChanged(),
-                duplicatePreferences.extendedDuplicateDetectionEnabled.changes(),
-            ) { (manga, duplicates), extendedEnabled ->
-                Triple(manga, duplicates, extendedEnabled)
-            }
-                .flowWithLifecycle(lifecycle)
-                .mapLatest { (manga, duplicates, extendedEnabled) ->
-                    if (!extendedEnabled || duplicates.isEmpty() || manga.favorite) {
-                        return@mapLatest null
-                    }
-
-                    val request = enhanceDuplicateLibraryManga.requestFor(manga, duplicates)
-                    request to enhanceDuplicateLibraryManga(context, manga, duplicates)
-                }
-                .collectLatest { enhancement ->
-                    if (enhancement == null) return@collectLatest
-
-                    val (request, enrichedCandidates) = enhancement
-                    updateSuccessState { currentState ->
-                        val currentManga = currentState.manga
-                        val currentSignatures = currentState.duplicateCandidates.map {
-                            it.manga.id to it.contentSignature
-                        }
-                        if (
-                            !currentState.isFromSource || currentManga.favorite ||
-                            currentManga.id != request.mangaId ||
-                            currentManga.lastModifiedAt != request.contentSignature ||
-                            currentSignatures != request.candidateSignatures
-                        ) {
-                            currentState
-                        } else {
-                            currentState.copy(duplicateCandidates = enrichedCandidates)
                         }
                     }
                 }

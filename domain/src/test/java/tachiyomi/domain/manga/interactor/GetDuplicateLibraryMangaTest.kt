@@ -3,6 +3,7 @@ package tachiyomi.domain.manga.interactor
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
+import io.kotest.matchers.ints.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.every
@@ -113,6 +114,42 @@ class GetDuplicateLibraryMangaTest {
         results.single().score shouldBeGreaterThanOrEqual 40
         results.single().reasons shouldContain DuplicateMangaMatchReason.TITLE
         results.single().cheapScore shouldBe results.single().score
+    }
+
+    @Test
+    fun `does not double count exact normalized title weight`() = runTest {
+        val description =
+            "The mage Frieren journeys onward after the demon king falls and reflects on the lives she outlived."
+        titleWeightPreference.set(20)
+        descriptionWeightPreference.set(30)
+        authorWeightPreference.set(0)
+        artistWeightPreference.set(0)
+        genreWeightPreference.set(0)
+        statusWeightPreference.set(0)
+        chapterCountWeightPreference.set(0)
+        val current = manga(
+            id = 1,
+            title = "One-Punch Man",
+            description = description,
+        )
+        val duplicate = libraryManga(
+            manga = manga(
+                id = 2,
+                title = "One Punch Man",
+                author = "Different Author",
+                description = description,
+            ),
+            totalChapters = 140,
+        )
+
+        coEvery { mangaRepository.getLibraryManga() } returns listOf(duplicate)
+        coEvery { mergedMangaRepository.getAll() } returns emptyList()
+
+        val result = getDuplicateLibraryManga(current).single()
+
+        result.reasons shouldContain DuplicateMangaMatchReason.TITLE
+        result.score shouldBe 50
+        result.score shouldBeLessThan 70
     }
 
     @Test
