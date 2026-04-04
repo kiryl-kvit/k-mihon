@@ -5,6 +5,8 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -63,8 +65,9 @@ import eu.kanade.presentation.more.settings.LocalPreferenceMinHeight
 import eu.kanade.presentation.more.settings.widget.TextPreferenceWidget
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.model.SManga
+import tachiyomi.domain.manga.model.DuplicateMangaCandidate
+import tachiyomi.domain.manga.model.DuplicateMangaMatchReason
 import tachiyomi.domain.manga.model.Manga
-import tachiyomi.domain.manga.model.MangaWithChapterCount
 import tachiyomi.domain.source.model.StubSource
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.i18n.MR
@@ -79,7 +82,7 @@ import uy.kohesive.injekt.api.get
 
 @Composable
 fun DuplicateMangaDialog(
-    duplicates: List<MangaWithChapterCount>,
+    duplicates: List<DuplicateMangaCandidate>,
     onDismissRequest: () -> Unit,
     onConfirm: () -> Unit,
     onOpenManga: (manga: Manga) -> Unit,
@@ -169,8 +172,9 @@ fun DuplicateMangaDialog(
 }
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun DuplicateMangaListItem(
-    duplicate: MangaWithChapterCount,
+    duplicate: DuplicateMangaCandidate,
     getSource: () -> Source,
     onDismissRequest: () -> Unit,
     onOpenManga: () -> Unit,
@@ -240,6 +244,33 @@ private fun DuplicateMangaListItem(
                 iconImageVector = Icons.Filled.Brush,
                 maxLines = 2,
             )
+        }
+
+        FlowRow(
+            modifier = Modifier.padding(top = MaterialTheme.padding.extraSmall),
+            horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
+            verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
+        ) {
+            Badge(
+                text = stringResource(MR.strings.possible_duplicates_score, duplicate.score),
+                color = if (duplicate.isStrongMatch) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.tertiary
+                },
+                textColor = if (duplicate.isStrongMatch) {
+                    MaterialTheme.colorScheme.onError
+                } else {
+                    MaterialTheme.colorScheme.onTertiary
+                },
+            )
+            duplicate.reasons.forEach { reason ->
+                Badge(
+                    text = reason.label(),
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    textColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+            }
         }
 
         MangaDetailRow(
@@ -315,7 +346,21 @@ private fun MangaDetailRow(
 }
 
 @Composable
-private fun getMaximumMangaCardHeight(duplicates: List<MangaWithChapterCount>): Dp {
+private fun DuplicateMangaMatchReason.label(): String {
+    return when (this) {
+        DuplicateMangaMatchReason.DESCRIPTION -> stringResource(MR.strings.possible_duplicates_reason_description)
+        DuplicateMangaMatchReason.TITLE -> stringResource(MR.strings.possible_duplicates_reason_title)
+        DuplicateMangaMatchReason.AUTHOR -> stringResource(MR.strings.possible_duplicates_reason_author)
+        DuplicateMangaMatchReason.ARTIST -> stringResource(MR.strings.possible_duplicates_reason_artist)
+        DuplicateMangaMatchReason.COVER -> stringResource(MR.strings.possible_duplicates_reason_cover)
+        DuplicateMangaMatchReason.STATUS -> stringResource(MR.strings.possible_duplicates_reason_status)
+        DuplicateMangaMatchReason.GENRE -> stringResource(MR.strings.possible_duplicates_reason_genre)
+        DuplicateMangaMatchReason.CHAPTER_COUNT -> stringResource(MR.strings.possible_duplicates_reason_chapter_count)
+    }
+}
+
+@Composable
+private fun getMaximumMangaCardHeight(duplicates: List<DuplicateMangaCandidate>): Dp {
     val density = LocalDensity.current
     val typography = MaterialTheme.typography
     val textMeasurer = rememberTextMeasurer()
@@ -343,7 +388,7 @@ private fun getMaximumMangaCardHeight(duplicates: List<MangaWithChapterCount>): 
     ) {
         duplicates.fastMaxOfOrNull {
             calculateMangaCardHeight(
-                manga = it.manga,
+                duplicate = it,
                 density = density,
                 typography = typography,
                 textMeasurer = textMeasurer,
@@ -359,7 +404,7 @@ private fun getMaximumMangaCardHeight(duplicates: List<MangaWithChapterCount>): 
 }
 
 private fun calculateMangaCardHeight(
-    manga: Manga,
+    duplicate: DuplicateMangaCandidate,
     density: Density,
     typography: Typography,
     textMeasurer: TextMeasurer,
@@ -369,6 +414,7 @@ private fun calculateMangaCardHeight(
     constraints: Constraints,
     detailsConstraints: Constraints,
 ): Dp {
+    val manga = duplicate.manga
     val titleHeight = textMeasurer.measureHeight(manga.title, typography.titleSmall, 2, constraints)
     val authorHeight = if (!manga.author.isNullOrBlank()) {
         textMeasurer.measureHeight(manga.author!!, typography.bodySmall, 2, detailsConstraints)
@@ -380,10 +426,17 @@ private fun calculateMangaCardHeight(
     } else {
         0
     }
+    val scoreHeight = textMeasurer.measureHeight(
+        text = duplicate.score.toString(),
+        style = typography.bodySmall,
+        maxLines = 1,
+        constraints = constraints,
+    )
     val statusHeight = textMeasurer.measureHeight("", typography.bodySmall, 2, detailsConstraints)
     val sourceHeight = textMeasurer.measureHeight("", typography.labelSmall, 1, constraints)
 
-    val totalHeight = coverHeight + titleHeight + authorHeight + artistHeight + statusHeight + sourceHeight
+    val totalHeight =
+        coverHeight + titleHeight + authorHeight + artistHeight + scoreHeight + statusHeight + sourceHeight
     return with(density) { ((2 * smallPadding) + totalHeight + (5 * extraSmallPadding)).toDp() }
 }
 

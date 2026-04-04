@@ -175,6 +175,7 @@
     <string name="action_not_now">Not now</string>
     <string name="action_add_anyway">Add anyway</string>
     <string name="action_open">Open</string>
+    <string name="action_duplicates">Duplicates</string>
     <string name="action_keep">Keep</string>
     <string name="action_merge">Merge</string>
     <string name="action_set_display_name">Set display name</string>
@@ -803,6 +804,15 @@
     <string name="unknown_title">Unknown title</string>
     <string name="possible_duplicates_title">Possible duplicates</string>
     <string name="possible_duplicates_summary">You have entries in your library with a similar name.\n\nSelect an entry to migrate or add anyway.</string>
+    <string name="possible_duplicates_score">Score: %1$d</string>
+    <string name="possible_duplicates_reason_author">Author</string>
+    <string name="possible_duplicates_reason_artist">Artist</string>
+    <string name="possible_duplicates_reason_chapter_count">Chapters</string>
+    <string name="possible_duplicates_reason_cover">Cover</string>
+    <string name="possible_duplicates_reason_description">Description</string>
+    <string name="possible_duplicates_reason_genre">Genre</string>
+    <string name="possible_duplicates_reason_status">Status</string>
+    <string name="possible_duplicates_reason_title">Title</string>
     <string name="manga_added_library">Added to library</string>
     <string name="manga_removed_library">Removed from library</string>
     <string name="manga_info_expand">More</string>

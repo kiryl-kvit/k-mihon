@@ -17,6 +17,7 @@ import eu.kanade.core.util.insertSeparators
 import eu.kanade.domain.chapter.interactor.GetAvailableScanlators
 import eu.kanade.domain.chapter.interactor.SetReadStatus
 import eu.kanade.domain.chapter.interactor.SyncChaptersWithSource
+import eu.kanade.domain.manga.interactor.EnhanceDuplicateLibraryManga
 import eu.kanade.domain.manga.interactor.GetExcludedScanlators
 import eu.kanade.domain.manga.interactor.SetExcludedScanlators
 import eu.kanade.domain.manga.interactor.UpdateManga
@@ -60,6 +61,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -92,9 +94,9 @@ import tachiyomi.domain.manga.interactor.GetMangaWithChapters
 import tachiyomi.domain.manga.interactor.GetMergedManga
 import tachiyomi.domain.manga.interactor.SetMangaChapterFlags
 import tachiyomi.domain.manga.interactor.UpdateMergedManga
+import tachiyomi.domain.manga.model.DuplicateMangaCandidate
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.MangaUpdate
-import tachiyomi.domain.manga.model.MangaWithChapterCount
 import tachiyomi.domain.manga.model.applyFilter
 import tachiyomi.domain.manga.model.presentationTitle
 import tachiyomi.domain.manga.repository.MangaRepository
@@ -124,6 +126,7 @@ class MangaScreenModel(
     private val customPreferences: CustomPreferences = Injekt.get(),
     private val getMangaAndChapters: GetMangaWithChapters = Injekt.get(),
     private val getDuplicateLibraryManga: GetDuplicateLibraryManga = Injekt.get(),
+    private val enhanceDuplicateLibraryManga: EnhanceDuplicateLibraryManga = Injekt.get(),
     private val getMergedManga: GetMergedManga = Injekt.get(),
     private val updateMergedManga: UpdateMergedManga = Injekt.get(),
     private val getAvailableScanlators: GetAvailableScanlators = Injekt.get(),
@@ -178,6 +181,7 @@ class MangaScreenModel(
     private var previewReaderChapter: ReaderChapter? = null
     private var previewLoadJob: Job? = null
     private var previewPageJobs: Map<Int, Job> = emptyMap()
+    private var duplicateEnhancementJob: Job? = null
 
     val isUpdateIntervalEnabled =
         LibraryPreferences.MANGA_OUTSIDE_RELEASE_PERIOD in libraryPreferences.autoUpdateMangaRestrictions.get()
@@ -239,6 +243,13 @@ class MangaScreenModel(
                             memberTitleById = mergePresentation.memberTitleById,
                             mergedMemberTitles = mergePresentation.mergedMemberTitles,
                             chapters = chapters.toChapterListItems(manga),
+                            duplicateCandidates = if (it.isFromSource &&
+                                !manga.favorite
+                            ) {
+                                it.duplicateCandidates
+                            } else {
+                                emptyList()
+                            },
                         )
                     }
                 }
@@ -327,11 +338,14 @@ class MangaScreenModel(
                     excludedScanlators = mergePresentation.memberIds.flatMapTo(linkedSetOf()) { memberId ->
                         getExcludedScanlators.await(memberId)
                     },
+                    duplicateCandidates = emptyList(),
                     isRefreshingData = needRefreshInfo || needRefreshChapter,
                     dialog = null,
                     hideMissingChapters = libraryPreferences.hideMissingChapters.get(),
                 )
             }
+
+            observeDuplicateCandidates()
 
             // Start observe tracking since it only needs mangaId
             observeTrackers()
@@ -1389,6 +1403,51 @@ class MangaScreenModel(
         }
     }
 
+    private fun observeDuplicateCandidates() {
+        val state = successState ?: return
+        if (!state.isFromSource || state.manga.favorite) return
+
+        screenModelScope.launchIO {
+            getDuplicateLibraryManga.subscribe(
+                manga = this@MangaScreenModel.state
+                    .filter { it is State.Success }
+                    .map { (it as State.Success).manga }
+                    .distinctUntilChanged(),
+                scope = screenModelScope,
+            )
+                .flowWithLifecycle(lifecycle)
+                .collectLatest { duplicates ->
+                    updateSuccessState {
+                        if (!it.isFromSource || it.manga.favorite) {
+                            it.copy(duplicateCandidates = emptyList())
+                        } else {
+                            it.copy(duplicateCandidates = duplicates)
+                        }
+                    }
+
+                    val latestState = successState ?: return@collectLatest
+                    if (!latestState.isFromSource || latestState.manga.favorite || duplicates.isEmpty()) {
+                        duplicateEnhancementJob?.cancel()
+                    } else {
+                        duplicateEnhancementJob?.cancel()
+                        duplicateEnhancementJob = screenModelScope.launchIO {
+                            val enrichedCandidates =
+                                enhanceDuplicateLibraryManga(context, latestState.manga, duplicates)
+                            updateSuccessState { currentState ->
+                                if (!currentState.isFromSource || currentState.manga.favorite) {
+                                    currentState.copy(duplicateCandidates = emptyList())
+                                } else if (currentState.manga.id != latestState.manga.id) {
+                                    currentState
+                                } else {
+                                    currentState.copy(duplicateCandidates = enrichedCandidates)
+                                }
+                            }
+                        }
+                    }
+                }
+        }
+    }
+
     // Track sheet - end
 
     sealed interface Dialog {
@@ -1397,7 +1456,7 @@ class MangaScreenModel(
             val initialSelection: ImmutableList<CheckboxState<Category>>,
         ) : Dialog
         data class DeleteChapters(val chapters: List<Chapter>) : Dialog
-        data class DuplicateManga(val manga: Manga, val duplicates: List<MangaWithChapterCount>) : Dialog
+        data class DuplicateManga(val manga: Manga, val duplicates: List<DuplicateMangaCandidate>) : Dialog
         data class EditDisplayName(val manga: Manga, val initialValue: String) : Dialog
         data class ManageMerge(
             val targetId: Long,
@@ -1426,6 +1485,12 @@ class MangaScreenModel(
 
     fun showTrackDialog() {
         updateSuccessState { it.copy(dialog = Dialog.TrackSheet) }
+    }
+
+    fun showDuplicateDialog() {
+        val state = successState ?: return
+        if (state.duplicateCandidates.isEmpty()) return
+        updateSuccessState { it.copy(dialog = Dialog.DuplicateManga(state.manga, state.duplicateCandidates)) }
     }
 
     fun showCoverDialog() {
@@ -1716,6 +1781,7 @@ class MangaScreenModel(
             val excludedScanlators: Set<String>,
             val trackingCount: Int = 0,
             val hasLoggedInTrackers: Boolean = false,
+            val duplicateCandidates: List<DuplicateMangaCandidate> = emptyList(),
             val isRefreshingData: Boolean = false,
             val dialog: Dialog? = null,
             val hasPromptedToAddBefore: Boolean = false,

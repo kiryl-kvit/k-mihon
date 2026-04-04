@@ -302,6 +302,15 @@ private fun FeedsTabContent(
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 }
                             },
+                            getDuplicateCandidates = { manga ->
+                                browseModel.requestDuplicateCandidates(manga)
+                                browseModel.duplicateCandidatesByMangaId()[manga.id].orEmpty()
+                            },
+                            onDuplicateBadgeClick = { manga, duplicates ->
+                                browseModel.setDialog(
+                                    BrowseSourceScreenModel.Dialog.AddDuplicateManga(manga, duplicates),
+                                )
+                            },
                         )
                     }
                 }

@@ -26,6 +26,7 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.StateFlow
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.domain.library.model.LibraryDisplayMode
+import tachiyomi.domain.manga.model.DuplicateMangaCandidate
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.model.StubSource
 import tachiyomi.i18n.MR
@@ -49,6 +50,8 @@ fun BrowseSourceContent(
     onLocalSourceHelpClick: () -> Unit,
     onMangaClick: (Manga) -> Unit,
     onMangaLongClick: (Manga) -> Unit,
+    getDuplicateCandidates: ((Manga) -> List<DuplicateMangaCandidate>)? = null,
+    onDuplicateBadgeClick: ((Manga, List<DuplicateMangaCandidate>) -> Unit)? = null,
 ) {
     val context = LocalContext.current
 
@@ -125,6 +128,8 @@ fun BrowseSourceContent(
                 contentPadding = contentPadding,
                 onMangaClick = onMangaClick,
                 onMangaLongClick = onMangaLongClick,
+                getDuplicateCandidates = getDuplicateCandidates,
+                onDuplicateBadgeClick = onDuplicateBadgeClick,
             )
         }
         LibraryDisplayMode.List -> {
@@ -133,6 +138,8 @@ fun BrowseSourceContent(
                 contentPadding = contentPadding,
                 onMangaClick = onMangaClick,
                 onMangaLongClick = onMangaLongClick,
+                getDuplicateCandidates = getDuplicateCandidates,
+                onDuplicateBadgeClick = onDuplicateBadgeClick,
             )
         }
         LibraryDisplayMode.CompactGrid, LibraryDisplayMode.CoverOnlyGrid -> {
@@ -142,6 +149,8 @@ fun BrowseSourceContent(
                 contentPadding = contentPadding,
                 onMangaClick = onMangaClick,
                 onMangaLongClick = onMangaLongClick,
+                getDuplicateCandidates = getDuplicateCandidates,
+                onDuplicateBadgeClick = onDuplicateBadgeClick,
             )
         }
     }

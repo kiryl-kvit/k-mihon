@@ -14,6 +14,7 @@ import androidx.paging.compose.LazyPagingItems
 import eu.kanade.presentation.library.components.CommonMangaItemDefaults
 import eu.kanade.presentation.library.components.MangaComfortableGridItem
 import kotlinx.coroutines.flow.StateFlow
+import tachiyomi.domain.manga.model.DuplicateMangaCandidate
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.MangaCover
 import tachiyomi.presentation.core.util.plus
@@ -25,6 +26,8 @@ fun BrowseSourceComfortableGrid(
     contentPadding: PaddingValues,
     onMangaClick: (Manga) -> Unit,
     onMangaLongClick: (Manga) -> Unit,
+    getDuplicateCandidates: ((Manga) -> List<DuplicateMangaCandidate>)? = null,
+    onDuplicateBadgeClick: ((Manga, List<DuplicateMangaCandidate>) -> Unit)? = null,
 ) {
     LazyVerticalGrid(
         columns = columns,
@@ -45,8 +48,10 @@ fun BrowseSourceComfortableGrid(
             val manga by mangaList[index]?.collectAsState() ?: return@items
             BrowseSourceComfortableGridItem(
                 manga = manga,
+                duplicateCandidates = getDuplicateCandidates?.invoke(manga).orEmpty(),
                 onClick = { onMangaClick(manga) },
                 onLongClick = { onMangaLongClick(manga) },
+                onDuplicateBadgeClick = onDuplicateBadgeClick,
             )
         }
 
@@ -61,8 +66,10 @@ fun BrowseSourceComfortableGrid(
 @Composable
 private fun BrowseSourceComfortableGridItem(
     manga: Manga,
+    duplicateCandidates: List<DuplicateMangaCandidate>,
     onClick: () -> Unit = {},
     onLongClick: () -> Unit = onClick,
+    onDuplicateBadgeClick: ((Manga, List<DuplicateMangaCandidate>) -> Unit)? = null,
 ) {
     MangaComfortableGridItem(
         title = manga.title,
@@ -75,6 +82,10 @@ private fun BrowseSourceComfortableGridItem(
         ),
         coverAlpha = if (manga.favorite) CommonMangaItemDefaults.BrowseFavoriteCoverAlpha else 1f,
         coverBadgeStart = {
+            DuplicateBadge(
+                enabled = duplicateCandidates.any(DuplicateMangaCandidate::isStrongMatch),
+                onClick = { onDuplicateBadgeClick?.invoke(manga, duplicateCandidates) },
+            )
             InLibraryBadge(enabled = manga.favorite)
         },
         onLongClick = onLongClick,

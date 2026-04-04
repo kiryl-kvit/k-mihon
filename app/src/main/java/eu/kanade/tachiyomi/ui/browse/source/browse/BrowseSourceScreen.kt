@@ -250,6 +250,13 @@ data class BrowseSourceScreen(
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     }
                 },
+                getDuplicateCandidates = { manga ->
+                    screenModel.requestDuplicateCandidates(manga)
+                    screenModel.duplicateCandidatesByMangaId()[manga.id].orEmpty()
+                },
+                onDuplicateBadgeClick = { manga, duplicates ->
+                    screenModel.setDialog(BrowseSourceScreenModel.Dialog.AddDuplicateManga(manga, duplicates))
+                },
             )
         }
 
