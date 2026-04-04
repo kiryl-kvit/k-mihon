@@ -293,7 +293,7 @@ private fun DuplicateMangaListItem(
                     verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
                 ) {
                     Badge(
-                        text = stringResource(MR.strings.possible_duplicates_score, duplicate.score),
+                        text = stringResource(MR.strings.possible_duplicates_score, duplicate.scorePercent),
                         color = duplicate.scoreBadgeColor(),
                         textColor = duplicate.scoreBadgeTextColor(),
                     )
@@ -387,6 +387,7 @@ private fun DuplicateMangaMatchReason.label(): String {
     return when (this) {
         DuplicateMangaMatchReason.DESCRIPTION -> stringResource(MR.strings.possible_duplicates_reason_description)
         DuplicateMangaMatchReason.TITLE -> stringResource(MR.strings.possible_duplicates_reason_title)
+        DuplicateMangaMatchReason.TRACKER -> stringResource(MR.strings.possible_duplicates_reason_tracker)
         DuplicateMangaMatchReason.AUTHOR -> stringResource(MR.strings.possible_duplicates_reason_author)
         DuplicateMangaMatchReason.ARTIST -> stringResource(MR.strings.possible_duplicates_reason_artist)
         DuplicateMangaMatchReason.COVER -> stringResource(MR.strings.possible_duplicates_reason_cover)

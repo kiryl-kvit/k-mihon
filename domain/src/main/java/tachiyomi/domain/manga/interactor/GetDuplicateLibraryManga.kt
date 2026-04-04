@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withContext
 import tachiyomi.domain.library.model.LibraryManga
@@ -18,7 +19,11 @@ import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.MangaMerge
 import tachiyomi.domain.manga.repository.MangaRepository
 import tachiyomi.domain.manga.repository.MergedMangaRepository
+import tachiyomi.domain.manga.service.GlobalDuplicatePreferences
+import tachiyomi.domain.track.model.Track
+import tachiyomi.domain.track.repository.TrackRepository
 import java.util.Locale
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -26,6 +31,8 @@ import kotlin.math.roundToInt
 class GetDuplicateLibraryManga(
     private val mangaRepository: MangaRepository,
     private val mergedMangaRepository: MergedMangaRepository,
+    private val trackRepository: TrackRepository,
+    private val duplicatePreferences: GlobalDuplicatePreferences,
 ) {
 
     private val normalizedLevenshtein = NormalizedLevenshtein()
@@ -34,8 +41,10 @@ class GetDuplicateLibraryManga(
     suspend operator fun invoke(manga: Manga): List<DuplicateMangaCandidate> {
         val libraryManga = mangaRepository.getLibraryManga()
         val merges = mergedMangaRepository.getAll()
+        val tracks = trackRepository.getTracksAsFlow().first()
+        val duplicateConfig = duplicatePreferences.toConfig()
         return withContext(Dispatchers.Default) {
-            detectDuplicates(manga, libraryManga, merges)
+            detectDuplicates(manga, libraryManga, merges, tracks, duplicateConfig)
         }
     }
 
@@ -43,24 +52,52 @@ class GetDuplicateLibraryManga(
         manga: Flow<Manga>,
         scope: CoroutineScope,
     ): StateFlow<List<DuplicateMangaCandidate>> {
+        val duplicateConfigFlow = combine(
+            duplicatePreferences.extendedDuplicateDetectionEnabled.changes(),
+            combine(
+                duplicatePreferences.descriptionWeight.changes(),
+                duplicatePreferences.authorWeight.changes(),
+                duplicatePreferences.artistWeight.changes(),
+                duplicatePreferences.coverWeight.changes(),
+            ) { _, _, _, _ -> Unit },
+            combine(
+                duplicatePreferences.genreWeight.changes(),
+                duplicatePreferences.statusWeight.changes(),
+                duplicatePreferences.chapterCountWeight.changes(),
+                duplicatePreferences.titleWeight.changes(),
+            ) { _, _, _, _ -> Unit },
+        ) { _, _, _ ->
+            duplicatePreferences.toConfig()
+        }
+
         val snapshot = librarySnapshot ?: combine(
             mangaRepository.getLibraryMangaAsFlow(),
             mergedMangaRepository.subscribeAll(),
-        ) { libraryManga, merges ->
+            trackRepository.getTracksAsFlow(),
+            duplicateConfigFlow,
+        ) { libraryManga, merges, tracks, config ->
             DuplicateLibrarySnapshot(
                 libraryManga = libraryManga,
                 merges = merges,
+                tracks = tracks,
+                config = config,
             )
         }
             .stateIn(
                 scope = scope,
                 started = SharingStarted.WhileSubscribed(SUBSCRIPTION_TIMEOUT_MILLIS),
-                initialValue = DuplicateLibrarySnapshot(),
+                initialValue = DuplicateLibrarySnapshot(config = duplicatePreferences.toConfig()),
             )
             .also { librarySnapshot = it }
 
         return combine(manga, snapshot) { currentManga, duplicateLibrarySnapshot ->
-            detectDuplicates(currentManga, duplicateLibrarySnapshot.libraryManga, duplicateLibrarySnapshot.merges)
+            detectDuplicates(
+                manga = currentManga,
+                libraryManga = duplicateLibrarySnapshot.libraryManga,
+                merges = duplicateLibrarySnapshot.merges,
+                tracks = duplicateLibrarySnapshot.tracks,
+                config = duplicateLibrarySnapshot.config,
+            )
         }
             .distinctUntilChanged()
             .stateIn(
@@ -74,16 +111,25 @@ class GetDuplicateLibraryManga(
         manga: Manga,
         libraryManga: List<LibraryManga>,
         merges: List<MangaMerge>,
+        tracks: List<Track>,
+        config: DuplicateConfig,
     ): List<DuplicateMangaCandidate> {
         val current = manga.toPreparedDuplicateManga()
         if (current.normalizedTitle.isBlank()) return emptyList()
 
         val collapsedLibrary = collapseLibraryManga(libraryManga, merges)
         val excludedIds = buildExcludedIds(manga.id, merges)
+        val trackerDuplicateIds = trackerDuplicateIds(manga.id, collapsedLibrary, tracks)
 
         return collapsedLibrary.asSequence()
             .filterNot { libraryItem -> libraryItem.memberMangaIds.any { it in excludedIds } }
-            .mapNotNull { libraryItem -> scoreDuplicate(current, libraryItem) }
+            .mapNotNull { libraryItem ->
+                if (config.extendedEnabled) {
+                    scoreExtendedDuplicate(current, libraryItem, trackerDuplicateIds, config.weights)
+                } else {
+                    scoreLegacyDuplicate(current, libraryItem, trackerDuplicateIds)
+                }
+            }
             .sortedWith(
                 compareByDescending<DuplicateMangaCandidate> { it.score }
                     .thenBy { it.manga.title.lowercase(Locale.ROOT) },
@@ -141,13 +187,35 @@ class GetDuplicateLibraryManga(
         return collapsed
     }
 
-    private fun scoreDuplicate(
+    private fun trackerDuplicateIds(
+        mangaId: Long,
+        collapsedLibrary: List<LibraryManga>,
+        tracks: List<Track>,
+    ): Set<Long> {
+        val libraryMemberIds = collapsedLibrary.flatMapTo(linkedSetOf()) { it.memberMangaIds }
+        val currentTrackKeys = tracks.asSequence()
+            .filter { it.mangaId == mangaId }
+            .map { it.trackerId to it.remoteId }
+            .toSet()
+
+        if (currentTrackKeys.isEmpty()) return emptySet()
+
+        return tracks.asSequence()
+            .filter { it.mangaId != mangaId }
+            .filter { it.mangaId in libraryMemberIds }
+            .filter { (it.trackerId to it.remoteId) in currentTrackKeys }
+            .mapTo(linkedSetOf()) { it.mangaId }
+    }
+
+    private fun scoreExtendedDuplicate(
         current: PreparedDuplicateManga,
         libraryItem: LibraryManga,
+        trackerDuplicateIds: Set<Long>,
+        weights: ExtendedWeights,
     ): DuplicateMangaCandidate? {
         val bestMatch = libraryItem.memberMangas.asSequence()
             .map { it.toPreparedDuplicateManga(chapterCount = libraryItem.totalChapters) }
-            .mapNotNull { candidate -> scoreDuplicate(current, candidate) }
+            .mapNotNull { candidate -> scoreExtendedDuplicate(current, candidate, trackerDuplicateIds, weights) }
             .maxByOrNull { it.score }
             ?: return null
 
@@ -155,14 +223,28 @@ class GetDuplicateLibraryManga(
             manga = libraryItem.manga,
             chapterCount = libraryItem.totalChapters,
             cheapScore = bestMatch.score,
-            score = bestMatch.score,
-            reasons = bestMatch.reasons,
+            scoreMax = weights.totalScoreMax(),
+            score = if (libraryItem.memberMangaIds.any { it in trackerDuplicateIds }) {
+                max(bestMatch.score, LEGACY_TRACKER_MATCH_SCORE)
+            } else {
+                bestMatch.score
+            },
+            reasons = if (
+                libraryItem.memberMangaIds.any { it in trackerDuplicateIds } &&
+                DuplicateMangaMatchReason.TRACKER !in bestMatch.reasons
+            ) {
+                bestMatch.reasons + DuplicateMangaMatchReason.TRACKER
+            } else {
+                bestMatch.reasons
+            },
         )
     }
 
-    private fun scoreDuplicate(
+    private fun scoreExtendedDuplicate(
         current: PreparedDuplicateManga,
         candidate: PreparedDuplicateManga,
+        trackerDuplicateIds: Set<Long>,
+        weights: ExtendedWeights,
     ): ScoredDuplicate? {
         if (current.normalizedTitle.isBlank() || candidate.normalizedTitle.isBlank()) return null
 
@@ -173,40 +255,40 @@ class GetDuplicateLibraryManga(
         val reasons = linkedSetOf<DuplicateMangaMatchReason>()
         var score = 0
 
-        if (descriptionSimilarity >= DESCRIPTION_REASON_THRESHOLD) {
+        if (weights.description > 0 && descriptionSimilarity >= DESCRIPTION_REASON_THRESHOLD) {
             reasons += DuplicateMangaMatchReason.DESCRIPTION
         }
-        score += (descriptionSimilarity * DESCRIPTION_WEIGHT).roundToInt()
+        score += scaledSimilarity(descriptionSimilarity, weights.description)
 
-        if (titleSimilarity >= TITLE_REASON_THRESHOLD) {
+        if (weights.title > 0 && titleSimilarity >= TITLE_REASON_THRESHOLD) {
             reasons += DuplicateMangaMatchReason.TITLE
         }
-        score += (titleSimilarity * TITLE_WEIGHT).roundToInt()
+        score += scaledSimilarity(titleSimilarity, weights.title)
 
-        if (current.normalizedTitle == candidate.normalizedTitle) {
-            score += EXACT_TITLE_BONUS
+        if (weights.title > 0 && current.normalizedTitle == candidate.normalizedTitle) {
             reasons += DuplicateMangaMatchReason.TITLE
+            score += weights.title
         }
 
         val authorMatched = current.author != null && candidate.creators.any { namesMatch(current.author, it) }
         val artistMatched = current.artist != null && candidate.creators.any { namesMatch(current.artist, it) }
 
-        if (authorMatched) {
+        if (weights.author > 0 && authorMatched) {
             reasons += DuplicateMangaMatchReason.AUTHOR
-            score += AUTHOR_BONUS
+            score += weights.author
         }
-        if (artistMatched) {
+        if (weights.artist > 0 && artistMatched) {
             reasons += DuplicateMangaMatchReason.ARTIST
-            score += if (authorMatched) ARTIST_WITH_AUTHOR_BONUS else ARTIST_BONUS
+            score += weights.artist
         }
         if (current.creators.isNotEmpty() && candidate.creators.isNotEmpty() && !authorMatched && !artistMatched) {
             score -= CREATOR_MISMATCH_PENALTY
         }
 
         when {
-            hasKnownMatchingStatus(current.manga.status, candidate.manga.status) -> {
+            weights.status > 0 && hasKnownMatchingStatus(current.manga.status, candidate.manga.status) -> {
                 reasons += DuplicateMangaMatchReason.STATUS
-                score += STATUS_BONUS
+                score += weights.status
             }
             hasKnownConflictingStatus(current.manga.status, candidate.manga.status) -> {
                 score -= STATUS_MISMATCH_PENALTY
@@ -214,20 +296,25 @@ class GetDuplicateLibraryManga(
         }
 
         val genreOverlap = current.genres.intersect(candidate.genres).size
-        if (genreOverlap > 0) {
+        if (weights.genre > 0 && genreOverlap > 0) {
             reasons += DuplicateMangaMatchReason.GENRE
-            score += min(MAX_GENRE_BONUS, BASE_GENRE_BONUS + ((genreOverlap - 1) * EXTRA_GENRE_BONUS))
+            score += scaledGenreWeight(genreOverlap, weights.genre)
         }
 
-        if (chapterCountSimilarity >= CHAPTER_COUNT_REASON_THRESHOLD) {
+        if (weights.chapterCount > 0 && chapterCountSimilarity >= CHAPTER_COUNT_REASON_THRESHOLD) {
             reasons += DuplicateMangaMatchReason.CHAPTER_COUNT
         }
-        score += (chapterCountSimilarity * CHAPTER_COUNT_WEIGHT).roundToInt()
+        score += scaledSimilarity(chapterCountSimilarity, weights.chapterCount)
+
+        if (candidate.manga.id in trackerDuplicateIds) {
+            reasons += DuplicateMangaMatchReason.TRACKER
+            score = max(score, LEGACY_TRACKER_MATCH_SCORE)
+        }
 
         if (reasons.isEmpty()) return null
 
-        score = score.coerceIn(0, 100)
-        if (score < MIN_MATCH_SCORE) return null
+        score = score.coerceIn(0, GlobalDuplicatePreferences.TOTAL_SCORE_BUDGET)
+        if (score < MIN_MATCH_SCORE && DuplicateMangaMatchReason.TRACKER !in reasons) return null
 
         val hasCreatorMatch = authorMatched || artistMatched
         val hasStrongNonTitleEvidence =
@@ -239,7 +326,8 @@ class GetDuplicateLibraryManga(
                     descriptionSimilarity >= SUPPORTING_DESCRIPTION_THRESHOLD &&
                         chapterCountSimilarity >= CHAPTER_COUNT_REASON_THRESHOLD
                     ) ||
-                (chapterCountSimilarity >= CHAPTER_COUNT_REASON_THRESHOLD && genreOverlap >= 2)
+                (chapterCountSimilarity >= CHAPTER_COUNT_REASON_THRESHOLD && genreOverlap >= 2) ||
+                DuplicateMangaMatchReason.TRACKER in reasons
 
         val hasSupportingTitleEvidence =
             titleSimilarity >= TITLE_REASON_THRESHOLD && (authorMatched || artistMatched || genreOverlap >= 1)
@@ -249,6 +337,44 @@ class GetDuplicateLibraryManga(
         }
 
         return ScoredDuplicate(
+            score = score,
+            reasons = reasons.toList(),
+        )
+    }
+
+    private fun scoreLegacyDuplicate(
+        current: PreparedDuplicateManga,
+        libraryItem: LibraryManga,
+        trackerDuplicateIds: Set<Long>,
+    ): DuplicateMangaCandidate? {
+        val reasons = linkedSetOf<DuplicateMangaMatchReason>()
+
+        val titleMatched = libraryItem.memberMangas.any { candidate ->
+            val normalizedTitle = candidate.title.lowercase(Locale.ROOT)
+            normalizedTitle.contains(current.rawLowercaseTitle)
+        }
+        if (titleMatched) {
+            reasons += DuplicateMangaMatchReason.TITLE
+        }
+
+        val trackerMatched = libraryItem.memberMangaIds.any { it in trackerDuplicateIds }
+        if (trackerMatched) {
+            reasons += DuplicateMangaMatchReason.TRACKER
+        }
+
+        if (reasons.isEmpty()) return null
+
+        val score = when {
+            trackerMatched && titleMatched -> LEGACY_TITLE_MATCH_SCORE.coerceAtLeast(LEGACY_TRACKER_MATCH_SCORE)
+            trackerMatched -> LEGACY_TRACKER_MATCH_SCORE
+            else -> LEGACY_TITLE_MATCH_SCORE
+        }
+
+        return DuplicateMangaCandidate(
+            manga = libraryItem.manga,
+            chapterCount = libraryItem.totalChapters,
+            cheapScore = score,
+            scoreMax = LEGACY_SCORE_MAX,
             score = score,
             reasons = reasons.toList(),
         )
@@ -279,9 +405,7 @@ class GetDuplicateLibraryManga(
             max(
                 min(current.normalizedTitle.length, candidate.normalizedTitle.length).toDouble() /
                     max(current.normalizedTitle.length, candidate.normalizedTitle.length),
-                if (min(current.titleTokens.size, candidate.titleTokens.size) ==
-                    1
-                ) {
+                if (min(current.titleTokens.size, candidate.titleTokens.size) == 1) {
                     SINGLE_TOKEN_CONTAINS_SIMILARITY
                 } else {
                     0.0
@@ -323,7 +447,7 @@ class GetDuplicateLibraryManga(
         if (currentChapterCount == null || candidateChapterCount == null) return 0.0
         if (currentChapterCount <= 0 || candidateChapterCount <= 0) return 0.0
 
-        val diff = kotlin.math.abs(currentChapterCount - candidateChapterCount)
+        val diff = abs(currentChapterCount - candidateChapterCount)
         val maxCount = max(currentChapterCount, candidateChapterCount)
         return (1.0 - (diff.toDouble() / maxCount.toDouble())).coerceIn(0.0, 1.0)
     }
@@ -366,6 +490,7 @@ class GetDuplicateLibraryManga(
         return PreparedDuplicateManga(
             manga = this,
             normalizedTitle = normalizedTitle,
+            rawLowercaseTitle = title.lowercase(Locale.ROOT).trim(),
             titleTokens = normalizedTitle.split(' ')
                 .asSequence()
                 .filter { it.length >= MIN_TITLE_TOKEN_LENGTH }
@@ -442,9 +567,44 @@ class GetDuplicateLibraryManga(
         }
     }
 
+    private fun scaledSimilarity(similarity: Double, weight: Int): Int {
+        return (similarity * weight).roundToInt()
+    }
+
+    private fun scaledGenreWeight(genreOverlap: Int, weight: Int): Int {
+        if (weight <= 0 || genreOverlap <= 0) return 0
+        val overlapScale = min(genreOverlap, MAX_GENRE_MATCH_COUNT).toDouble() / MAX_GENRE_MATCH_COUNT.toDouble()
+        return (weight * overlapScale).roundToInt().coerceAtLeast(1)
+    }
+
+    private fun GlobalDuplicatePreferences.toConfig(): DuplicateConfig {
+        return DuplicateConfig(
+            extendedEnabled = extendedDuplicateDetectionEnabled.get(),
+            weights = getWeightBudget().toExtendedWeights(),
+        )
+    }
+
+    private fun GlobalDuplicatePreferences.DuplicateWeightBudget.toExtendedWeights(): ExtendedWeights {
+        return ExtendedWeights(
+            description = description,
+            author = author,
+            artist = artist,
+            cover = cover,
+            genre = genre,
+            status = status,
+            chapterCount = chapterCount,
+            title = title,
+        )
+    }
+
+    private fun ExtendedWeights.totalScoreMax(): Int {
+        return (description + author + artist + cover + genre + status + chapterCount + title).coerceAtLeast(1)
+    }
+
     private data class PreparedDuplicateManga(
         val manga: Manga,
         val normalizedTitle: String,
+        val rawLowercaseTitle: String,
         val titleTokens: Set<String>,
         val normalizedDescription: String?,
         val descriptionTokens: Set<String>,
@@ -464,24 +624,34 @@ class GetDuplicateLibraryManga(
     private data class DuplicateLibrarySnapshot(
         val libraryManga: List<LibraryManga> = emptyList(),
         val merges: List<MangaMerge> = emptyList(),
+        val tracks: List<Track> = emptyList(),
+        val config: DuplicateConfig,
     )
 
-    private companion object {
+    data class DuplicateConfig(
+        val extendedEnabled: Boolean,
+        val weights: ExtendedWeights,
+    )
+
+    data class ExtendedWeights(
+        val description: Int,
+        val author: Int,
+        val artist: Int,
+        val cover: Int,
+        val genre: Int,
+        val status: Int,
+        val chapterCount: Int,
+        val title: Int,
+    )
+
+    companion object {
         private const val SUBSCRIPTION_TIMEOUT_MILLIS = 5_000L
-        private const val DESCRIPTION_WEIGHT = 36
-        private const val TITLE_WEIGHT = 28
-        private const val AUTHOR_BONUS = 12
-        private const val ARTIST_BONUS = 8
-        private const val ARTIST_WITH_AUTHOR_BONUS = 8
-        private const val STATUS_BONUS = 4
-        private const val BASE_GENRE_BONUS = 3
-        private const val EXTRA_GENRE_BONUS = 1
-        private const val MAX_GENRE_BONUS = 10
-        private const val CHAPTER_COUNT_WEIGHT = 4
         private const val CREATOR_MISMATCH_PENALTY = 10
         private const val STATUS_MISMATCH_PENALTY = 2
-        private const val EXACT_TITLE_BONUS = 10
         private const val MIN_MATCH_SCORE = 28
+        private const val LEGACY_TITLE_MATCH_SCORE = 46
+        private const val LEGACY_TRACKER_MATCH_SCORE = 58
+        private const val LEGACY_SCORE_MAX = 100
         private const val MIN_NAME_SIMILARITY = 0.9
         private const val SHORT_TITLE_LENGTH = 4
         private const val CONTAINS_MIN_TITLE_LENGTH = 6
@@ -497,6 +667,7 @@ class GetDuplicateLibraryManga(
         private const val MEDIUM_DESCRIPTION_THRESHOLD = 0.5
         private const val SUPPORTING_DESCRIPTION_THRESHOLD = 0.35
         private const val SINGLE_TOKEN_CONTAINS_SIMILARITY = 0.78
+        private const val MAX_GENRE_MATCH_COUNT = 4
 
         private val NON_TEXT_REGEX = Regex("[^\\p{L}0-9 ]")
         private val CONSECUTIVE_SPACES_REGEX = Regex(" +")

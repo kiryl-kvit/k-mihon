@@ -5,25 +5,43 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
+import tachiyomi.core.common.preference.Preference
 import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.domain.manga.model.DuplicateMangaMatchReason
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.MangaMerge
 import tachiyomi.domain.manga.repository.MangaRepository
 import tachiyomi.domain.manga.repository.MergedMangaRepository
+import tachiyomi.domain.manga.service.GlobalDuplicatePreferences
+import tachiyomi.domain.track.repository.TrackRepository
 
 class GetDuplicateLibraryMangaTest {
 
     private val mangaRepository = mockk<MangaRepository>()
     private val mergedMangaRepository = mockk<MergedMangaRepository>()
+    private val trackRepository = mockk<TrackRepository>()
+    private val duplicatePreferences = mockk<GlobalDuplicatePreferences>()
+    private val extendedEnabledPreference = mockk<Preference<Boolean>>()
 
     private val getDuplicateLibraryManga = GetDuplicateLibraryManga(
         mangaRepository = mangaRepository,
         mergedMangaRepository = mergedMangaRepository,
+        trackRepository = trackRepository,
+        duplicatePreferences = duplicatePreferences,
     )
+
+    init {
+        every { duplicatePreferences.extendedDuplicateDetectionEnabled } returns extendedEnabledPreference
+        every { extendedEnabledPreference.get() } returns true
+        every { duplicatePreferences.getWeightBudget() } returns
+            GlobalDuplicatePreferences.DuplicateWeightBudget.defaults()
+        every { trackRepository.getTracksAsFlow() } returns flowOf(emptyList())
+    }
 
     @Test
     fun `returns strong match for normalized same title`() = runTest {

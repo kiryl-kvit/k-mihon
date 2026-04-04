@@ -8,21 +8,26 @@ data class DuplicateMangaCandidate(
     val chapterCount: Long,
     val cheapScore: Int,
     val coverScore: Int = 0,
+    val scoreMax: Int,
     val score: Int,
     val reasons: List<DuplicateMangaMatchReason>,
     val coverHashChecked: Boolean = false,
 ) {
+    val scorePercent: Int
+        get() = if (scoreMax <= 0) 0 else ((score.toDouble() / scoreMax.toDouble()) * 100).toInt().coerceIn(0, 100)
+
     val isStrongMatch: Boolean
-        get() = score >= STRONG_MATCH_SCORE
+        get() = scorePercent >= STRONG_MATCH_PERCENT
 
     companion object {
-        const val STRONG_MATCH_SCORE = 82
+        const val STRONG_MATCH_PERCENT = 82
     }
 }
 
 enum class DuplicateMangaMatchReason {
     DESCRIPTION,
     TITLE,
+    TRACKER,
     AUTHOR,
     ARTIST,
     COVER,

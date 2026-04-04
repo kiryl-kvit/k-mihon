@@ -17,9 +17,12 @@ import tachiyomi.domain.manga.model.DuplicateMangaCandidate
 import tachiyomi.domain.manga.model.DuplicateMangaMatchReason
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.repository.MangaRepository
+import tachiyomi.domain.manga.service.GlobalDuplicatePreferences
+import kotlin.math.roundToInt
 
 class EnhanceDuplicateLibraryManga(
     private val mangaRepository: MangaRepository,
+    private val duplicatePreferences: GlobalDuplicatePreferences,
 ) {
 
     suspend operator fun invoke(
@@ -28,6 +31,9 @@ class EnhanceDuplicateLibraryManga(
         candidates: List<DuplicateMangaCandidate>,
         limit: Int = DEFAULT_CANDIDATE_LIMIT,
     ): List<DuplicateMangaCandidate> {
+        val weightBudget = duplicatePreferences.getWeightBudget()
+        if (!duplicatePreferences.extendedDuplicateDetectionEnabled.get()) return candidates
+        if (weightBudget.cover <= 0) return candidates
         if (candidates.isEmpty() || manga.thumbnailUrl.isNullOrBlank()) return candidates
 
         val prioritized = candidates.sortedByDescending(DuplicateMangaCandidate::cheapScore)
@@ -43,7 +49,10 @@ class EnhanceDuplicateLibraryManga(
                     if (candidateHash == null) {
                         candidate.copy(coverHashChecked = true)
                     } else {
-                        val coverScore = coverScoreFromDistance(hammingDistance(sourceHash, candidateHash))
+                        val coverScore = coverScoreFromDistance(
+                            distance = hammingDistance(sourceHash, candidateHash),
+                            maxScore = weightBudget.cover,
+                        )
                         val reasons = if (coverScore > 0 && DuplicateMangaMatchReason.COVER !in candidate.reasons) {
                             candidate.reasons + DuplicateMangaMatchReason.COVER
                         } else {
@@ -51,7 +60,14 @@ class EnhanceDuplicateLibraryManga(
                         }
                         candidate.copy(
                             coverScore = coverScore,
-                            score = (candidate.cheapScore + coverScore).coerceIn(0, 100),
+                            scoreMax = (candidate.scoreMax - candidate.coverScore + weightBudget.cover).coerceAtLeast(
+                                1,
+                            ),
+                            score = (candidate.cheapScore + coverScore)
+                                .coerceIn(
+                                    0,
+                                    (candidate.scoreMax - candidate.coverScore + weightBudget.cover).coerceAtLeast(1),
+                                ),
                             reasons = reasons,
                             coverHashChecked = true,
                         )
@@ -127,12 +143,13 @@ class EnhanceDuplicateLibraryManga(
         return java.lang.Long.bitCount(left xor right)
     }
 
-    private fun coverScoreFromDistance(distance: Int): Int {
+    private fun coverScoreFromDistance(distance: Int, maxScore: Int): Int {
+        if (maxScore <= 0) return 0
         return when {
-            distance <= 4 -> 16
-            distance <= 8 -> 12
-            distance <= 12 -> 8
-            distance <= 16 -> 4
+            distance <= 4 -> maxScore
+            distance <= 8 -> (maxScore * 0.75f).roundToInt()
+            distance <= 12 -> (maxScore * 0.5f).roundToInt()
+            distance <= 16 -> (maxScore * 0.25f).roundToInt()
             else -> 0
         }
     }

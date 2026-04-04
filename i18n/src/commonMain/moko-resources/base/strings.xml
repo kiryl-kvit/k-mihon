@@ -804,7 +804,7 @@
     <string name="unknown_title">Unknown title</string>
     <string name="possible_duplicates_title">Possible duplicates</string>
     <string name="possible_duplicates_summary">You have entries in your library that may match this manga.\n\nSelect an entry to migrate or add anyway.</string>
-    <string name="possible_duplicates_score">Score: %1$d</string>
+    <string name="possible_duplicates_score">Score: %1$d%%</string>
     <string name="possible_duplicates_reason_author">Author</string>
     <string name="possible_duplicates_reason_artist">Artist</string>
     <string name="possible_duplicates_reason_chapter_count">Chapters</string>
@@ -812,6 +812,7 @@
     <string name="possible_duplicates_reason_description">Description</string>
     <string name="possible_duplicates_reason_genre">Genre</string>
     <string name="possible_duplicates_reason_status">Status</string>
+    <string name="possible_duplicates_reason_tracker">Tracker</string>
     <string name="possible_duplicates_reason_title">Title</string>
     <string name="manga_added_library">Added to library</string>
     <string name="manga_removed_library">Removed from library</string>
@@ -824,6 +825,26 @@
     <string name="source_not_installed">Source not installed: %1$s</string>
     <string name="snack_add_to_library">Add to library?</string>
     <string name="description_placeholder">No description</string>
+
+    <string name="pref_duplicate_detection">Duplicate detection</string>
+    <string name="pref_duplicate_detection_summary">Configure the extended duplicate matching used by the Duplicate action and add warnings.</string>
+    <string name="pref_duplicate_detection_behavior">Behavior</string>
+    <string name="pref_duplicate_detection_confidence_budget">Confidence budget</string>
+    <string name="pref_duplicate_detection_actions">Actions</string>
+    <string name="pref_enable_extended_duplicate_detection">Enable extended duplicate detection</string>
+    <string name="pref_enable_extended_duplicate_detection_summary">Uses richer multi-signal matching. When disabled, duplicate detection falls back to legacy title-based logic.</string>
+    <string name="pref_duplicate_detection_unused_budget">Unused confidence budget: %1$d / %2$d</string>
+    <string name="pref_duplicate_detection_weight_summary">Allocated: %1$d / Max: %2$d</string>
+    <string name="pref_duplicate_detection_weight_description">Description weight</string>
+    <string name="pref_duplicate_detection_weight_author">Author weight</string>
+    <string name="pref_duplicate_detection_weight_artist">Artist weight</string>
+    <string name="pref_duplicate_detection_weight_cover">Cover weight</string>
+    <string name="pref_duplicate_detection_weight_genre">Genre weight</string>
+    <string name="pref_duplicate_detection_weight_status">Status weight</string>
+    <string name="pref_duplicate_detection_weight_chapter_count">Chapter count weight</string>
+    <string name="pref_duplicate_detection_weight_title">Title weight</string>
+    <string name="pref_duplicate_detection_reset_weights">Reset confidence weights</string>
+    <string name="pref_duplicate_detection_reset_weights_summary">Restore the default extended duplicate confidence budget.</string>
 
     <!-- Manga chapters -->
     <string name="display_mode_chapter">Chapter %1$s</string>

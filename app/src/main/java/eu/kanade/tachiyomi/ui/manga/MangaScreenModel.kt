@@ -100,6 +100,7 @@ import tachiyomi.domain.manga.model.MangaUpdate
 import tachiyomi.domain.manga.model.applyFilter
 import tachiyomi.domain.manga.model.presentationTitle
 import tachiyomi.domain.manga.repository.MangaRepository
+import tachiyomi.domain.manga.service.GlobalDuplicatePreferences
 import tachiyomi.domain.source.model.SourceNotInstalledException
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.track.interactor.GetTracks
@@ -124,6 +125,7 @@ class MangaScreenModel(
     private val downloadCache: DownloadCache = Injekt.get(),
     private val downloadProvider: DownloadProvider = Injekt.get(),
     private val customPreferences: CustomPreferences = Injekt.get(),
+    private val duplicatePreferences: GlobalDuplicatePreferences = Injekt.get(),
     private val getMangaAndChapters: GetMangaWithChapters = Injekt.get(),
     private val getDuplicateLibraryManga: GetDuplicateLibraryManga = Injekt.get(),
     private val enhanceDuplicateLibraryManga: EnhanceDuplicateLibraryManga = Injekt.get(),
@@ -1417,6 +1419,7 @@ class MangaScreenModel(
             )
                 .flowWithLifecycle(lifecycle)
                 .collectLatest { duplicates ->
+                    val extendedEnabled = duplicatePreferences.extendedDuplicateDetectionEnabled.get()
                     updateSuccessState {
                         if (!it.isFromSource || it.manga.favorite) {
                             it.copy(duplicateCandidates = emptyList())
@@ -1426,7 +1429,10 @@ class MangaScreenModel(
                     }
 
                     val latestState = successState ?: return@collectLatest
-                    if (!latestState.isFromSource || latestState.manga.favorite || duplicates.isEmpty()) {
+                    if (
+                        !extendedEnabled || !latestState.isFromSource || latestState.manga.favorite ||
+                        duplicates.isEmpty()
+                    ) {
                         duplicateEnhancementJob?.cancel()
                     } else {
                         duplicateEnhancementJob?.cancel()

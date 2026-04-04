@@ -4,9 +4,7 @@ import android.content.res.Configuration
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.unit.dp
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
@@ -87,8 +85,6 @@ class BrowseSourceScreenModel(
     private val addTracks: AddTracks = Injekt.get(),
     private val getIncognitoState: GetIncognitoState = Injekt.get(),
 ) : StateScreenModel<BrowseSourceScreenModel.State>(State(Listing.valueOf(listingQuery))) {
-
-    private val duplicateCandidatesByMangaId = mutableStateMapOf<Long, List<DuplicateMangaCandidate>>()
 
     var displayMode by sourcePreferences.sourceDisplayMode.asState(screenModelScope)
     var feedsEnabled by customPreferences.enableFeeds.asState(screenModelScope)
@@ -298,18 +294,6 @@ class BrowseSourceScreenModel(
 
     suspend fun getDuplicateLibraryManga(manga: Manga): List<DuplicateMangaCandidate> {
         return getDuplicateLibraryManga.invoke(manga)
-    }
-
-    fun duplicateCandidatesByMangaId(): SnapshotStateMap<Long, List<DuplicateMangaCandidate>> {
-        return duplicateCandidatesByMangaId
-    }
-
-    fun requestDuplicateCandidates(manga: Manga) {
-        if (duplicateCandidatesByMangaId.containsKey(manga.id)) return
-
-        screenModelScope.launchIO {
-            duplicateCandidatesByMangaId[manga.id] = getDuplicateLibraryManga.invoke(manga)
-        }
     }
 
     private fun moveMangaToCategories(manga: Manga, vararg categories: Category) {
