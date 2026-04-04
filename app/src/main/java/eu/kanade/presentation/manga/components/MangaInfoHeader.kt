@@ -256,14 +256,6 @@ fun MangaActionRow(
             color = if (trackingCount == 0) defaultActionButtonColor else MaterialTheme.colorScheme.primary,
             onClick = onTrackingClicked,
         )
-        if (onDuplicatesClicked != null) {
-            MangaActionButton(
-                title = stringResource(MR.strings.action_duplicates),
-                icon = Icons.Filled.Warning,
-                color = MaterialTheme.colorScheme.error,
-                onClick = onDuplicatesClicked,
-            )
-        }
         if (onWebViewClicked != null) {
             MangaActionButton(
                 title = stringResource(MR.strings.action_web_view),
@@ -271,6 +263,14 @@ fun MangaActionRow(
                 color = defaultActionButtonColor,
                 onClick = onWebViewClicked,
                 onLongClick = onWebViewLongClicked,
+            )
+        }
+        if (onDuplicatesClicked != null) {
+            MangaActionButton(
+                title = stringResource(MR.strings.action_duplicates),
+                icon = Icons.Filled.Warning,
+                color = MaterialTheme.colorScheme.error,
+                onClick = onDuplicatesClicked,
             )
         }
     }
