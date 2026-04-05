@@ -1845,7 +1845,7 @@ class MangaScreenModel(
         val pageCount: Int = 5,
     ) {
         val hasLoadedContent: Boolean
-            get() = chapterId != null && pages.size == pageCount
+            get() = chapterId != null && !isLoading && error == null
     }
 
     @Immutable

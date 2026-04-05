@@ -195,6 +195,7 @@ class MangaScreen(
                 mihon.core.common.CustomPreferences.MangaPreviewSize.SMALL -> MangaPreviewSizeUi.SMALL
                 mihon.core.common.CustomPreferences.MangaPreviewSize.MEDIUM -> MangaPreviewSizeUi.MEDIUM
                 mihon.core.common.CustomPreferences.MangaPreviewSize.LARGE -> MangaPreviewSizeUi.LARGE
+                mihon.core.common.CustomPreferences.MangaPreviewSize.EXTRA_LARGE -> MangaPreviewSizeUi.EXTRA_LARGE
             },
             mangaPreviewState = previewState,
             onPreviewExpandedChange = screenModel::setPreviewExpanded,

@@ -56,5 +56,6 @@ class CustomPreferences(
         SMALL(MR.strings.pref_manga_preview_size_small),
         MEDIUM(MR.strings.pref_manga_preview_size_medium),
         LARGE(MR.strings.pref_manga_preview_size_large),
+        EXTRA_LARGE(MR.strings.pref_manga_preview_size_extra_large),
     }
 }
