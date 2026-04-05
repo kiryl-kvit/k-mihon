@@ -625,8 +625,11 @@ class LibraryScreenModel(
     }
 
     suspend fun getNextUnreadChapter(manga: LibraryManga): Chapter? {
-        return getMangaWithChapters.awaitChapters(manga.id, applyScanlatorFilter = true)
-            .getNextUnread(manga.manga, downloadManager)
+        val chapters = getMangaWithChapters.awaitChapters(manga.id, applyScanlatorFilter = true)
+        val mangaById = chapters.map(Chapter::mangaId).distinct().associateWith { chapterMangaId ->
+            getManga.await(chapterMangaId) ?: manga.manga
+        }
+        return chapters.getNextUnread(manga.manga, downloadManager, mangaById)
     }
 
     /**

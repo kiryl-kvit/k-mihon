@@ -924,7 +924,7 @@ class MangaScreenModel(
      */
     fun getNextUnreadChapter(): Chapter? {
         val successState = successState ?: return null
-        return successState.readingChapters.firstOrNull { !it.chapter.read }?.chapter
+        return successState.chapters.getNextUnread(successState.manga, downloadManager)
     }
 
     private fun getUnreadChapterItems(): List<ChapterList.Item> {
@@ -935,8 +935,13 @@ class MangaScreenModel(
 
     private fun getUnreadChapterItemsSorted(): List<ChapterList.Item> {
         val state = successState ?: return emptyList()
-        val unreadById = getUnreadChapterItems().associateBy { it.chapter.id }
-        return state.readingChapters.mapNotNull { unreadById[it.chapter.id] }
+        val unreadItems = getUnreadChapterItems()
+        val orderedIds = unreadItems
+            .map(ChapterList.Item::chapter)
+            .sortedForReading(state.manga, state.memberIds)
+            .mapIndexed { index, chapter -> chapter.id to index }
+            .toMap()
+        return unreadItems.sortedBy { orderedIds.getValue(it.chapter.id) }
     }
 
     private fun getBookmarkedChapterItems(): List<ChapterList.Item> {
