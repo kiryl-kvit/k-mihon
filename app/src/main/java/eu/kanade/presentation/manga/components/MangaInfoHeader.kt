@@ -393,6 +393,29 @@ enum class MangaPreviewSizeUi {
     SMALL,
     MEDIUM,
     LARGE,
+    EXTRA_LARGE,
+}
+
+internal fun mangaPreviewGridColumnCount(
+    size: MangaPreviewSizeUi,
+    availableWidth: Dp,
+): Int {
+    return when (size) {
+        MangaPreviewSizeUi.EXTRA_LARGE -> when {
+            availableWidth < 560.dp -> 1
+            availableWidth < 840.dp -> 2
+            else -> 3
+        }
+        else -> {
+            val minTileWidth = when (size) {
+                MangaPreviewSizeUi.SMALL -> 88.dp
+                MangaPreviewSizeUi.MEDIUM -> 112.dp
+                MangaPreviewSizeUi.LARGE -> 140.dp
+                MangaPreviewSizeUi.EXTRA_LARGE -> error("Handled above")
+            }
+            (availableWidth / minTileWidth).toInt().coerceAtLeast(1)
+        }
+    }
 }
 
 @Composable
@@ -404,6 +427,12 @@ private fun MangaPreviewSection(
     onPageLoad: (Int) -> Unit,
     onPageClick: (Long, Int) -> Unit,
 ) {
+    val subtitlePageCount = if (state.chapterId != null && !state.isLoading && state.error == null) {
+        state.pages.size
+    } else {
+        state.pageCount
+    }
+
     Column(
         modifier = Modifier
             .padding(horizontal = 16.dp)
@@ -428,8 +457,8 @@ private fun MangaPreviewSection(
                 Text(
                     text = pluralStringResource(
                         MR.plurals.pref_pages,
-                        state.pageCount,
-                        state.pageCount,
+                        subtitlePageCount,
+                        subtitlePageCount,
                     ),
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.secondaryItemAlpha(),
@@ -486,14 +515,8 @@ private fun MangaPreviewGrid(
     onPageLoad: (Int) -> Unit,
     onPageClick: (Long, Int) -> Unit,
 ) {
-    val minTileWidth = when (size) {
-        MangaPreviewSizeUi.SMALL -> 88.dp
-        MangaPreviewSizeUi.MEDIUM -> 112.dp
-        MangaPreviewSizeUi.LARGE -> 140.dp
-    }
-
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        val columns = (maxWidth / minTileWidth).toInt().coerceAtLeast(1)
+        val columns = mangaPreviewGridColumnCount(size, maxWidth)
         val rows = pages.chunked(columns)
 
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
