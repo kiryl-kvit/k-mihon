@@ -17,6 +17,13 @@ import tachiyomi.core.common.preference.PreferenceStore
 class CustomPreferencesTest {
 
     @Test
+    fun `browse long press action defaults to library action`() {
+        val preferences = CustomPreferences(TestPreferenceStore())
+
+        preferences.browseLongPressAction.get() shouldBe CustomPreferences.BrowseLongPressAction.LIBRARY_ACTION
+    }
+
+    @Test
     fun `manga preview page count clamps stored values to shared range`() {
         val key = Preference.appStateKey("manga_preview_page_count")
         val preferenceStore = InMemoryPreferenceStore(

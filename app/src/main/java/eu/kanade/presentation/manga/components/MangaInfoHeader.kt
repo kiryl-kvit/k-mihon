@@ -377,7 +377,7 @@ fun ExpandableMangaDescription(
             }
         }
         if (mangaPreviewEnabled) {
-            MangaPreviewSection(
+            SharedMangaPreviewSection(
                 state = mangaPreviewState,
                 size = mangaPreviewSize,
                 onExpandedChange = onPreviewExpandedChange,
@@ -419,7 +419,7 @@ internal fun mangaPreviewGridColumnCount(
 }
 
 @Composable
-private fun MangaPreviewSection(
+fun SharedMangaPreviewSection(
     state: MangaScreenModel.MangaPreviewState,
     size: MangaPreviewSizeUi,
     onExpandedChange: (Boolean) -> Unit,

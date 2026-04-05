@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -69,6 +70,7 @@ object CustomSettingsScreen : SearchableSettings {
         val customPreferences = remember { Injekt.get<CustomPreferences>() }
         val globalCustomPreferences = remember { Injekt.get<GlobalCustomPreferences>() }
         val profilesPreferences = remember { Injekt.get<ProfilesPreferences>() }
+        val browseLongPressAction by customPreferences.browseLongPressAction.collectAsState()
         val previewEnabled by customPreferences.enableMangaPreview.collectAsState()
         val previewPageCount by customPreferences.mangaPreviewPageCount.collectAsState()
         val startupTab by customPreferences.homeScreenStartupTab.collectAsState()
@@ -86,6 +88,12 @@ object CustomSettingsScreen : SearchableSettings {
                 .filterNot { it == HomeScreenTabs.Profiles }
                 .associateWith { homeTabEntries.getValue(it) }
                 .toImmutableMap()
+        }
+
+        LaunchedEffect(previewEnabled, browseLongPressAction) {
+            if (!previewEnabled && browseLongPressAction == CustomPreferences.BrowseLongPressAction.MANGA_PREVIEW) {
+                customPreferences.browseLongPressAction.set(CustomPreferences.BrowseLongPressAction.LIBRARY_ACTION)
+            }
         }
 
         if (showProfilesInfo) {
@@ -231,6 +239,16 @@ object CustomSettingsScreen : SearchableSettings {
                         preference = customPreferences.enableFeeds,
                         title = stringResource(MR.strings.pref_enable_feeds),
                         subtitle = stringResource(MR.strings.pref_enable_feeds_summary),
+                    ),
+                    Preference.PreferenceItem.ListPreference(
+                        preference = customPreferences.browseLongPressAction,
+                        entries = CustomPreferences.BrowseLongPressAction.entries
+                            .associateWith { stringResource(it.titleRes) }
+                            .toImmutableMap(),
+                        title = stringResource(MR.strings.pref_browse_long_press_action),
+                        entryEnabledProvider = {
+                            previewEnabled || it != CustomPreferences.BrowseLongPressAction.MANGA_PREVIEW
+                        },
                     ),
                     Preference.PreferenceItem.SwitchPreference(
                         preference = globalCustomPreferences.extensionsAutoUpdates,

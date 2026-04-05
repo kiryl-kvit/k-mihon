@@ -81,6 +81,7 @@ sealed class Preference {
             override val subtitle: String? = "%s",
             val subtitleProvider: @Composable (value: T, entries: ImmutableMap<T, String>) -> String? =
                 { v, e -> subtitle?.format(e[v]) },
+            val entryEnabledProvider: (value: T) -> Boolean = { true },
             override val icon: ImageVector? = null,
             override val enabled: Boolean = true,
             override val onValueChanged: suspend (value: T) -> Boolean = { true },
@@ -89,6 +90,7 @@ sealed class Preference {
 
             internal fun internalSet(value: Any) = preference.set(value as T)
             internal suspend fun internalOnValueChanged(value: Any) = onValueChanged(value as T)
+            internal fun internalEntryEnabled(value: Any) = entryEnabledProvider(value as T)
 
             @Composable
             internal fun internalSubtitleProvider(value: Any?, entries: ImmutableMap<out Any?, String>) =
@@ -105,6 +107,7 @@ sealed class Preference {
             override val subtitle: String? = "%s",
             val subtitleProvider: @Composable (value: String, entries: ImmutableMap<String, String>) -> String? =
                 { v, e -> subtitle?.format(e[v]) },
+            val entryEnabledProvider: (value: String) -> Boolean = { true },
             override val icon: ImageVector? = null,
             override val enabled: Boolean = true,
             override val isProfileSpecific: Boolean = false,

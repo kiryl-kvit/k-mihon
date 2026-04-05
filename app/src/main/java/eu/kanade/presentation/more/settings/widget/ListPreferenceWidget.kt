@@ -20,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
@@ -35,6 +36,7 @@ fun <T> ListPreferenceWidget(
     icon: ImageVector?,
     isProfileSpecific: Boolean,
     entries: Map<out T, String>,
+    entryEnabled: (T) -> Boolean = { true },
     onValueChange: (T) -> Unit,
 ) {
     var isDialogShown by remember { mutableStateOf(false) }
@@ -57,10 +59,12 @@ fun <T> ListPreferenceWidget(
                     ScrollbarLazyColumn(state = state) {
                         entries.forEach { current ->
                             val isSelected = value == current.key
+                            val enabled = current.key?.let(entryEnabled) == true
                             item {
                                 DialogRow(
                                     label = current.value,
                                     isSelected = isSelected,
+                                    enabled = enabled,
                                     onSelected = {
                                         onValueChange(current.key!!)
                                         isDialogShown = false
@@ -86,15 +90,22 @@ fun <T> ListPreferenceWidget(
 private fun DialogRow(
     label: String,
     isSelected: Boolean,
+    enabled: Boolean,
     onSelected: () -> Unit,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .clip(MaterialTheme.shapes.small)
-            .selectable(
-                selected = isSelected,
-                onClick = { if (!isSelected) onSelected() },
+            .then(
+                if (enabled) {
+                    Modifier.selectable(
+                        selected = isSelected,
+                        onClick = { if (!isSelected) onSelected() },
+                    )
+                } else {
+                    Modifier
+                },
             )
             .fillMaxWidth()
             .minimumInteractiveComponentSize(),
@@ -102,11 +113,14 @@ private fun DialogRow(
         RadioButton(
             selected = isSelected,
             onClick = null,
+            enabled = enabled,
         )
         Text(
             text = label,
             style = MaterialTheme.typography.bodyLarge.merge(),
-            modifier = Modifier.padding(start = 24.dp),
+            modifier = Modifier
+                .alpha(if (enabled) 1f else 0.38f)
+                .padding(start = 24.dp),
         )
     }
 }

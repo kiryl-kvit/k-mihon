@@ -42,6 +42,7 @@ import eu.kanade.core.util.ifSourcesLoaded
 import eu.kanade.presentation.browse.BrowseSourceContent
 import eu.kanade.presentation.browse.MissingSourceScreen
 import eu.kanade.presentation.browse.components.BrowseFeedNameDialog
+import eu.kanade.presentation.browse.components.BrowseMangaPreviewSheet
 import eu.kanade.presentation.browse.components.BrowseSourceToolbar
 import eu.kanade.presentation.browse.components.DeleteBrowsePresetDialog
 import eu.kanade.presentation.browse.components.RemoveMangaDialog
@@ -239,21 +240,15 @@ data class BrowseSourceScreen(
                 onMangaClick = { navigator.push((MangaScreen(it.id, true))) },
                 onMangaLongClick = { manga ->
                     scope.launchIO {
-                        val duplicates = screenModel.getDuplicateLibraryManga(manga)
-                        when {
-                            manga.favorite -> screenModel.setDialog(BrowseSourceScreenModel.Dialog.RemoveManga(manga))
-                            duplicates.isNotEmpty() -> screenModel.setDialog(
-                                BrowseSourceScreenModel.Dialog.AddDuplicateManga(manga, duplicates),
-                            )
-                            else -> screenModel.addFavorite(manga)
+                        if (screenModel.onMangaLongClick(manga)) {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         }
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     }
                 },
             )
         }
 
-        val onDismissRequest = { screenModel.setDialog(null) }
+        val onDismissRequest = screenModel::dismissDialog
         when (val dialog = state.dialog) {
             is BrowseSourceScreenModel.Dialog.Filter -> {
                 SourceFilterDialog(
@@ -275,6 +270,13 @@ data class BrowseSourceScreen(
                     duplicateName = screenModel::hasPresetName,
                     onDismissRequest = onDismissRequest,
                     onConfirm = screenModel::savePreset,
+                )
+            }
+            is BrowseSourceScreenModel.Dialog.MangaPreview -> {
+                BrowseMangaPreviewSheet(
+                    mangaId = dialog.mangaId,
+                    previewSize = screenModel.mangaPreviewSizeUi(),
+                    onDismissRequest = onDismissRequest,
                 )
             }
             is BrowseSourceScreenModel.Dialog.AddDuplicateManga -> {

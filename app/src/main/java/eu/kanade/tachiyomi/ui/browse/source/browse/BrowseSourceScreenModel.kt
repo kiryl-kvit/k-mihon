@@ -29,6 +29,7 @@ import eu.kanade.domain.source.model.snapshot
 import eu.kanade.domain.source.service.BrowseFeedService
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.domain.track.interactor.AddTracks
+import eu.kanade.presentation.manga.components.MangaPreviewSizeUi
 import eu.kanade.presentation.util.ioCoroutineScope
 import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.source.CatalogueSource
@@ -88,6 +89,9 @@ class BrowseSourceScreenModel(
 
     var displayMode by sourcePreferences.sourceDisplayMode.asState(screenModelScope)
     var feedsEnabled by customPreferences.enableFeeds.asState(screenModelScope)
+    val browseLongPressAction by customPreferences.browseLongPressAction.asState(screenModelScope)
+    val isMangaPreviewEnabled by customPreferences.enableMangaPreview.asState(screenModelScope)
+    val mangaPreviewSize by customPreferences.mangaPreviewSize.asState(screenModelScope)
 
     val source = sourceManager.getOrStub(sourceId)
 
@@ -296,6 +300,41 @@ class BrowseSourceScreenModel(
         return getEnhancedDuplicateLibraryManga(manga)
     }
 
+    suspend fun onMangaLongClick(manga: Manga): Boolean {
+        return when (browseLongPressAction) {
+            CustomPreferences.BrowseLongPressAction.LIBRARY_ACTION -> {
+                val duplicates = getDuplicateLibraryManga(manga)
+                when {
+                    manga.favorite -> setDialog(Dialog.RemoveManga(manga))
+                    duplicates.isNotEmpty() -> setDialog(Dialog.AddDuplicateManga(manga, duplicates))
+                    else -> addFavorite(manga)
+                }
+                true
+            }
+            CustomPreferences.BrowseLongPressAction.MANGA_PREVIEW -> {
+                if (!isMangaPreviewEnabled) {
+                    false
+                } else {
+                    setDialog(Dialog.MangaPreview(manga.id))
+                    true
+                }
+            }
+        }
+    }
+
+    fun dismissDialog() {
+        setDialog(null)
+    }
+
+    fun mangaPreviewSizeUi(): MangaPreviewSizeUi {
+        return when (mangaPreviewSize) {
+            CustomPreferences.MangaPreviewSize.SMALL -> MangaPreviewSizeUi.SMALL
+            CustomPreferences.MangaPreviewSize.MEDIUM -> MangaPreviewSizeUi.MEDIUM
+            CustomPreferences.MangaPreviewSize.LARGE -> MangaPreviewSizeUi.LARGE
+            CustomPreferences.MangaPreviewSize.EXTRA_LARGE -> MangaPreviewSizeUi.EXTRA_LARGE
+        }
+    }
+
     private fun moveMangaToCategories(manga: Manga, vararg categories: Category) {
         moveMangaToCategories(manga, categories.filter { it.id != 0L }.map { it.id })
     }
@@ -432,6 +471,7 @@ class BrowseSourceScreenModel(
     sealed interface Dialog {
         data object Filter : Dialog
         data object SavePreset : Dialog
+        data class MangaPreview(val mangaId: Long) : Dialog
         data class RemoveManga(val manga: Manga) : Dialog
         data class AddDuplicateManga(val manga: Manga, val duplicates: List<DuplicateMangaCandidate>) : Dialog
         data class ChangeMangaCategory(
