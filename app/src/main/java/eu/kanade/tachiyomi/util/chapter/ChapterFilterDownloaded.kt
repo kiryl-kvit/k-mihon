@@ -7,13 +7,19 @@ import tachiyomi.source.local.isLocal
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
+fun Chapter.isDownloaded(
+    manga: Manga,
+    downloadCache: DownloadCache = Injekt.get(),
+): Boolean {
+    return manga.isLocal() || downloadCache.isChapterDownloaded(name, scanlator, url, manga.title, manga.source, false)
+}
+
 /**
  * Returns a copy of the list with not downloaded chapters removed.
  */
-fun List<Chapter>.filterDownloaded(manga: Manga): List<Chapter> {
-    if (manga.isLocal()) return this
-
-    val downloadCache: DownloadCache = Injekt.get()
-
-    return filter { downloadCache.isChapterDownloaded(it.name, it.scanlator, it.url, manga.title, manga.source, false) }
+fun List<Chapter>.filterDownloaded(mangaById: Map<Long, Manga>): List<Chapter> {
+    return filter { chapter ->
+        val chapterManga = mangaById[chapter.mangaId] ?: return@filter false
+        chapter.isDownloaded(chapterManga)
+    }
 }

@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.chapter.repository.ChapterRepository
-import tachiyomi.domain.chapter.service.getChapterSort
+import tachiyomi.domain.chapter.service.sortedForMergedDisplay
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.MangaMerge
 import tachiyomi.domain.manga.repository.MangaRepository
@@ -93,9 +93,8 @@ class GetMangaWithChapters(
         manga: Manga,
         chapterLists: Iterable<List<Chapter>>,
     ): List<Chapter> {
-        val chapterSort = getChapterSort(manga)
-        return chapterLists.flatMap { chapters ->
-            chapters.sortedWith(chapterSort)
-        }
+        val mergedMangaIds = chapterLists.mapNotNull { it.firstOrNull()?.mangaId }
+        return chapterLists.flatten()
+            .sortedForMergedDisplay(manga, mergedMangaIds)
     }
 }

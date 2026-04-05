@@ -23,6 +23,7 @@ import eu.kanade.tachiyomi.source.getNameForMangaInfo
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.util.chapter.getNextUnread
+import eu.kanade.tachiyomi.util.chapter.isDownloaded
 import eu.kanade.tachiyomi.util.removeCovers
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
@@ -661,18 +662,16 @@ class LibraryScreenModel(
             mangas.forEach { manga ->
                 val chapters = getNextChapters.await(manga.id)
                     .fastFilterNot { chapter ->
-                        downloadManager.getQueuedDownloadOrNull(chapter.id) != null ||
-                            downloadManager.isChapterDownloaded(
-                                chapter.name,
-                                chapter.scanlator,
-                                chapter.url,
-                                manga.title,
-                                manga.source,
-                            )
+                        val chapterManga = getManga.await(chapter.mangaId) ?: return@fastFilterNot true
+                        downloadManager.getQueuedDownloadOrNull(chapter.id) != null || chapter.isDownloaded(chapterManga, downloadCache)
                     }
                     .let { if (amount != null) it.take(amount) else it }
 
-                downloadManager.downloadChapters(manga, chapters)
+                chapters.groupBy { it.mangaId }
+                    .forEach { (chapterMangaId, mangaChapters) ->
+                        val chapterManga = getManga.await(chapterMangaId) ?: return@forEach
+                        downloadManager.downloadChapters(chapterManga, mangaChapters)
+                    }
             }
         }
     }

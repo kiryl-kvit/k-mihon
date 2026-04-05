@@ -1,12 +1,11 @@
 package tachiyomi.domain.history.interactor
 
 import tachiyomi.domain.chapter.model.Chapter
-import tachiyomi.domain.chapter.service.getChapterSort
+import tachiyomi.domain.chapter.service.sortedForReading
 import tachiyomi.domain.history.repository.HistoryRepository
 import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.interactor.GetMangaWithChapters
 import tachiyomi.domain.source.service.HiddenSourceIds
-import kotlin.math.max
 
 class GetNextChapters(
     private val getManga: GetManga,
@@ -24,7 +23,7 @@ class GetNextChapters(
     suspend fun await(mangaId: Long, onlyUnread: Boolean = true): List<Chapter> {
         val manga = getManga.await(mangaId) ?: return emptyList()
         val chapters = getMangaWithChapters.awaitChapters(mangaId, applyScanlatorFilter = true)
-            .sortedWith(getChapterSort(manga, sortDescending = false))
+            .sortedForReading(manga)
 
         return if (onlyUnread) {
             chapters.filterNot { it.read }
@@ -38,22 +37,26 @@ class GetNextChapters(
         fromChapterId: Long,
         onlyUnread: Boolean = true,
     ): List<Chapter> {
-        val chapters = await(mangaId, onlyUnread)
-        val currChapterIndex = chapters.indexOfFirst { it.id == fromChapterId }
-        val nextChapters = chapters.subList(max(0, currChapterIndex), chapters.size)
+        val allChapters = await(mangaId, onlyUnread = false)
+        val currChapterIndex = allChapters.indexOfFirst { it.id == fromChapterId }
+        if (currChapterIndex == -1) {
+            return if (onlyUnread) allChapters.filterNot(Chapter::read) else allChapters
+        }
+
+        val currentOrFollowing = allChapters.drop(currChapterIndex)
 
         if (onlyUnread) {
-            return nextChapters
+            return currentOrFollowing.filterNot(Chapter::read)
         }
 
         // The "next chapter" is either:
         // - The current chapter if it isn't completely read
         // - The chapters after the current chapter if the current one is completely read
-        val fromChapter = chapters.getOrNull(currChapterIndex)
+        val fromChapter = allChapters[currChapterIndex]
         return if (fromChapter != null && !fromChapter.read) {
-            nextChapters
+            currentOrFollowing
         } else {
-            nextChapters.drop(1)
+            currentOrFollowing.drop(1)
         }
     }
 }

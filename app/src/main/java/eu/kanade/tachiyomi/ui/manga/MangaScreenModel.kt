@@ -46,6 +46,7 @@ import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.util.chapter.getNextUnread
+import eu.kanade.tachiyomi.util.chapter.isDownloaded
 import eu.kanade.tachiyomi.util.removeCovers
 import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.collections.immutable.ImmutableList
@@ -87,7 +88,8 @@ import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.chapter.model.ChapterUpdate
 import tachiyomi.domain.chapter.model.NoChaptersException
 import tachiyomi.domain.chapter.service.calculateChapterGap
-import tachiyomi.domain.chapter.service.getChapterSort
+import tachiyomi.domain.chapter.service.sortedForMergedDisplay
+import tachiyomi.domain.chapter.service.sortedForReading
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.interactor.GetMangaWithChapters
 import tachiyomi.domain.manga.interactor.GetMergedManga
@@ -491,11 +493,7 @@ class MangaScreenModel(
     }
 
     private suspend fun getFirstPreviewChapter(state: State.Success): ChapterList.Item? {
-        return state.chapters
-            .sortedWith { item1, item2 ->
-                getChapterSort(state.manga, sortDescending = false).invoke(item1.chapter, item2.chapter)
-            }
-            .firstOrNull()
+        return state.readingChapters.firstOrNull()
     }
 
     private fun collapsePreview() {
@@ -926,7 +924,7 @@ class MangaScreenModel(
      */
     fun getNextUnreadChapter(): Chapter? {
         val successState = successState ?: return null
-        return successState.chapters.getNextUnread(successState.manga)
+        return successState.readingChapters.firstOrNull { !it.chapter.read }?.chapter
     }
 
     private fun getUnreadChapterItems(): List<ChapterList.Item> {
@@ -937,7 +935,8 @@ class MangaScreenModel(
 
     private fun getUnreadChapterItemsSorted(): List<ChapterList.Item> {
         val state = successState ?: return emptyList()
-        return state.sortChapters(getUnreadChapterItems(), preserveMergedMemberOrder = true)
+        val unreadById = getUnreadChapterItems().associateBy { it.chapter.id }
+        return state.readingChapters.mapNotNull { unreadById[it.chapter.id] }
     }
 
     private fun getBookmarkedChapterItems(): List<ChapterList.Item> {
@@ -1023,14 +1022,7 @@ class MangaScreenModel(
 
     fun markPreviousChapterRead(pointer: Chapter) {
         val state = successState ?: return
-        val chapters = filteredChapters.orEmpty().map { it.chapter }
-        val prevChapters = if (state.isMerged) {
-            chapters
-        } else if (state.manga.sortDescending()) {
-            chapters.asReversed()
-        } else {
-            chapters
-        }
+        val prevChapters = state.readingChapters.map { it.chapter }
         val pointerPos = prevChapters.indexOf(pointer)
         if (pointerPos != -1) markChaptersRead(prevChapters.take(pointerPos), true)
     }
@@ -1771,38 +1763,42 @@ class MangaScreenModel(
                 chapters.applyFilters(manga, isMerged).toList()
             }
 
+            val readingChapters by lazy {
+                processedChapters.sortedForReading(manga, memberIds)
+            }
+
             val isAnySelected by lazy {
                 chapters.fastAny { it.selected }
             }
 
             val chapterListItems by lazy {
-                if (hideMissingChapters) {
-                    return@lazy processedChapters
-                }
-
-                processedChapters.insertSeparators { before, after ->
-                    val (lowerChapter, higherChapter) = if (manga.sortDescending()) {
-                        after to before
+                if (!isMerged) {
+                    if (hideMissingChapters) {
+                        processedChapters
                     } else {
-                        before to after
+                        processedChapters.withMissingChapterCounts(manga)
                     }
-                    if (higherChapter == null) return@insertSeparators null
+                } else {
+                    buildList {
+                        memberIds.forEach { memberId ->
+                            val chapterItems = processedChapters.filter { it.chapter.mangaId == memberId }
+                            if (chapterItems.isEmpty()) return@forEach
 
-                    if (lowerChapter == null) {
-                        floor(higherChapter.chapter.chapterNumber)
-                            .toInt()
-                            .minus(1)
-                            .coerceAtLeast(0)
-                    } else {
-                        calculateChapterGap(higherChapter.chapter, lowerChapter.chapter)
-                    }
-                        .takeIf { it > 0 }
-                        ?.let { missingCount ->
-                            ChapterList.MissingCount(
-                                id = "${lowerChapter?.id}-${higherChapter.id}",
-                                count = missingCount,
+                            add(
+                                ChapterList.MemberHeader(
+                                    mangaId = memberId,
+                                    title = memberTitleById[memberId].orEmpty().ifBlank { manga.presentationTitle() },
+                                ),
+                            )
+                            addAll(
+                                if (hideMissingChapters) {
+                                    chapterItems
+                                } else {
+                                    chapterItems.withMissingChapterCounts(manga)
+                                },
                             )
                         }
+                    }
                 }
             }
 
@@ -1814,25 +1810,6 @@ class MangaScreenModel(
 
             val isMerged: Boolean
                 get() = memberIds.size > 1
-
-            fun sortChapters(
-                chapters: List<ChapterList.Item>,
-                preserveMergedMemberOrder: Boolean,
-            ): List<ChapterList.Item> {
-                if (!isMerged || !preserveMergedMemberOrder) {
-                    return chapters.sortedWith { item1, item2 ->
-                        getChapterSort(manga).invoke(item1.chapter, item2.chapter)
-                    }
-                }
-
-                val chapterSort = getChapterSort(manga)
-                return memberIds.flatMap { memberId ->
-                    chapters.asSequence()
-                        .filter { it.chapter.mangaId == memberId }
-                        .sortedWith { item1, item2 -> chapterSort.invoke(item1.chapter, item2.chapter) }
-                        .toList()
-                }
-            }
 
             /**
              * Applies the view filters to the list of chapters obtained from the database.
@@ -1848,7 +1825,7 @@ class MangaScreenModel(
                     .filter { (chapter) -> applyFilter(bookmarkedFilter) { chapter.bookmark } }
                     .filter { applyFilter(downloadedFilter) { it.isDownloaded || isLocalManga } }
                     .toList()
-                return sortChapters(filtered, preserveMergedMemberOrder = isMerged)
+                return filtered.sortedForMergedDisplay(manga, memberIds)
             }
         }
     }
@@ -1875,6 +1852,12 @@ class MangaScreenModel(
 @Immutable
 sealed class ChapterList {
     @Immutable
+    data class MemberHeader(
+        val mangaId: Long,
+        val title: String,
+    ) : ChapterList()
+
+    @Immutable
     data class MissingCount(
         val id: String,
         val count: Int,
@@ -1892,4 +1875,53 @@ sealed class ChapterList {
         val id = chapter.id
         val isDownloaded = downloadState == Download.State.DOWNLOADED
     }
+}
+
+private fun List<ChapterList.Item>.withMissingChapterCounts(manga: Manga): List<ChapterList> {
+    return insertSeparators { before, after ->
+        val (lowerChapter, higherChapter) = if (manga.sortDescending()) {
+            after to before
+        } else {
+            before to after
+        }
+        if (higherChapter == null) return@insertSeparators null
+
+        if (lowerChapter == null) {
+            floor(higherChapter.chapter.chapterNumber)
+                .toInt()
+                .minus(1)
+                .coerceAtLeast(0)
+        } else {
+            calculateChapterGap(higherChapter.chapter, lowerChapter.chapter)
+        }
+            .takeIf { it > 0 }
+            ?.let { missingCount ->
+                ChapterList.MissingCount(
+                    id = "${lowerChapter?.id}-${higherChapter.id}",
+                    count = missingCount,
+                )
+            }
+    }
+}
+
+private fun List<ChapterList.Item>.sortedForMergedDisplay(
+    manga: Manga,
+    memberIds: List<Long>,
+): List<ChapterList.Item> {
+    val orderedIds = map(ChapterList.Item::chapter)
+        .sortedForMergedDisplay(manga, memberIds)
+        .mapIndexed { index, chapter -> chapter.id to index }
+        .toMap()
+    return sortedBy { orderedIds.getValue(it.chapter.id) }
+}
+
+private fun List<ChapterList.Item>.sortedForReading(
+    manga: Manga,
+    memberIds: List<Long>,
+): List<ChapterList.Item> {
+    val orderedIds = map(ChapterList.Item::chapter)
+        .sortedForReading(manga, memberIds)
+        .mapIndexed { index, chapter -> chapter.id to index }
+        .toMap()
+    return sortedBy { orderedIds.getValue(it.chapter.id) }
 }
