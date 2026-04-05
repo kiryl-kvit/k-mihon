@@ -52,6 +52,7 @@ import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -108,6 +109,7 @@ import tachiyomi.i18n.MR
 import tachiyomi.source.local.isLocal
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import kotlin.coroutines.coroutineContext
 import kotlin.math.floor
 
 class MangaScreenModel(
@@ -182,6 +184,7 @@ class MangaScreenModel(
     private var previewLoadJob: Job? = null
     private var previewPageJobs: Map<Int, Job> = emptyMap()
     private var duplicateObservationJob: Job? = null
+    private var refreshFromSourceJob: Job? = null
 
     val isUpdateIntervalEnabled =
         LibraryPreferences.MANGA_OUTSIDE_RELEASE_PERIOD in libraryPreferences.autoUpdateMangaRestrictions.get()
@@ -351,29 +354,22 @@ class MangaScreenModel(
             observeTrackers()
 
             // Fetch info-chapters when needed
-            if (screenModelScope.isActive) {
-                val fetchFromSourceTasks = listOf(
-                    async { if (needRefreshInfo) fetchMangaFromSource() },
-                    async { if (needRefreshChapter) fetchChaptersFromSource() },
-                )
-                fetchFromSourceTasks.awaitAll()
+            if (screenModelScope.isActive && (needRefreshInfo || needRefreshChapter)) {
+                launchRefreshFromSource(
+                    manualFetch = false,
+                    fetchInfo = needRefreshInfo,
+                    fetchChapters = needRefreshChapter,
+                ).join()
             }
-
-            // Initial loading finished
-            updateSuccessState { it.copy(isRefreshingData = false) }
         }
     }
 
     fun fetchAllFromSource(manualFetch: Boolean = true) {
-        screenModelScope.launch {
-            updateSuccessState { it.copy(isRefreshingData = true) }
-            val fetchFromSourceTasks = listOf(
-                async { fetchMangaFromSource(manualFetch) },
-                async { fetchChaptersFromSource(manualFetch) },
-            )
-            fetchFromSourceTasks.awaitAll()
-            updateSuccessState { it.copy(isRefreshingData = false) }
-        }
+        launchRefreshFromSource(
+            manualFetch = manualFetch,
+            fetchInfo = true,
+            fetchChapters = true,
+        )
     }
 
     fun setPreviewExpanded(expanded: Boolean) {
@@ -402,12 +398,6 @@ class MangaScreenModel(
 
         previewLoadJob?.cancel()
         previewLoadJob = screenModelScope.launchIO {
-            val state = successState ?: return@launchIO
-
-            if (!force && previewState.value.hasLoadedContent) {
-                return@launchIO
-            }
-
             clearPreviewResources(resetState = false, cancelLoadJob = false)
             updatePreviewState {
                 it.copy(
@@ -420,8 +410,17 @@ class MangaScreenModel(
                 )
             }
 
+            awaitRefreshFromSource()
+            val state = successState ?: return@launchIO
+
+            if (!force && previewState.value.hasLoadedContent) {
+                updatePreviewState { it.copy(isLoading = false) }
+                return@launchIO
+            }
+
             runCatching {
-                val previewChapter = getFirstPreviewChapter(state)
+                val latestManga = getMangaAndChapters.awaitManga(mangaId)
+                val previewChapter = getFirstPreviewChapter()
                     ?: error(context.stringResource(MR.strings.no_chapters_error))
                 val readerChapter = ReaderChapter(
                     chapter = previewChapter.chapter,
@@ -432,7 +431,7 @@ class MangaScreenModel(
                     context = context,
                     downloadManager = downloadManager,
                     downloadProvider = downloadProvider,
-                    manga = state.manga,
+                    manga = latestManga,
                     sourceManager = Injekt.get(),
                 )
 
@@ -460,6 +459,9 @@ class MangaScreenModel(
                     )
                 }
             }.onFailure { error ->
+                if (error is CancellationException) {
+                    return@onFailure
+                }
                 clearPreviewResources(resetState = false, cancelLoadJob = false)
                 updatePreviewState {
                     it.copy(
@@ -492,8 +494,47 @@ class MangaScreenModel(
             )
     }
 
-    private suspend fun getFirstPreviewChapter(state: State.Success): ChapterList.Item? {
-        return state.readingChapters.firstOrNull()
+    private suspend fun getFirstPreviewChapter(): ChapterList.Item? {
+        val manga = getMangaAndChapters.awaitManga(mangaId)
+        val mergePresentation = getMergePresentation(manga)
+        val chapters = getMangaAndChapters.awaitChapters(
+            id = mangaId,
+            applyScanlatorFilter = true,
+            bypassMerge = bypassMerge,
+        )
+        val chapterItems = chapters.toChapterListItems(manga)
+        return chapterItems.previewReadingChapters(manga, mergePresentation.memberIds).firstOrNull()
+    }
+
+    private fun launchRefreshFromSource(
+        manualFetch: Boolean,
+        fetchInfo: Boolean,
+        fetchChapters: Boolean,
+    ): Job {
+        refreshFromSourceJob?.cancel()
+        return screenModelScope.launchIO {
+            updateSuccessState { it.copy(isRefreshingData = true) }
+            try {
+                refreshFromSourceJob = coroutineContext[Job]
+                val fetchFromSourceTasks = listOf(
+                    async { if (fetchInfo) fetchMangaFromSource(manualFetch) },
+                    async { if (fetchChapters) fetchChaptersFromSource(manualFetch) },
+                )
+                fetchFromSourceTasks.awaitAll()
+            } finally {
+                if (refreshFromSourceJob === coroutineContext[Job]) {
+                    refreshFromSourceJob = null
+                    updateSuccessState { it.copy(isRefreshingData = false) }
+                }
+            }
+        }.also { refreshFromSourceJob = it }
+    }
+
+    private suspend fun awaitRefreshFromSource() {
+        val refreshJob = refreshFromSourceJob
+        if (refreshJob?.isActive == true) {
+            refreshJob.join()
+        }
     }
 
     private fun collapsePreview() {
@@ -1907,6 +1948,28 @@ private fun List<ChapterList.Item>.withMissingChapterCounts(manga: Manga): List<
                 )
             }
     }
+}
+
+private fun List<ChapterList.Item>.previewReadingChapters(
+    manga: Manga,
+    memberIds: List<Long>,
+): List<ChapterList.Item> {
+    return applyFiltersForPreview(manga)
+        .sortedForReading(manga, memberIds)
+}
+
+private fun List<ChapterList.Item>.applyFiltersForPreview(
+    manga: Manga,
+): List<ChapterList.Item> {
+    val isLocalManga = manga.isLocal()
+    val unreadFilter = manga.unreadFilter
+    val downloadedFilter = manga.downloadedFilter
+    val bookmarkedFilter = manga.bookmarkedFilter
+    return asSequence()
+        .filter { (chapter) -> applyFilter(unreadFilter) { !chapter.read } }
+        .filter { (chapter) -> applyFilter(bookmarkedFilter) { chapter.bookmark } }
+        .filter { applyFilter(downloadedFilter) { it.isDownloaded || isLocalManga } }
+        .toList()
 }
 
 private fun List<ChapterList.Item>.sortedForMergedDisplay(

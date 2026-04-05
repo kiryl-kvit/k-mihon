@@ -112,6 +112,7 @@ internal fun PreferenceItem(
                     icon = item.icon,
                     isProfileSpecific = showProfileChip && item.isProfileSpecific,
                     entries = item.entries,
+                    entryEnabled = { item.internalEntryEnabled(it!!) },
                     onValueChange = { newValue ->
                         scope.launch {
                             if (item.internalOnValueChanged(newValue!!)) {
@@ -129,6 +130,7 @@ internal fun PreferenceItem(
                     icon = item.icon,
                     isProfileSpecific = showProfileChip && item.isProfileSpecific,
                     entries = item.entries,
+                    entryEnabled = item.entryEnabledProvider,
                     onValueChange = { scope.launch { item.onValueChanged(it) } },
                 )
             }

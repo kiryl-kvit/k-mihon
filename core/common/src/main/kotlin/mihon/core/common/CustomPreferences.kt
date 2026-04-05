@@ -52,10 +52,20 @@ class CustomPreferences(
         true,
     )
 
+    val browseLongPressAction: Preference<BrowseLongPressAction> = preferenceStore.getEnum(
+        Preference.appStateKey("browse_long_press_action"),
+        BrowseLongPressAction.LIBRARY_ACTION,
+    )
+
     enum class MangaPreviewSize(val titleRes: StringResource) {
         SMALL(MR.strings.pref_manga_preview_size_small),
         MEDIUM(MR.strings.pref_manga_preview_size_medium),
         LARGE(MR.strings.pref_manga_preview_size_large),
         EXTRA_LARGE(MR.strings.pref_manga_preview_size_extra_large),
+    }
+
+    enum class BrowseLongPressAction(val titleRes: StringResource) {
+        LIBRARY_ACTION(MR.strings.pref_browse_long_press_action_library_action),
+        MANGA_PREVIEW(MR.strings.pref_manga_preview),
     }
 }

@@ -11,6 +11,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -59,6 +60,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -377,7 +379,7 @@ fun ExpandableMangaDescription(
             }
         }
         if (mangaPreviewEnabled) {
-            MangaPreviewSection(
+            SharedMangaPreviewSection(
                 state = mangaPreviewState,
                 size = mangaPreviewSize,
                 onExpandedChange = onPreviewExpandedChange,
@@ -419,7 +421,7 @@ internal fun mangaPreviewGridColumnCount(
 }
 
 @Composable
-private fun MangaPreviewSection(
+fun SharedMangaPreviewSection(
     state: MangaScreenModel.MangaPreviewState,
     size: MangaPreviewSizeUi,
     onExpandedChange: (Boolean) -> Unit,
@@ -427,12 +429,6 @@ private fun MangaPreviewSection(
     onPageLoad: (Int) -> Unit,
     onPageClick: (Long, Int) -> Unit,
 ) {
-    val subtitlePageCount = if (state.chapterId != null && !state.isLoading && state.error == null) {
-        state.pages.size
-    } else {
-        state.pageCount
-    }
-
     Column(
         modifier = Modifier
             .padding(horizontal = 16.dp)
@@ -444,26 +440,16 @@ private fun MangaPreviewSection(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .minimumInteractiveComponentSize()
                 .clickable { onExpandedChange(!state.isExpanded) },
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = stringResource(MR.strings.manga_preview_section_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = pluralStringResource(
-                        MR.plurals.pref_pages,
-                        subtitlePageCount,
-                        subtitlePageCount,
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.secondaryItemAlpha(),
-                )
-            }
+            Text(
+                text = stringResource(MR.strings.manga_preview_section_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
             val image = AnimatedImageVector.animatedVectorResource(R.drawable.anim_caret_down)
             Icon(
                 painter = rememberAnimatedVectorPainter(image, !state.isExpanded),
@@ -474,41 +460,76 @@ private fun MangaPreviewSection(
         }
 
         if (state.isExpanded) {
-            when {
-                state.isLoading && state.pages.isEmpty() -> {
-                    MangaPreviewMessage(
-                        icon = Icons.Default.Image,
-                        text = stringResource(MR.strings.transition_pages_loading),
-                    )
-                }
-                state.error != null -> {
-                    MangaPreviewError(
-                        message = state.error.message ?: stringResource(MR.strings.unknown_error),
-                        onRetry = onRetry,
-                    )
-                }
-                state.pages.isEmpty() -> {
-                    MangaPreviewMessage(
-                        icon = Icons.Default.Warning,
-                        text = stringResource(MR.strings.manga_preview_empty),
-                    )
-                }
-                else -> {
-                    MangaPreviewGrid(
-                        pages = state.pages,
-                        size = size,
-                        chapterId = state.chapterId,
-                        onPageLoad = onPageLoad,
-                        onPageClick = onPageClick,
-                    )
-                }
+            MangaPreviewContent(
+                state = state,
+                size = size,
+                onRetry = onRetry,
+                onPageLoad = onPageLoad,
+                onPageClick = onPageClick,
+            )
+        }
+    }
+}
+
+@Composable
+fun MangaPreviewContent(
+    state: MangaScreenModel.MangaPreviewState,
+    size: MangaPreviewSizeUi,
+    onRetry: () -> Unit,
+    onPageLoad: (Int) -> Unit,
+    onPageClick: (Long, Int) -> Unit,
+    modifier: Modifier = Modifier,
+    centerStates: Boolean = false,
+    loadingContent: @Composable BoxScope.() -> Unit = {
+        MangaPreviewMessage(
+            icon = Icons.Default.Image,
+            text = stringResource(MR.strings.transition_pages_loading),
+            modifier = Modifier.align(Alignment.Center),
+        )
+    },
+) {
+    Box(modifier = modifier) {
+        when {
+            state.isLoading && state.pages.isEmpty() -> {
+                loadingContent()
+            }
+            state.error != null -> {
+                MangaPreviewError(
+                    message = state.error.message ?: stringResource(MR.strings.unknown_error),
+                    onRetry = onRetry,
+                    modifier = if (centerStates) {
+                        Modifier.align(Alignment.Center)
+                    } else {
+                        Modifier
+                    },
+                )
+            }
+            state.pages.isEmpty() -> {
+                MangaPreviewMessage(
+                    icon = Icons.Default.Warning,
+                    text = stringResource(MR.strings.manga_preview_empty),
+                    modifier = if (centerStates) {
+                        Modifier.align(Alignment.Center)
+                    } else {
+                        Modifier
+                    },
+                )
+            }
+            else -> {
+                MangaPreviewGrid(
+                    pages = state.pages,
+                    size = size,
+                    chapterId = state.chapterId,
+                    onPageLoad = onPageLoad,
+                    onPageClick = onPageClick,
+                )
             }
         }
     }
 }
 
 @Composable
-private fun MangaPreviewGrid(
+fun MangaPreviewGrid(
     pages: List<MangaScreenModel.PreviewPage>,
     size: MangaPreviewSizeUi,
     chapterId: Long?,
@@ -641,12 +662,13 @@ private fun MangaPreviewImage(
 }
 
 @Composable
-private fun MangaPreviewError(
+fun MangaPreviewError(
     message: String,
     onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -664,7 +686,7 @@ private fun MangaPreviewError(
 }
 
 @Composable
-private fun MangaPreviewMessage(
+fun MangaPreviewMessage(
     icon: ImageVector,
     text: String,
     modifier: Modifier = Modifier,

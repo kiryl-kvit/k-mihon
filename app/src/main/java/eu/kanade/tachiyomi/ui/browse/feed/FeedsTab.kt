@@ -66,6 +66,7 @@ import eu.kanade.domain.source.model.snapshot
 import eu.kanade.domain.source.model.toListing
 import eu.kanade.presentation.browse.BrowseSourceContent
 import eu.kanade.presentation.browse.components.BaseSourceItem
+import eu.kanade.presentation.browse.components.BrowseMangaPreviewSheet
 import eu.kanade.presentation.browse.components.RemoveMangaDialog
 import eu.kanade.presentation.browse.components.SourceIcon
 import eu.kanade.presentation.category.components.ChangeCategoryDialog
@@ -289,17 +290,9 @@ private fun FeedsTabContent(
                             onMangaClick = { navigator.push(MangaScreen(it.id, true)) },
                             onMangaLongClick = { manga ->
                                 scope.launchIO {
-                                    val duplicates = browseModel.getDuplicateLibraryManga(manga)
-                                    when {
-                                        manga.favorite -> browseModel.setDialog(
-                                            BrowseSourceScreenModel.Dialog.RemoveManga(manga),
-                                        )
-                                        duplicates.isNotEmpty() -> browseModel.setDialog(
-                                            BrowseSourceScreenModel.Dialog.AddDuplicateManga(manga, duplicates),
-                                        )
-                                        else -> browseModel.addFavorite(manga)
+                                    if (browseModel.onMangaLongClick(manga)) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     }
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 }
                             },
                         )
@@ -325,10 +318,17 @@ private fun FeedsTabContent(
             }
 
             when (val dialog = browseModelState.dialog) {
+                is BrowseSourceScreenModel.Dialog.MangaPreview -> {
+                    BrowseMangaPreviewSheet(
+                        mangaId = dialog.mangaId,
+                        previewSize = browseModel.mangaPreviewSizeUi(),
+                        onDismissRequest = browseModel::dismissDialog,
+                    )
+                }
                 is BrowseSourceScreenModel.Dialog.AddDuplicateManga -> {
                     DuplicateMangaDialog(
                         duplicates = dialog.duplicates,
-                        onDismissRequest = { browseModel.setDialog(null) },
+                        onDismissRequest = browseModel::dismissDialog,
                         onConfirm = { browseModel.addFavorite(dialog.manga) },
                         onOpenManga = { navigator.push(MangaScreen(it.id)) },
                         onMigrate = { browseModel.setDialog(BrowseSourceScreenModel.Dialog.Migrate(dialog.manga, it)) },
@@ -340,13 +340,13 @@ private fun FeedsTabContent(
                             current = dialog.current,
                             target = dialog.target,
                             onClickTitle = { navigator.push(MangaScreen(dialog.current.id)) },
-                            onDismissRequest = { browseModel.setDialog(null) },
+                            onDismissRequest = browseModel::dismissDialog,
                         )
                     }
                 }
                 is BrowseSourceScreenModel.Dialog.RemoveManga -> {
                     RemoveMangaDialog(
-                        onDismissRequest = { browseModel.setDialog(null) },
+                        onDismissRequest = browseModel::dismissDialog,
                         onConfirm = { browseModel.changeMangaFavorite(dialog.manga) },
                         mangaToRemove = dialog.manga,
                     )
@@ -354,7 +354,7 @@ private fun FeedsTabContent(
                 is BrowseSourceScreenModel.Dialog.ChangeMangaCategory -> {
                     ChangeCategoryDialog(
                         initialSelection = dialog.initialSelection,
-                        onDismissRequest = { browseModel.setDialog(null) },
+                        onDismissRequest = browseModel::dismissDialog,
                         onEditCategories = { navigator.push(CategoryScreen()) },
                         onConfirm = { include, _ ->
                             browseModel.changeMangaFavorite(dialog.manga)
