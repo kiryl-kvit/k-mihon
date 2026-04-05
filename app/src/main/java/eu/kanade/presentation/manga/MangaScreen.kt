@@ -70,6 +70,7 @@ import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.presentationTitle
 import tachiyomi.domain.source.model.StubSource
 import tachiyomi.i18n.MR
+import tachiyomi.presentation.core.components.ListGroupHeader
 import tachiyomi.presentation.core.components.TwoPanelBox
 import tachiyomi.presentation.core.components.VerticalFastScroller
 import tachiyomi.presentation.core.components.material.PullRefresh
@@ -826,15 +827,24 @@ private fun LazyListScope.sharedChapterItems(
         items = chapters,
         key = { item ->
             when (item) {
+                is ChapterList.MemberHeader -> "member-header-${item.mangaId}"
                 is ChapterList.MissingCount -> "missing-count-${item.id}"
                 is ChapterList.Item -> "chapter-${item.id}"
             }
         },
-        contentType = { MangaScreenItem.CHAPTER },
+        contentType = {
+            when (it) {
+                is ChapterList.MemberHeader -> MangaScreenItem.CHAPTER_GROUP_HEADER
+                else -> MangaScreenItem.CHAPTER
+            }
+        },
     ) { item ->
         val haptic = LocalHapticFeedback.current
 
         when (item) {
+            is ChapterList.MemberHeader -> {
+                ListGroupHeader(text = item.title)
+            }
             is ChapterList.MissingCount -> {
                 MissingChapterCountListItem(count = item.count)
             }
@@ -857,21 +867,7 @@ private fun LazyListScope.sharedChapterItems(
                                 it + 1,
                             )
                         },
-                    scanlator = item.chapter.scanlator.takeIf { !it.isNullOrBlank() }
-                        ?.let { scanlator ->
-                            val originTitle = memberTitleById[item.chapter.mangaId]
-                                ?.takeIf {
-                                    mergedMemberIds.size > 1 && it.isNotBlank() &&
-                                        it != manga.presentationTitle()
-                                }
-                            if (originTitle != null) {
-                                "$originTitle · $scanlator"
-                            } else {
-                                scanlator
-                            }
-                        }
-                        ?: memberTitleById[item.chapter.mangaId]
-                            ?.takeIf { mergedMemberIds.size > 1 && it.isNotBlank() && it != manga.presentationTitle() },
+                    scanlator = item.chapter.scanlator.takeIf { !it.isNullOrBlank() },
                     read = item.chapter.read,
                     bookmark = item.chapter.bookmark,
                     selected = item.selected,

@@ -23,6 +23,7 @@ import eu.kanade.tachiyomi.source.getNameForMangaInfo
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.util.chapter.getNextUnread
+import eu.kanade.tachiyomi.util.chapter.isDownloaded
 import eu.kanade.tachiyomi.util.removeCovers
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
@@ -624,8 +625,11 @@ class LibraryScreenModel(
     }
 
     suspend fun getNextUnreadChapter(manga: LibraryManga): Chapter? {
-        return getMangaWithChapters.awaitChapters(manga.id, applyScanlatorFilter = true)
-            .getNextUnread(manga.manga, downloadManager)
+        val chapters = getMangaWithChapters.awaitChapters(manga.id, applyScanlatorFilter = true)
+        val mangaById = chapters.map(Chapter::mangaId).distinct().associateWith { chapterMangaId ->
+            getManga.await(chapterMangaId) ?: manga.manga
+        }
+        return chapters.getNextUnread(manga.manga, downloadManager, mangaById)
     }
 
     /**
@@ -661,18 +665,17 @@ class LibraryScreenModel(
             mangas.forEach { manga ->
                 val chapters = getNextChapters.await(manga.id)
                     .fastFilterNot { chapter ->
+                        val chapterManga = getManga.await(chapter.mangaId) ?: return@fastFilterNot true
                         downloadManager.getQueuedDownloadOrNull(chapter.id) != null ||
-                            downloadManager.isChapterDownloaded(
-                                chapter.name,
-                                chapter.scanlator,
-                                chapter.url,
-                                manga.title,
-                                manga.source,
-                            )
+                            chapter.isDownloaded(chapterManga, downloadCache)
                     }
                     .let { if (amount != null) it.take(amount) else it }
 
-                downloadManager.downloadChapters(manga, chapters)
+                chapters.groupBy { it.mangaId }
+                    .forEach { (chapterMangaId, mangaChapters) ->
+                        val chapterManga = getManga.await(chapterMangaId) ?: return@forEach
+                        downloadManager.downloadChapters(chapterManga, mangaChapters)
+                    }
             }
         }
     }

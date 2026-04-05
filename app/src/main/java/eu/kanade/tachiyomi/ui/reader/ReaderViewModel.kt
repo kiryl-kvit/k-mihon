@@ -34,6 +34,7 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
 import eu.kanade.tachiyomi.util.chapter.filterDownloaded
+import eu.kanade.tachiyomi.util.chapter.isDownloaded
 import eu.kanade.tachiyomi.util.chapter.removeDuplicates
 import eu.kanade.tachiyomi.util.editCover
 import eu.kanade.tachiyomi.util.lang.byteSize
@@ -63,7 +64,7 @@ import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.chapter.interactor.GetChaptersByMangaId
 import tachiyomi.domain.chapter.interactor.UpdateChapter
 import tachiyomi.domain.chapter.model.ChapterUpdate
-import tachiyomi.domain.chapter.service.getChapterSort
+import tachiyomi.domain.chapter.service.sortedForReading
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.history.interactor.GetNextChapters
 import tachiyomi.domain.history.interactor.UpsertHistory
@@ -162,6 +163,7 @@ class ReaderViewModel @JvmOverloads constructor(
     private val chapterList by lazy {
         val manga = manga!!
         val chapters = runBlocking { getMangaWithChapters.awaitChapters(manga.id, applyScanlatorFilter = true) }
+        val mergedMangaIds = chapters.map { it.mangaId }.distinct()
         val mangaById = chapters.map { it.mangaId }.distinct().associateWith { chapterMangaId ->
             runBlocking { getManga.await(chapterMangaId) }
         }
@@ -215,7 +217,7 @@ class ReaderViewModel @JvmOverloads constructor(
         }
 
         chaptersForReader
-            .sortedWith(getChapterSort(manga, sortDescending = false))
+            .sortedForReading(manga, mergedMangaIds)
             .run {
                 if (readerPreferences.skipDupe.get()) {
                     removeDuplicates(selectedChapter)
@@ -225,7 +227,7 @@ class ReaderViewModel @JvmOverloads constructor(
             }
             .run {
                 if (libraryPreferences.downloadedOnly.get()) {
-                    filterDownloaded(manga)
+                    filterDownloaded(mangaById.filterValues { it != null }.mapValues { it.value!! })
                 } else {
                     this
                 }
