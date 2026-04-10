@@ -3,7 +3,7 @@
 ## Changes made
 
 - Settings → Custom settings → Enable extensions auto-update
-- Settings → Custom settings → Home screen tabs
+- Settings → Custom settings → Home screen tabs (order, visibility, startup)
 - Settings → Custom settings → Duplicate detection
 - Settings → Custom settings → User profiles
 - Settings → Custom settings → Browse and Feeds long press
