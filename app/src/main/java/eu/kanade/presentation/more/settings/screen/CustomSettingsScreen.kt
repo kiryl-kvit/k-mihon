@@ -193,7 +193,7 @@ object CustomSettingsScreen : SearchableSettings {
                                                 } else {
                                                     selectedTabs.remove(tab)
                                                 }
-                                            }
+                                            },
                                         )
                                     }
                                 }
