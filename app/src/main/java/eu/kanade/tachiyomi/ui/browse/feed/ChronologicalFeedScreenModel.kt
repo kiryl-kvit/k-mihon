@@ -9,6 +9,7 @@ import eu.kanade.domain.source.model.SourceFeedAnchor
 import eu.kanade.domain.source.model.SourceFeedTimeline
 import eu.kanade.domain.source.model.applySnapshot
 import eu.kanade.domain.source.service.BrowseFeedService
+import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.model.FilterList
 import kotlinx.coroutines.flow.Flow
@@ -18,6 +19,7 @@ import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.interactor.GetRemoteManga
+import tachiyomi.domain.source.repository.SourcePagingSource
 import tachiyomi.domain.source.service.SourceManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -28,12 +30,14 @@ class ChronologicalFeedScreenModel(
     private val listingQuery: String?,
     private val initialFilterSnapshot: List<FilterStateNode>,
     private val browseFeedService: BrowseFeedService = Injekt.get(),
+    private val sourcePreferences: SourcePreferences = Injekt.get(),
     private val sourceManager: SourceManager = Injekt.get(),
     private val getRemoteManga: GetRemoteManga = Injekt.get(),
     private val getManga: GetManga = Injekt.get(),
 ) : StateScreenModel<ChronologicalFeedScreenModel.State>(initialState(browseFeedService, feedId)) {
 
     private val source = sourceManager.getOrStub(sourceId) as CatalogueSource
+    private val hideInLibraryItems = sourcePreferences.hideInLibraryItems.get()
 
     init {
         screenModelScope.launchIO {
@@ -54,8 +58,14 @@ class ChronologicalFeedScreenModel(
             }
         }
 
-        if (state.value.mangaIds.isEmpty()) {
-            refresh()
+        screenModelScope.launchIO {
+            if (hideInLibraryItems) {
+                normalizeTimeline()
+            }
+
+            if (browseFeedService.timelineSnapshot(feedId).mangaIds.isEmpty()) {
+                refreshInternal(manual = false)
+            }
         }
     }
 
@@ -104,6 +114,7 @@ class ChronologicalFeedScreenModel(
         val existingIds = currentState.mangaIds
         val existingIdSet = existingIds.toHashSet()
         val prependedIds = mutableListOf<Long>()
+        val pagingSource = newPagingSource()
         var nextPageKey: Long? = currentState.nextPageKey
         var currentPageKey: Long? = null
         var pageCount = 0
@@ -120,14 +131,14 @@ class ChronologicalFeedScreenModel(
 
         while (pageCount < MAX_REFRESH_PAGES) {
             val page = try {
-                loadPage(currentPageKey)
+                loadPage(pagingSource, currentPageKey)
             } catch (e: Throwable) {
                 error = e
                 break
             }
 
             pageCount++
-            val pageIds = page.data.map(Manga::id)
+            val pageIds = visibleIds(page.data)
 
             if (existingIds.isEmpty()) {
                 prependedIds += pageIds
@@ -175,6 +186,7 @@ class ChronologicalFeedScreenModel(
 
     private suspend fun appendInternal() {
         val currentState = state.value
+        val pagingSource = newPagingSource()
         var currentPageKey = currentState.nextPageKey ?: return
         val currentIds = currentState.mangaIds.toMutableList()
         val currentIdSet = currentIds.toHashSet()
@@ -191,7 +203,7 @@ class ChronologicalFeedScreenModel(
 
         while (pagesScanned < MAX_APPEND_PAGE_SCANS) {
             val page = try {
-                loadPage(currentPageKey)
+                loadPage(pagingSource, currentPageKey)
             } catch (e: Throwable) {
                 error = e
                 break
@@ -199,7 +211,7 @@ class ChronologicalFeedScreenModel(
 
             pagesScanned++
 
-            val newIds = page.data.map(Manga::id).filter(currentIdSet::add)
+            val newIds = visibleIds(page.data).filter(currentIdSet::add)
             nextPageKey = page.nextKey
 
             if (newIds.isNotEmpty()) {
@@ -226,13 +238,18 @@ class ChronologicalFeedScreenModel(
         }
     }
 
-    private suspend fun loadPage(pageKey: Long?): PagingSource.LoadResult.Page<Long, Manga> {
-        val pagingSource = getRemoteManga(
+    private fun newPagingSource(): SourcePagingSource {
+        return getRemoteManga(
             sourceId = sourceId,
             query = listingQuery.orEmpty(),
             filterList = filters(),
         )
+    }
 
+    private suspend fun loadPage(
+        pagingSource: SourcePagingSource,
+        pageKey: Long?,
+    ): PagingSource.LoadResult.Page<Long, Manga> {
         val params: PagingSource.LoadParams<Long> = if (pageKey == null) {
             PagingSource.LoadParams.Refresh(
                 key = null,
@@ -256,6 +273,48 @@ class ChronologicalFeedScreenModel(
 
     private fun filters(): FilterList {
         return source.getFilterList().applySnapshot(initialFilterSnapshot)
+    }
+
+    private suspend fun visibleIds(manga: List<Manga>): List<Long> {
+        if (!hideInLibraryItems) return manga.map(Manga::id)
+
+        return manga.mapNotNull { entry ->
+            getManga.await(entry.id)?.takeUnless(Manga::favorite)?.id
+        }
+    }
+
+    private suspend fun normalizeTimeline() {
+        val timeline = browseFeedService.timelineSnapshot(feedId)
+        if (timeline.mangaIds.isEmpty()) return
+
+        val anchor = browseFeedService.anchorSnapshot(feedId)
+        val normalizedIds = timeline.mangaIds.mapNotNull { mangaId ->
+            getManga.await(mangaId)?.takeUnless(Manga::favorite)?.id
+        }
+
+        val normalizedAnchor = anchor.takeIf {
+            anchor.mangaId == null || anchor.mangaId in normalizedIds
+        } ?: SourceFeedAnchor()
+
+        if (normalizedIds == timeline.mangaIds && normalizedAnchor == anchor) return
+
+        persistTimeline(
+            mangaIds = normalizedIds,
+            nextPageKey = timeline.nextPageKey,
+        )
+
+        if (normalizedAnchor != anchor) {
+            browseFeedService.saveAnchor(feedId, normalizedAnchor)
+        }
+
+        mutableState.update {
+            it.copy(
+                mangaIds = normalizedIds,
+                nextPageKey = timeline.nextPageKey,
+                savedAnchor = normalizedAnchor,
+                hasLoaded = normalizedIds.isNotEmpty(),
+            )
+        }
     }
 
     private fun persistTimeline(mangaIds: List<Long>, nextPageKey: Long?) {
