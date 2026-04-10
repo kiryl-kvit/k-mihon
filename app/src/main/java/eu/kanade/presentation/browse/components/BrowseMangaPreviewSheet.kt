@@ -2,6 +2,7 @@ package eu.kanade.presentation.browse.components
 
 import android.content.Context
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -38,6 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -50,6 +52,7 @@ import eu.kanade.presentation.manga.components.MangaPreviewContent
 import eu.kanade.presentation.manga.components.MangaPreviewSizeUi
 import eu.kanade.tachiyomi.ui.manga.MangaScreenModel
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
+import eu.kanade.tachiyomi.util.system.copyToClipboard
 import kotlinx.coroutines.launch
 import mihon.feature.profiles.core.ProfileManager
 import tachiyomi.domain.chapter.model.Chapter
@@ -59,6 +62,7 @@ import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
+import tachiyomi.presentation.core.util.clickableNoIndication
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -180,7 +184,9 @@ private fun BrowseMangaPreviewDialogContent(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
             AppBar(
-                title = title,
+                titleContent = {
+                    BrowseMangaPreviewTitle(title = title)
+                },
                 navigateUp = onDismissRequest,
             )
         },
@@ -225,6 +231,28 @@ private fun BrowseMangaPreviewDialogContent(
             )
         }
     }
+}
+
+@Composable
+private fun BrowseMangaPreviewTitle(title: String) {
+    val context = LocalContext.current
+
+    Text(
+        text = title,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickableNoIndication(
+                onLongClick = {
+                    context.copyToClipboard(title, title)
+                },
+                onClick = {},
+            )
+            .basicMarquee(
+                repeatDelayMillis = 2_000,
+            ),
+    )
 }
 
 @Composable
