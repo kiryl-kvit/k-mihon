@@ -1,6 +1,7 @@
 package eu.kanade.presentation.more.settings.screen
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DragHandle
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -55,6 +57,7 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.LabeledCheckbox
 import tachiyomi.presentation.core.components.RadioItem
+import tachiyomi.presentation.core.components.ScrollbarLazyColumn
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
@@ -161,56 +164,62 @@ object CustomSettingsScreen : SearchableSettings {
                 onDismissRequest = { showHomeTabsDialog = false },
                 title = { Text(text = homeScreenTabsTitle) },
                 text = {
-                    LazyColumn(
-                        modifier = Modifier.heightIn(max = 360.dp),
-                        state = listState,
-                        verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.medium),
                     ) {
-                        items(
-                            items = orderedTabs,
-                            key = { it.name },
-                        ) { tab ->
-                            val isSelected = tab in selectedTabs
-                            val isLocked = tab == HomeScreenTabs.More
-                            ReorderableItem(reorderableState, tab.name, enabled = orderedTabs.size > 1) {
-                                HomeTabItem(
-                                    label = homeTabEntries.getValue(tab),
-                                    checked = isSelected,
-                                    visibilityLocked = isLocked,
-                                    dragEnabled = orderedTabs.size > 1,
-                                    onCheckedChange = { checked ->
-                                        if (checked) {
-                                            if (tab !in selectedTabs) {
-                                                selectedTabs.add(tab)
+                        Box {
+                            ScrollbarLazyColumn(
+                                modifier = Modifier.heightIn(max = 280.dp),
+                                state = listState,
+                                verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+                            ) {
+                                items(
+                                    items = orderedTabs,
+                                    key = { it.name },
+                                ) { tab ->
+                                    val isSelected = tab in selectedTabs
+                                    val isLocked = tab == HomeScreenTabs.More
+                                    ReorderableItem(reorderableState, tab.name, enabled = orderedTabs.size > 1) {
+                                        HomeTabItem(
+                                            label = homeTabEntries.getValue(tab),
+                                            checked = isSelected,
+                                            visibilityLocked = isLocked,
+                                            dragEnabled = orderedTabs.size > 1,
+                                            onCheckedChange = { checked ->
+                                                if (checked) {
+                                                    if (tab !in selectedTabs) {
+                                                        selectedTabs.add(tab)
+                                                    }
+                                                } else {
+                                                    selectedTabs.remove(tab)
+                                                }
                                             }
-                                        } else {
-                                            selectedTabs.remove(tab)
-                                        }
-                                    },
-                                )
+                                        )
+                                    }
+                                }
+                            }
+                            if (listState.canScrollBackward) {
+                                HorizontalDivider(modifier = Modifier.align(Alignment.TopCenter))
+                            }
+                            if (listState.canScrollForward) {
+                                HorizontalDivider(modifier = Modifier.align(Alignment.BottomCenter))
                             }
                         }
-                        item(key = "startup-section") {
-                            Column {
-                                Text(
-                                    text = startupScreenTitle,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 24.dp)
-                                        .padding(top = MaterialTheme.padding.medium),
-                                )
-                            }
-                        }
-                        items(
-                            items = dialogEnabledTabs,
-                            key = { it.name },
-                        ) { tab ->
-                            RadioItem(
-                                label = homeTabEntries.getValue(tab),
-                                selected = selectedStartupTab == tab,
-                                onClick = { selectedStartupTab = tab },
+                        Column {
+                            Text(
+                                text = startupScreenTitle,
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 24.dp),
                             )
+                            dialogEnabledTabs.forEach { tab ->
+                                RadioItem(
+                                    label = homeTabEntries.getValue(tab),
+                                    selected = selectedStartupTab == tab,
+                                    onClick = { selectedStartupTab = tab },
+                                )
+                            }
                         }
                     }
                 },
