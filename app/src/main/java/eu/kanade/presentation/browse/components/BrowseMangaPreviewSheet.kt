@@ -120,7 +120,7 @@ fun BrowseMangaPreviewSheet(
     AdaptiveSheet(
         onDismissRequest = onDismissRequest,
         modifier = Modifier.fillMaxSize(),
-        enableSwipeDismiss = false,
+        enableImplicitDismiss = false,
     ) {
         when (val currentState = state) {
             MangaScreenModel.State.Loading -> {
