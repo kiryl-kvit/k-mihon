@@ -282,6 +282,13 @@ class BackupRestorer(
     private suspend fun upsertProfile(bundle: ProfileScopedBackup): mihon.feature.profiles.core.Profile {
         val existing = profileDatabase.getProfileByUuid(bundle.profile.uuid)
         if (existing != null) {
+            if (existing.type != bundle.profile.type) {
+                errors.add(
+                    Date() to
+                        "Profile type conflict for ${bundle.profile.name}: existing=${existing.type} backup=${bundle.profile.type}",
+                )
+                return existing
+            }
             profileDatabase.updateProfile(
                 id = existing.id,
                 name = bundle.profile.name,
@@ -299,6 +306,7 @@ class BackupRestorer(
         val id = profileDatabase.insertProfile(
             uuid = bundle.profile.uuid,
             name = bundle.profile.name,
+            type = bundle.profile.type,
             colorSeed = bundle.profile.colorSeed,
             position = bundle.profile.position,
             requiresAuth = false,

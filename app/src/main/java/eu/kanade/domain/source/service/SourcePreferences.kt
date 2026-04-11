@@ -20,6 +20,12 @@ class SourcePreferences(
     private val preferenceStore: PreferenceStore,
     private val json: Json,
 ) {
+    companion object {
+        const val LEGACY_HIDDEN_SOURCES_KEY = "hidden_catalogues"
+        const val MANGA_HIDDEN_SOURCES_KEY = "hidden_manga_catalogues"
+        const val VIDEO_HIDDEN_SOURCES_KEY = "hidden_video_catalogues"
+    }
+
 
     val sourceDisplayMode: Preference<LibraryDisplayMode> = preferenceStore.getObjectFromString(
         "pref_display_mode_catalogue",
@@ -33,7 +39,9 @@ class SourcePreferences(
         LocaleHelper.getDefaultEnabledLanguages(),
     )
 
-    val disabledSources: Preference<Set<String>> = preferenceStore.getStringSet("hidden_catalogues", emptySet())
+    val disabledSources: Preference<Set<String>> = preferenceStore.getStringSet(MANGA_HIDDEN_SOURCES_KEY, emptySet())
+
+    val disabledVideoSources: Preference<Set<String>> = preferenceStore.getStringSet(VIDEO_HIDDEN_SOURCES_KEY, emptySet())
 
     val incognitoExtensions: Preference<Set<String>> = preferenceStore.getStringSet("incognito_extensions", emptySet())
 

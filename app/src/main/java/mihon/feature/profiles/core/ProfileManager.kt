@@ -7,6 +7,7 @@ import androidx.core.content.edit
 import androidx.preference.PreferenceManager
 import eu.kanade.tachiyomi.core.security.SecurityPreferences
 import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
+import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,6 +26,7 @@ import mihon.core.common.toHomeScreenTabPreferenceValue
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.domain.manga.service.DuplicatePreferences
 import tachiyomi.domain.manga.service.DuplicateTitleExclusions
+import tachiyomi.domain.profile.model.ProfileType
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.io.File
@@ -68,6 +70,7 @@ class ProfileManager(
             profileDatabase.insertProfile(
                 uuid = ProfileConstants.DEFAULT_PROFILE_UUID,
                 name = ProfileConstants.DEFAULT_PROFILE_NAME,
+                type = ProfileType.MANGA,
                 colorSeed = 0x4F6AF2,
                 position = 0,
                 requiresAuth = false,
@@ -99,11 +102,12 @@ class ProfileManager(
         }
     }
 
-    suspend fun createProfile(name: String): Profile {
+    suspend fun createProfile(name: String, type: ProfileType): Profile {
         val position = profiles.value.maxOfOrNull(Profile::position)?.plus(1) ?: 1L
         val id = profileDatabase.insertProfile(
             uuid = newUuid(),
             name = name,
+            type = type,
             colorSeed = Random.nextLong(0x00FFFFFF),
             position = position,
             requiresAuth = false,
@@ -114,11 +118,14 @@ class ProfileManager(
             .flatMap { extension -> extension.sources.map { source -> source.id.toString() } }
             .toSet()
         profileStore.profileStore(id)
-            .getStringSet(
-                "hidden_catalogues",
-                hiddenSourceIds,
-            )
+            .getStringSet(SourcePreferences.MANGA_HIDDEN_SOURCES_KEY, hiddenSourceIds)
             .set(hiddenSourceIds)
+        profileStore.profileStore(id)
+            .getStringSet(SourcePreferences.VIDEO_HIDDEN_SOURCES_KEY, emptySet())
+            .set(emptySet())
+        val customPreferences = CustomPreferences(profileStore.appStateStore(id))
+        customPreferences.homeScreenTabs.set(defaultHomeScreenTabsFor(type))
+        customPreferences.homeScreenStartupTab.set(defaultHomeScreenStartupTabFor(type))
         seedDuplicateTitleExclusions(profileId = id)
         return requireNotNull(profileDatabase.getProfileById(id))
     }
@@ -347,6 +354,8 @@ class ProfileManager(
     }
 
     private fun migrateLegacySourcePreferences() {
+        migrateLegacyHiddenSources()
+
         val sharedPrefsDir = File(application.applicationInfo.dataDir, "shared_prefs")
         val sourceIds = sharedPrefsDir.listFiles()
             ?.asSequence()
@@ -392,6 +401,29 @@ class ProfileManager(
         }
     }
 
+    private fun migrateLegacyHiddenSources() {
+        val profiles = runCatching {
+            kotlinx.coroutines.runBlocking { profileDatabase.getProfiles(includeArchived = true) }
+        }.getOrDefault(emptyList())
+
+        profiles.forEach { profile ->
+            val store = profileStore.profileStore(profile.id)
+            val legacy = store.getStringSet(SourcePreferences.LEGACY_HIDDEN_SOURCES_KEY, emptySet())
+            val manga = store.getStringSet(SourcePreferences.MANGA_HIDDEN_SOURCES_KEY, emptySet())
+            val video = store.getStringSet(SourcePreferences.VIDEO_HIDDEN_SOURCES_KEY, emptySet())
+
+            if (!manga.isSet() && legacy.isSet()) {
+                manga.set(legacy.get())
+            }
+            if (!video.isSet()) {
+                video.set(emptySet())
+            }
+            if (legacy.isSet()) {
+                legacy.delete()
+            }
+        }
+    }
+
     suspend fun getProfileBundles(includeArchived: Boolean = true): List<ProfileBundle> {
         return profileDatabase.getProfiles(includeArchived).map { profile ->
             ProfileBundle(
@@ -423,6 +455,20 @@ class ProfileManager(
     @OptIn(ExperimentalUuidApi::class)
     private fun newUuid(): String {
         return Uuid.random().toString()
+    }
+
+    private fun defaultHomeScreenTabsFor(type: ProfileType): Set<String> {
+        return when (type) {
+            ProfileType.MANGA -> defaultHomeScreenTabs()
+            ProfileType.VIDEO -> defaultHomeScreenTabs()
+        }
+    }
+
+    private fun defaultHomeScreenStartupTabFor(type: ProfileType): HomeScreenTabs {
+        return when (type) {
+            ProfileType.MANGA -> HomeScreenTabs.Library
+            ProfileType.VIDEO -> HomeScreenTabs.Library
+        }
     }
 
     companion object {

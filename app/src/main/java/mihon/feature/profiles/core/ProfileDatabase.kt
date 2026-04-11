@@ -3,6 +3,7 @@ package mihon.feature.profiles.core
 import kotlinx.coroutines.flow.Flow
 import tachiyomi.data.DatabaseHandler
 import tachiyomi.domain.category.model.Category
+import tachiyomi.domain.profile.model.ProfileType
 
 class ProfileDatabase(
     private val handler: DatabaseHandler,
@@ -34,6 +35,7 @@ class ProfileDatabase(
     suspend fun insertProfile(
         uuid: String,
         name: String,
+        type: ProfileType,
         colorSeed: Long,
         position: Long,
         requiresAuth: Boolean,
@@ -43,6 +45,7 @@ class ProfileDatabase(
             profilesQueries.insert(
                 uuid = uuid,
                 name = name,
+                type = type,
                 colorSeed = colorSeed,
                 position = position,
                 requiresAuth = requiresAuth,
@@ -113,6 +116,7 @@ class ProfileDatabase(
         id: Long,
         uuid: String,
         name: String,
+        type: ProfileType,
         colorSeed: Long,
         position: Long,
         requiresAuth: Boolean,
@@ -126,6 +130,7 @@ class ProfileDatabase(
             id = id,
             uuid = uuid,
             name = name,
+            type = type,
             colorSeed = colorSeed,
             position = position,
             requiresAuth = requiresAuth,

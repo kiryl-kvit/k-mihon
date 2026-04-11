@@ -56,6 +56,7 @@ import eu.kanade.tachiyomi.R
 import kotlinx.coroutines.launch
 import mihon.feature.profiles.core.Profile
 import mihon.feature.profiles.core.ProfileManager
+import tachiyomi.domain.profile.model.ProfileType
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 import uy.kohesive.injekt.Injekt
@@ -271,6 +272,13 @@ private fun ProfilePickerTile(
             maxLines = 1,
             textAlign = TextAlign.Center,
         )
+        Text(
+            text = profile.type.label(),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
@@ -285,3 +293,11 @@ private fun profileTileBrush(seed: Long): Brush {
 }
 
 private val ProfileTileSize = 118.dp
+
+@Composable
+private fun ProfileType.label(): String {
+    return when (this) {
+        ProfileType.MANGA -> stringResource(MR.strings.profiles_type_manga)
+        ProfileType.VIDEO -> stringResource(MR.strings.profiles_type_video)
+    }
+}

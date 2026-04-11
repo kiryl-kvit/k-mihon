@@ -227,6 +227,7 @@ class BackupCreator(
                     position = bundle.profile.position,
                     requiresAuth = bundle.profile.requiresAuth,
                     isArchived = bundle.profile.isArchived,
+                    type = bundle.profile.type,
                 ),
                 categories = categories,
                 manga = manga,

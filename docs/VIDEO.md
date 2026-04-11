@@ -293,6 +293,8 @@ Checklist:
 
 Goal: make the app profile-aware by product type.
 
+Status: complete
+
 Scope:
 
 - add profile type to the schema and models
@@ -301,6 +303,7 @@ Scope:
 - make startup and navigation react to profile type
 - define separate default tabs/settings seed behavior for video profiles
 - define the initial video-profile shell with `Library`, `Updates`, `History`, `Browse`, and `More`
+- keep manga-only settings surfaces out of `video` profiles during this phase
 
 Locked constraints:
 
@@ -314,18 +317,23 @@ Why this phase exists:
 
 Checklist:
 
-- [ ] Add `type` to profile storage
-- [ ] Migrate existing profiles to `manga`
-- [ ] Update profile creation UI to choose a type
-- [ ] Update profile bundle/view models to expose the type
-- [ ] Make home-tab defaults depend on profile type
-- [ ] Seed video profiles with `Library`, `Updates`, `History`, `Browse`, and `More`
-- [ ] Define separate hidden-source keys and video visibility defaults
-- [ ] Review backup/restore behavior for typed profiles
+- [x] Add `type` to profile storage
+- [x] Migrate existing profiles to `manga`
+- [x] Update profile creation UI to choose a type
+- [x] Update profile bundle/view models to expose the type
+- [x] Make home-tab defaults depend on profile type
+- [x] Seed video profiles with `Library`, `Updates`, `History`, `Browse`, and `More`
+- [x] Route `video` profiles into placeholder video tabs instead of manga tabs
+- [x] Define separate hidden-source keys and video visibility defaults
+- [x] Review backup/restore behavior for typed profiles
+- [x] Validate startup/auth and fallback behavior for typed profiles
+- [x] Hide manga-only settings surfaces from `video` profiles in settings navigation/search
 
 ## Phase 2: Video Source API Foundation
 
 Goal: establish a dedicated extension/source contract for video.
+
+Note: initial source-api scaffolding from Phase 0 already covers the first completed checklist items below. The remaining Phase 2 work has not started.
 
 Scope:
 
@@ -589,6 +597,8 @@ Locked direction:
 
 Phase 0 is complete.
 
+Phase 1 is complete.
+
 It produced:
 
 - locked product/profile separation rules
@@ -598,8 +608,12 @@ It produced:
 - locked playback progress/completion policy
 - locked video library/history/updates semantics
 - a compiled initial `source-api` contract for video
+- typed `MANGA`/`VIDEO` profiles with immutable profile type
+- a placeholder-backed video shell that does not fall back into manga tabs
+- split manga/video source visibility preferences
+- typed backup/restore handling plus startup/auth/settings-surface validation
 
-The next implementation step is `Phase 1: Profile Type Foundation`.
+The next implementation step is `Phase 2: Video Source API Foundation`.
 
 ## Risks
 

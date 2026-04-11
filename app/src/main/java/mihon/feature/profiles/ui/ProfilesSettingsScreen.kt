@@ -18,6 +18,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -37,6 +38,7 @@ import kotlinx.coroutines.launch
 import mihon.feature.profiles.core.Profile
 import mihon.feature.profiles.core.ProfileConstants
 import mihon.feature.profiles.core.ProfileManager
+import tachiyomi.domain.profile.model.ProfileType
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.stringResource
@@ -124,9 +126,9 @@ class ProfilesSettingsScreen : Screen() {
                     initialValue = "",
                     existingNames = profiles.map(Profile::name),
                     onDismissRequest = { dialog = null },
-                    onConfirm = { name ->
+                    onConfirm = { name, type ->
                         scope.launch {
-                            profileManager.createProfile(name)
+                            profileManager.createProfile(name, type)
                             dialog = null
                         }
                     },
@@ -139,7 +141,7 @@ class ProfilesSettingsScreen : Screen() {
                     existingNames = profiles.map(Profile::name),
                     originalValue = currentDialog.profile.name,
                     onDismissRequest = { dialog = null },
-                    onConfirm = { name ->
+                    onConfirm = { name, _ ->
                         scope.launch {
                             profileManager.renameProfile(currentDialog.profile.id, name)
                             dialog = null
@@ -217,6 +219,7 @@ private fun ProfileCard(
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(text = profile.name, style = MaterialTheme.typography.titleMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatusLabel(profile.type.label())
                 if (isActive) {
                     StatusLabel(stringResource(MR.strings.profiles_active))
                 }
@@ -269,10 +272,11 @@ private fun ProfileNameDialog(
     initialValue: String,
     existingNames: List<String>,
     onDismissRequest: () -> Unit,
-    onConfirm: (String) -> Unit,
+    onConfirm: (String, ProfileType) -> Unit,
     originalValue: String? = null,
 ) {
     var value by remember(initialValue) { mutableStateOf(initialValue) }
+    var selectedType by remember { mutableStateOf(ProfileType.MANGA) }
     val trimmedValue = value.trim()
     val duplicate = remember(trimmedValue, existingNames, originalValue) {
         existingNames.any { it.equals(trimmedValue, ignoreCase = true) && it != originalValue }
@@ -282,30 +286,58 @@ private fun ProfileNameDialog(
         onDismissRequest = onDismissRequest,
         title = { Text(text = title) },
         text = {
-            OutlinedTextField(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 56.dp),
-                value = value,
-                onValueChange = { value = it },
-                label = { Text(text = stringResource(MR.strings.name)) },
-                isError = trimmedValue.isNotEmpty() && duplicate,
-                supportingText = {
-                    Text(
-                        text = if (trimmedValue.isNotEmpty() && duplicate) {
-                            stringResource(MR.strings.profiles_name_exists)
-                        } else {
-                            stringResource(MR.strings.information_required_plain)
-                        },
-                    )
-                },
-                singleLine = true,
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                OutlinedTextField(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 56.dp),
+                    value = value,
+                    onValueChange = { value = it },
+                    label = { Text(text = stringResource(MR.strings.name)) },
+                    isError = trimmedValue.isNotEmpty() && duplicate,
+                    supportingText = {
+                        Text(
+                            text = if (trimmedValue.isNotEmpty() && duplicate) {
+                                stringResource(MR.strings.profiles_name_exists)
+                            } else {
+                                stringResource(MR.strings.information_required_plain)
+                            },
+                        )
+                    },
+                    singleLine = true,
+                )
+
+                if (originalValue == null) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = stringResource(MR.strings.track_type),
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                        ProfileType.entries.forEach { type ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                RadioButton(
+                                    selected = selectedType == type,
+                                    onClick = { selectedType = type },
+                                )
+                                Text(
+                                    text = type.label(),
+                                    modifier = Modifier
+                                        .padding(top = 12.dp)
+                                        .weight(1f),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         },
         confirmButton = {
             TextButton(
                 enabled = trimmedValue.isNotEmpty() && !duplicate,
-                onClick = { onConfirm(trimmedValue) },
+                onClick = { onConfirm(trimmedValue, selectedType) },
             ) {
                 Text(text = stringResource(MR.strings.action_ok))
             }
@@ -348,4 +380,12 @@ private sealed interface ProfilesDialog {
     data class Rename(val profile: Profile) : ProfilesDialog
     data class Archive(val profile: Profile) : ProfilesDialog
     data class Delete(val profile: Profile) : ProfilesDialog
+}
+
+@Composable
+private fun ProfileType.label(): String {
+    return when (this) {
+        ProfileType.MANGA -> stringResource(MR.strings.profiles_type_manga)
+        ProfileType.VIDEO -> stringResource(MR.strings.profiles_type_video)
+    }
 }

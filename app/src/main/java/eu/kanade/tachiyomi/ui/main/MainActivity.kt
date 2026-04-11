@@ -241,38 +241,31 @@ class MainActivity : BaseActivity() {
                 val shouldShowPicker =
                     profilesPreferences.pickerEnabled.get() &&
                         profileManager.shouldShowPicker.first()
-                if (shouldShowPicker) {
-                    allowAppUnlockPrompt = false
-                    startupGateState = ProfileStartupGateState.Picker
-                    pendingAuthProfile = null
-                } else if (initialProfile != null && profileManager.profileRequiresUnlock(initialProfile.id) &&
-                    !shouldSkipStartupProfileAuth()
-                ) {
-                    allowAppUnlockPrompt = true
-                    pendingAuthProfile = initialProfile
-                    startupGateState = ProfileStartupGateState.Authenticating
-                } else {
-                    allowAppUnlockPrompt = true
-                    pendingAuthProfile = null
-                    startupGateState = ProfileStartupGateState.Ready
-                }
+                val startupDecision = resolveInitialStartupGateDecision(
+                    shouldShowPicker = shouldShowPicker,
+                    initialProfile = initialProfile,
+                    requiresProfileUnlock = initialProfile?.let { profileManager.profileRequiresUnlock(it.id) } == true,
+                    shouldSkipProfileAuth = shouldSkipStartupProfileAuth(),
+                )
+                allowAppUnlockPrompt = startupDecision.allowAppUnlockPrompt
+                pendingAuthProfile = startupDecision.pendingAuthProfile
+                startupGateState = startupDecision.state
             }
 
             LaunchedEffect(startupGateState, visibleProfiles, activeProfile?.id) {
                 if (startupGateState == ProfileStartupGateState.Picker && visibleProfiles.size <= 1) {
                     val profile = activeProfile ?: visibleProfiles.firstOrNull()
-                    if (profile != null && profileManager.profileRequiresUnlock(profile.id) &&
-                        !shouldSkipStartupProfileAuth()
-                    ) {
-                        allowAppUnlockPrompt = true
-                        pendingAuthProfile = profile
-                        startupGateState = ProfileStartupGateState.Authenticating
-                    } else {
-                        allowAppUnlockPrompt = true
-                        pendingAuthProfile = null
+                    val startupDecision = resolvePickerCollapseStartupGateDecision(
+                        profile = profile,
+                        requiresProfileUnlock = profile?.let { profileManager.profileRequiresUnlock(it.id) } == true,
+                        shouldSkipProfileAuth = shouldSkipStartupProfileAuth(),
+                    )
+                    allowAppUnlockPrompt = startupDecision.allowAppUnlockPrompt
+                    pendingAuthProfile = startupDecision.pendingAuthProfile
+                    if (startupDecision.state == ProfileStartupGateState.Ready) {
                         setAppCompatDelegateThemeMode(uiPreferences.themeMode.get())
-                        startupGateState = ProfileStartupGateState.Ready
                     }
+                    startupGateState = startupDecision.state
                 }
             }
 
@@ -777,7 +770,58 @@ class MainActivity : BaseActivity() {
     }
 }
 
-private enum class ProfileStartupGateState {
+internal data class ProfileStartupDecision(
+    val allowAppUnlockPrompt: Boolean,
+    val state: ProfileStartupGateState,
+    val pendingAuthProfile: Profile?,
+)
+
+internal fun resolveInitialStartupGateDecision(
+    shouldShowPicker: Boolean,
+    initialProfile: Profile?,
+    requiresProfileUnlock: Boolean,
+    shouldSkipProfileAuth: Boolean,
+): ProfileStartupDecision {
+    return when {
+        shouldShowPicker -> ProfileStartupDecision(
+            allowAppUnlockPrompt = false,
+            state = ProfileStartupGateState.Picker,
+            pendingAuthProfile = null,
+        )
+        initialProfile != null && requiresProfileUnlock && !shouldSkipProfileAuth -> ProfileStartupDecision(
+            allowAppUnlockPrompt = true,
+            state = ProfileStartupGateState.Authenticating,
+            pendingAuthProfile = initialProfile,
+        )
+        else -> ProfileStartupDecision(
+            allowAppUnlockPrompt = true,
+            state = ProfileStartupGateState.Ready,
+            pendingAuthProfile = null,
+        )
+    }
+}
+
+internal fun resolvePickerCollapseStartupGateDecision(
+    profile: Profile?,
+    requiresProfileUnlock: Boolean,
+    shouldSkipProfileAuth: Boolean,
+): ProfileStartupDecision {
+    return if (profile != null && requiresProfileUnlock && !shouldSkipProfileAuth) {
+        ProfileStartupDecision(
+            allowAppUnlockPrompt = true,
+            state = ProfileStartupGateState.Authenticating,
+            pendingAuthProfile = profile,
+        )
+    } else {
+        ProfileStartupDecision(
+            allowAppUnlockPrompt = true,
+            state = ProfileStartupGateState.Ready,
+            pendingAuthProfile = null,
+        )
+    }
+}
+
+internal enum class ProfileStartupGateState {
     Loading,
     Picker,
     Authenticating,

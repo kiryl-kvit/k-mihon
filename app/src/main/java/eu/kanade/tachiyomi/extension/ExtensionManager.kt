@@ -366,7 +366,7 @@ class ExtensionManager(
             val activeProfileId = profileStore.activeProfileId
             profiles.forEach { profile ->
                 profileStore.profileStore(profile.id)
-                    .getStringSet("hidden_catalogues", emptySet())
+                    .getStringSet(SourcePreferences.MANGA_HIDDEN_SOURCES_KEY, emptySet())
                     .getAndSet { hiddenSources ->
                         when {
                             profile.id == activeProfileId -> hiddenSources - sourceIds

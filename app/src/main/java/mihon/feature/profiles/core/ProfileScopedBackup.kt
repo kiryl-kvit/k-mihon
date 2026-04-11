@@ -6,6 +6,7 @@ import eu.kanade.tachiyomi.data.backup.models.BackupPreference
 import eu.kanade.tachiyomi.data.backup.models.BackupSourcePreferences
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.protobuf.ProtoNumber
+import tachiyomi.domain.profile.model.ProfileType
 
 @Serializable
 data class ProfileScopedBackup(
@@ -24,4 +25,5 @@ data class ProfileBackup(
     @ProtoNumber(4) val position: Long,
     @ProtoNumber(5) val requiresAuth: Boolean,
     @ProtoNumber(6) val isArchived: Boolean,
+    @ProtoNumber(7) val type: ProfileType = ProfileType.MANGA,
 )

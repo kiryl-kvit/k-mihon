@@ -36,6 +36,8 @@ import tachiyomi.data.DatabaseHandler
 import tachiyomi.data.DateColumnAdapter
 import tachiyomi.data.History
 import tachiyomi.data.Mangas
+import tachiyomi.data.Profiles
+import tachiyomi.data.ProfileTypeColumnAdapter
 import tachiyomi.data.StringListColumnAdapter
 import tachiyomi.data.UpdateStrategyColumnAdapter
 import tachiyomi.domain.source.service.SourceManager
@@ -82,6 +84,9 @@ class AppModule(val app: Application) : InjektModule {
                 mangasAdapter = Mangas.Adapter(
                     genreAdapter = StringListColumnAdapter,
                     update_strategyAdapter = UpdateStrategyColumnAdapter,
+                ),
+                profilesAdapter = Profiles.Adapter(
+                    typeAdapter = ProfileTypeColumnAdapter,
                 ),
             )
         }

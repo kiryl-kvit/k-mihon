@@ -4,6 +4,7 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import mihon.feature.profiles.core.Profile
 import org.junit.jupiter.api.Test
+import tachiyomi.domain.profile.model.ProfileType
 
 class ProfileShortcutsTest {
 
@@ -58,6 +59,7 @@ class ProfileShortcutsTest {
         id = id,
         uuid = "uuid-$id",
         name = name,
+        type = ProfileType.MANGA,
         colorSeed = 0L,
         position = id,
         requiresAuth = false,

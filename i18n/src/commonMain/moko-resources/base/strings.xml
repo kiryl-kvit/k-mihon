@@ -38,6 +38,7 @@
     <string name="label_help">Help</string>
     <string name="label_support_us">Support Us</string>
     <string name="label_default">Default</string>
+    <string name="label_video">Video</string>
     <string name="label_warning">Warning</string>
     <string name="label_auto">Auto</string>
 
@@ -690,6 +691,8 @@
     <string name="profiles_default">Default</string>
     <string name="profiles_choose_profile">Select profile</string>
     <string name="profiles_name_exists">A profile with this name already exists</string>
+    <string name="profiles_type_manga">Manga</string>
+    <string name="profiles_type_video">Video</string>
     <string name="profiles_archive_profile_confirmation">Archive %1$s?</string>
     <string name="profiles_delete_profile_confirmation">Delete %1$s permanently?</string>
     <string name="pref_home_screen_tabs">Home screen tabs</string>
