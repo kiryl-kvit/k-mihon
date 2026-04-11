@@ -55,12 +55,15 @@ fun SourceFilterDialog(
     onEditPreset: (String) -> Unit,
     onDeletePreset: (String) -> Unit,
     canDeletePreset: (String) -> Boolean,
-    onSave: (() -> Unit)? = null,
+    onSaveAsNewPreset: (() -> Unit)? = null,
+    currentPresetName: String? = null,
+    onUpdateCurrentPreset: (() -> Unit)? = null,
     onFilter: () -> Unit,
     onUpdate: (FilterList) -> Unit,
 ) {
     val updateFilters = { onUpdate(filters) }
     var presetMenuExpanded by remember { mutableStateOf(false) }
+    var saveMenuExpanded by remember { mutableStateOf(false) }
 
     AdaptiveSheet(onDismissRequest = onDismissRequest) {
         LazyColumn {
@@ -137,12 +140,52 @@ fun SourceFilterDialog(
                         }
                     }
 
-                    if (onSave != null) {
-                        IconButton(onClick = onSave) {
-                            Icon(
-                                imageVector = Icons.Outlined.Save,
-                                contentDescription = stringResource(MR.strings.action_save),
-                            )
+                    if (onSaveAsNewPreset != null) {
+                        if (currentPresetName != null && onUpdateCurrentPreset != null) {
+                            Box {
+                                IconButton(onClick = { saveMenuExpanded = true }) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Save,
+                                        contentDescription = stringResource(MR.strings.action_save),
+                                    )
+                                }
+
+                                DropdownMenu(
+                                    expanded = saveMenuExpanded,
+                                    onDismissRequest = { saveMenuExpanded = false },
+                                ) {
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(text = stringResource(MR.strings.browse_feed_save_as_new_preset))
+                                        },
+                                        onClick = {
+                                            saveMenuExpanded = false
+                                            onSaveAsNewPreset()
+                                        },
+                                    )
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = stringResource(
+                                                    MR.strings.browse_feed_update_current_preset,
+                                                    currentPresetName,
+                                                ),
+                                            )
+                                        },
+                                        onClick = {
+                                            saveMenuExpanded = false
+                                            onUpdateCurrentPreset()
+                                        },
+                                    )
+                                }
+                            }
+                        } else {
+                            IconButton(onClick = onSaveAsNewPreset) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Save,
+                                    contentDescription = stringResource(MR.strings.action_save),
+                                )
+                            }
                         }
                     }
 

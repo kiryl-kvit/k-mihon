@@ -249,6 +249,7 @@ data class BrowseSourceScreen(
         }
 
         val onDismissRequest = screenModel::dismissDialog
+        val appliedCustomPreset = if (feedsEnabled) screenModel.appliedCustomPreset() else null
         when (val dialog = state.dialog) {
             is BrowseSourceScreenModel.Dialog.Filter -> {
                 SourceFilterDialog(
@@ -260,14 +261,21 @@ data class BrowseSourceScreen(
                     onEditPreset = screenModel::showEditPresetDialog,
                     onDeletePreset = { presetPendingDeletion = it },
                     canDeletePreset = screenModel::canDeletePreset,
-                    onSave = if (feedsEnabled) screenModel::showSavePresetDialog else null,
+                    onSaveAsNewPreset = if (feedsEnabled) screenModel::showSavePresetDialog else null,
+                    currentPresetName = appliedCustomPreset?.name,
+                    onUpdateCurrentPreset = if (feedsEnabled) screenModel::showUpdateCurrentPresetDialog else null,
                     onFilter = { screenModel.search(filters = state.filters) },
                     onUpdate = screenModel::setFilters,
                 )
             }
             is BrowseSourceScreenModel.Dialog.SavePreset -> if (feedsEnabled) {
                 BrowseFeedNameDialog(
-                    title = if (dialog.presetId == null) MR.strings.browse_feed_save_preset else MR.strings.action_edit,
+                    title = when (dialog.mode) {
+                        BrowseSourceScreenModel.Dialog.SavePreset.Mode.Create -> MR.strings.browse_feed_save_preset
+                        BrowseSourceScreenModel.Dialog.SavePreset.Mode.EditMetadata -> MR.strings.action_edit
+                        BrowseSourceScreenModel.Dialog.SavePreset.Mode.UpdateFromCurrentState ->
+                            MR.strings.browse_feed_update_preset
+                    },
                     initialValue = dialog.name,
                     initialChronological = dialog.chronological,
                     duplicateName = { name ->
