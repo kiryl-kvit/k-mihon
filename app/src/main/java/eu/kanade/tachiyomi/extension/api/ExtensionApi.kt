@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.extension.api
 import android.content.Context
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.extension.model.Extension
+import eu.kanade.tachiyomi.extension.model.ExtensionType
 import eu.kanade.tachiyomi.extension.model.InstallStep
 import eu.kanade.tachiyomi.extension.model.LoadResult
 import eu.kanade.tachiyomi.extension.util.ExtensionLoader
@@ -172,20 +173,36 @@ internal class ExtensionApi {
                 val libVersion = it.extractLibVersion()
                 libVersion >= ExtensionLoader.LIB_VERSION_MIN && libVersion <= ExtensionLoader.LIB_VERSION_MAX
             }
-            .map {
-                Extension.Available(
-                    name = it.name.substringAfter("Tachiyomi: "),
-                    pkgName = it.pkg,
-                    versionName = it.version,
-                    versionCode = it.code,
-                    libVersion = it.extractLibVersion(),
-                    lang = it.lang,
-                    isNsfw = it.nsfw == 1,
-                    sources = it.sources?.map(extensionSourceMapper).orEmpty(),
-                    apkName = it.apk,
-                    iconUrl = "$repoUrl/icon/${it.pkg}.png",
-                    repoUrl = repoUrl,
-                )
+            .map { extensionJson ->
+                when (extensionJson.toExtensionType()) {
+                    ExtensionType.MANGA -> Extension.AvailableManga(
+                        name = extensionJson.name.substringAfter("Tachiyomi: "),
+                        pkgName = extensionJson.pkg,
+                        versionName = extensionJson.version,
+                        versionCode = extensionJson.code,
+                        libVersion = extensionJson.extractLibVersion(),
+                        lang = extensionJson.lang,
+                        isNsfw = extensionJson.nsfw == 1,
+                        sources = extensionJson.sources?.map(mangaExtensionSourceMapper).orEmpty(),
+                        apkName = extensionJson.apk,
+                        iconUrl = "$repoUrl/icon/${extensionJson.pkg}.png",
+                        repoUrl = repoUrl,
+                    )
+
+                    ExtensionType.VIDEO -> Extension.AvailableVideo(
+                        name = extensionJson.name.substringAfter("Tachiyomi: "),
+                        pkgName = extensionJson.pkg,
+                        versionName = extensionJson.version,
+                        versionCode = extensionJson.code,
+                        libVersion = extensionJson.extractLibVersion(),
+                        lang = extensionJson.lang,
+                        isNsfw = extensionJson.nsfw == 1,
+                        sources = extensionJson.sources?.map(videoExtensionSourceMapper).orEmpty(),
+                        apkName = extensionJson.apk,
+                        iconUrl = "$repoUrl/icon/${extensionJson.pkg}.png",
+                        repoUrl = repoUrl,
+                    )
+                }
             }
     }
 
@@ -196,6 +213,12 @@ internal class ExtensionApi {
     private fun ExtensionJsonObject.extractLibVersion(): Double {
         return version.substringBeforeLast('.').toDouble()
     }
+
+    private fun ExtensionJsonObject.toExtensionType(): ExtensionType = extensionTypeFromRepoValue(type)
+}
+
+internal fun extensionTypeFromRepoValue(type: String?): ExtensionType {
+    return ExtensionType.fromMetadataValue(type) ?: ExtensionType.MANGA
 }
 
 @Serializable
@@ -207,6 +230,7 @@ private data class ExtensionJsonObject(
     val code: Long,
     val version: String,
     val nsfw: Int,
+    val type: String? = null,
     val sources: List<ExtensionSourceJsonObject>?,
 )
 
@@ -218,8 +242,17 @@ private data class ExtensionSourceJsonObject(
     val baseUrl: String,
 )
 
-private val extensionSourceMapper: (ExtensionSourceJsonObject) -> Extension.Available.Source = {
-    Extension.Available.Source(
+private val mangaExtensionSourceMapper: (ExtensionSourceJsonObject) -> Extension.AvailableManga.Source = {
+    Extension.AvailableManga.Source(
+        id = it.id,
+        lang = it.lang,
+        name = it.name,
+        baseUrl = it.baseUrl,
+    )
+}
+
+private val videoExtensionSourceMapper: (ExtensionSourceJsonObject) -> Extension.AvailableVideo.Source = {
+    Extension.AvailableVideo.Source(
         id = it.id,
         lang = it.lang,
         name = it.name,

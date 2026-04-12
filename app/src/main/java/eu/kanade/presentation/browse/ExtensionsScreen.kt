@@ -77,12 +77,12 @@ fun ExtensionScreen(
     searchQuery: String?,
     onLongClickItem: (Extension) -> Unit,
     onClickItemCancel: (Extension) -> Unit,
-    onOpenWebView: (Extension.Available) -> Unit,
-    onInstallExtension: (Extension.Available) -> Unit,
+    onOpenWebView: (Extension.AvailableManga) -> Unit,
+    onInstallExtension: (Extension.AvailableManga) -> Unit,
     onUninstallExtension: (Extension) -> Unit,
-    onUpdateExtension: (Extension.Installed) -> Unit,
+    onUpdateExtension: (Extension.InstalledManga) -> Unit,
     onTrustExtension: (Extension.Untrusted) -> Unit,
-    onOpenExtension: (Extension.Installed) -> Unit,
+    onOpenExtension: (Extension.InstalledManga) -> Unit,
     onClickUpdateAll: () -> Unit,
     onRefresh: () -> Unit,
 ) {
@@ -138,12 +138,12 @@ private fun ExtensionContent(
     contentPadding: PaddingValues,
     onLongClickItem: (Extension) -> Unit,
     onClickItemCancel: (Extension) -> Unit,
-    onOpenWebView: (Extension.Available) -> Unit,
-    onInstallExtension: (Extension.Available) -> Unit,
+    onOpenWebView: (Extension.AvailableManga) -> Unit,
+    onInstallExtension: (Extension.AvailableManga) -> Unit,
     onUninstallExtension: (Extension) -> Unit,
-    onUpdateExtension: (Extension.Installed) -> Unit,
+    onUpdateExtension: (Extension.InstalledManga) -> Unit,
     onTrustExtension: (Extension.Untrusted) -> Unit,
-    onOpenExtension: (Extension.Installed) -> Unit,
+    onOpenExtension: (Extension.InstalledManga) -> Unit,
     onClickUpdateAll: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -217,26 +217,27 @@ private fun ExtensionContent(
                     item = item,
                     onClickItem = {
                         when (it) {
-                            is Extension.Available -> onInstallExtension(it)
-                            is Extension.Installed -> onOpenExtension(it)
+                            is Extension.AvailableManga -> onInstallExtension(it)
+                            is Extension.InstalledManga -> onOpenExtension(it)
                             is Extension.Untrusted -> {
                                 trustState = it
                             }
+                            else -> Unit
                         }
                     },
                     onLongClickItem = onLongClickItem,
                     onClickItemSecondaryAction = {
                         when (it) {
-                            is Extension.Available -> onOpenWebView(it)
-                            is Extension.Installed -> onOpenExtension(it)
+                            is Extension.AvailableManga -> onOpenWebView(it)
+                            is Extension.InstalledManga -> onOpenExtension(it)
                             else -> {}
                         }
                     },
                     onClickItemCancel = onClickItemCancel,
                     onClickItemAction = {
                         when (it) {
-                            is Extension.Available -> onInstallExtension(it)
-                            is Extension.Installed -> {
+                            is Extension.AvailableManga -> onInstallExtension(it)
+                            is Extension.InstalledManga -> {
                                 if (it.hasUpdate) {
                                     onUpdateExtension(it)
                                 } else {
@@ -246,6 +247,7 @@ private fun ExtensionContent(
                             is Extension.Untrusted -> {
                                 trustState = it
                             }
+                            else -> Unit
                         }
                     },
                 )
@@ -354,7 +356,7 @@ private fun ExtensionItemContent(
         ) {
             ProvideTextStyle(value = MaterialTheme.typography.bodySmall) {
                 var hasAlreadyShownAnElement by remember { mutableStateOf(false) }
-                if (extension is Extension.Installed && extension.lang.isNotEmpty()) {
+                if (extension is Extension.Installed && !extension.lang.isNullOrEmpty()) {
                     hasAlreadyShownAnElement = true
                     Text(
                         text = LocaleHelper.getSourceDisplayName(extension.lang, LocalContext.current),
@@ -455,7 +457,7 @@ private fun ExtensionItemActions(
             }
             installStep == InstallStep.Idle -> {
                 when (extension) {
-                    is Extension.Installed -> {
+                    is Extension.InstalledManga -> {
                         IconButton(onClick = { onClickItemSecondaryAction(extension) }) {
                             Icon(
                                 imageVector = Icons.Outlined.Settings,
@@ -472,6 +474,7 @@ private fun ExtensionItemActions(
                             }
                         }
                     }
+                    is Extension.InstalledVideo -> Unit
                     is Extension.Untrusted -> {
                         IconButton(onClick = { onClickItemAction(extension) }) {
                             Icon(
@@ -480,7 +483,7 @@ private fun ExtensionItemActions(
                             )
                         }
                     }
-                    is Extension.Available -> {
+                    is Extension.AvailableManga -> {
                         if (extension.sources.isNotEmpty()) {
                             IconButton(
                                 onClick = { onClickItemSecondaryAction(extension) },
@@ -492,6 +495,14 @@ private fun ExtensionItemActions(
                             }
                         }
 
+                        IconButton(onClick = { onClickItemAction(extension) }) {
+                            Icon(
+                                imageVector = Icons.Outlined.GetApp,
+                                contentDescription = stringResource(MR.strings.ext_install),
+                            )
+                        }
+                    }
+                    is Extension.AvailableVideo -> {
                         IconButton(onClick = { onClickItemAction(extension) }) {
                             Icon(
                                 imageVector = Icons.Outlined.GetApp,

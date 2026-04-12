@@ -7,6 +7,8 @@ import eu.kanade.domain.download.interactor.DeleteDownload
 import eu.kanade.domain.extension.interactor.GetExtensionLanguages
 import eu.kanade.domain.extension.interactor.GetExtensionSources
 import eu.kanade.domain.extension.interactor.GetExtensionsByType
+import eu.kanade.domain.extension.interactor.GetVideoExtensionSources
+import eu.kanade.domain.extension.interactor.GetVideoExtensions
 import eu.kanade.domain.extension.interactor.TrustExtension
 import eu.kanade.domain.manga.interactor.EnhanceDuplicateLibraryManga
 import eu.kanade.domain.manga.interactor.GetEnhancedDuplicateLibraryManga
@@ -192,6 +194,8 @@ class DomainModule : InjektModule {
 
         addFactory { GetExtensionsByType(get(), get()) }
         addFactory { GetExtensionSources(get()) }
+        addFactory { GetVideoExtensions(get()) }
+        addFactory { GetVideoExtensionSources(get()) }
         addFactory { GetExtensionLanguages(get(), get()) }
 
         addSingletonFactory<UpdatesRepository> { UpdatesRepositoryImpl(get(), get()) }

@@ -59,6 +59,7 @@ class CrashLogUtil(
         val availableExtensions = extensionManager.availableExtensionsFlow.value.associateBy { it.pkgName }
 
         val extensionInfoList = extensionManager.installedExtensionsFlow.value
+            .filterIsInstance<eu.kanade.tachiyomi.extension.model.Extension.InstalledManga>()
             .sortedBy { it.name }
             .mapNotNull {
                 val availableExtension = availableExtensions[it.pkgName]

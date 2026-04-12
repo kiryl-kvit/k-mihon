@@ -50,7 +50,11 @@ class ExtensionDetailsScreenModel(
         screenModelScope.launch {
             launch {
                 extensionManager.installedExtensionsFlow
-                    .map { it.firstOrNull { extension -> extension.pkgName == pkgName } }
+                    .map { extensions ->
+                        extensions
+                            .filterIsInstance<Extension.InstalledManga>()
+                            .firstOrNull { extension -> extension.pkgName == pkgName }
+                    }
                     .collectLatest { extension ->
                         if (extension == null) {
                             _events.send(ExtensionDetailsEvent.Uninstalled)
@@ -140,7 +144,7 @@ class ExtensionDetailsScreenModel(
 
     @Immutable
     data class State(
-        val extension: Extension.Installed? = null,
+        val extension: Extension.InstalledManga? = null,
         val isIncognito: Boolean = false,
         private val _sources: ImmutableList<ExtensionSourceItem>? = null,
     ) {

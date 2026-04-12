@@ -120,13 +120,13 @@ class ExtensionsScreenModel(
                 if (extension.name.contains(subquery, ignoreCase = true)) return@any true
 
                 when (extension) {
-                    is Extension.Installed -> extension.sources.any { source ->
+                    is Extension.InstalledManga -> extension.sources.any { source ->
                         source.name.contains(subquery, ignoreCase = true) ||
                             (source as? HttpSource)?.baseUrl?.contains(subquery, ignoreCase = true) == true ||
                             source.id == subquery.toLongOrNull()
                     }
 
-                    is Extension.Available -> extension.sources.any {
+                    is Extension.AvailableManga -> extension.sources.any {
                         it.name.contains(subquery, ignoreCase = true) ||
                             it.baseUrl.contains(subquery, ignoreCase = true) ||
                             it.id == subquery.toLongOrNull()
@@ -148,19 +148,19 @@ class ExtensionsScreenModel(
         screenModelScope.launchIO {
             state.value.items.values.flatten()
                 .map { it.extension }
-                .filterIsInstance<Extension.Installed>()
+                .filterIsInstance<Extension.InstalledManga>()
                 .filter { it.hasUpdate }
                 .forEach(::updateExtension)
         }
     }
 
-    fun installExtension(extension: Extension.Available) {
+    fun installExtension(extension: Extension.AvailableManga) {
         screenModelScope.launchIO {
             extensionManager.installExtension(extension).collectToInstallUpdate(extension)
         }
     }
 
-    fun updateExtension(extension: Extension.Installed) {
+    fun updateExtension(extension: Extension.InstalledManga) {
         screenModelScope.launchIO {
             extensionManager.updateExtension(extension).collectToInstallUpdate(extension)
         }

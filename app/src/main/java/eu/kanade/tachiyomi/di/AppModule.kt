@@ -20,12 +20,15 @@ import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.network.JavaScriptEngine
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.source.AndroidSourceManager
+import eu.kanade.tachiyomi.source.AndroidVideoSourceManager
 import eu.kanade.tachiyomi.source.SourcePreferenceProvider
+import eu.kanade.tachiyomi.source.VideoSourcePreferenceProvider
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.protobuf.ProtoBuf
 import mihon.feature.profiles.core.ProfileDatabase
 import mihon.feature.profiles.core.ProfileManager
 import mihon.feature.profiles.core.ProfileSourcePreferenceProvider
+import mihon.feature.profiles.core.ProfileVideoSourcePreferenceProvider
 import nl.adaptivity.xmlutil.XmlDeclMode
 import nl.adaptivity.xmlutil.core.XmlVersion
 import nl.adaptivity.xmlutil.serialization.XML
@@ -41,6 +44,7 @@ import tachiyomi.data.ProfileTypeColumnAdapter
 import tachiyomi.data.StringListColumnAdapter
 import tachiyomi.data.UpdateStrategyColumnAdapter
 import tachiyomi.domain.source.service.SourceManager
+import tachiyomi.domain.source.service.VideoSourceManager
 import tachiyomi.domain.storage.service.StorageManager
 import tachiyomi.source.local.image.LocalCoverManager
 import tachiyomi.source.local.io.LocalSourceFileSystem
@@ -94,6 +98,7 @@ class AppModule(val app: Application) : InjektModule {
         addSingletonFactory { ProfileDatabase(get()) }
         addSingletonFactory { ProfileManager(app, get(), get(), get()) }
         addSingletonFactory<SourcePreferenceProvider> { ProfileSourcePreferenceProvider(app, get()) }
+        addSingletonFactory<VideoSourcePreferenceProvider> { ProfileVideoSourcePreferenceProvider(app, get()) }
 
         addSingletonFactory {
             Json {
@@ -123,6 +128,7 @@ class AppModule(val app: Application) : InjektModule {
         addSingletonFactory { JavaScriptEngine(app) }
 
         addSingletonFactory<SourceManager> { AndroidSourceManager(app, get(), get()) }
+        addSingletonFactory<VideoSourceManager> { AndroidVideoSourceManager(get()) }
         addSingletonFactory { ExtensionManager(app) }
 
         addSingletonFactory { DownloadProvider(app) }
@@ -144,6 +150,7 @@ class AppModule(val app: Application) : InjektModule {
             get<NetworkHelper>()
 
             get<SourceManager>()
+            get<VideoSourceManager>()
 
             get<Database>()
 

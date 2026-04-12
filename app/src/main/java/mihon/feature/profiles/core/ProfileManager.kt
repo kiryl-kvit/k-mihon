@@ -115,6 +115,7 @@ class ProfileManager(
         )
         clearProfileState(id)
         val hiddenSourceIds = extensionManager.installedExtensionsFlow.value
+            .filterIsInstance<eu.kanade.tachiyomi.extension.model.Extension.InstalledManga>()
             .flatMap { extension -> extension.sources.map { source -> source.id.toString() } }
             .toSet()
         profileStore.profileStore(id)

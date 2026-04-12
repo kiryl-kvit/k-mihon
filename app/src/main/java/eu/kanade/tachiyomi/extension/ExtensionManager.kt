@@ -75,12 +75,21 @@ class ExtensionManager(
 
     private val installedExtensionMapFlow = MutableStateFlow(emptyMap<String, Extension.Installed>())
     val installedExtensionsFlow = installedExtensionMapFlow.mapExtensions(scope)
+    val installedVideoExtensionsFlow = installedExtensionMapFlow
+        .map { it.values.filterIsInstance<Extension.InstalledVideo>() }
+        .stateIn(scope, WhileSubscribed(5_000), installedExtensionMapFlow.value.values.filterIsInstance<Extension.InstalledVideo>())
 
     private val availableExtensionMapFlow = MutableStateFlow(emptyMap<String, Extension.Available>())
     val availableExtensionsFlow = availableExtensionMapFlow.mapExtensions(scope)
+    val availableVideoExtensionsFlow = availableExtensionMapFlow
+        .map { it.values.filterIsInstance<Extension.AvailableVideo>() }
+        .stateIn(scope, WhileSubscribed(5_000), availableExtensionMapFlow.value.values.filterIsInstance<Extension.AvailableVideo>())
 
     private val untrustedExtensionMapFlow = MutableStateFlow(emptyMap<String, Extension.Untrusted>())
     val untrustedExtensionsFlow = untrustedExtensionMapFlow.mapExtensions(scope)
+    val untrustedVideoExtensionsFlow = untrustedExtensionMapFlow.mapExtensions(scope) {
+        it.filter { untrusted -> untrusted.type == eu.kanade.tachiyomi.extension.model.ExtensionType.VIDEO }
+    }
 
     private val _isAutoUpdateInProgress = MutableStateFlow(false)
     val isAutoUpdateInProgress: StateFlow<Boolean> = _isAutoUpdateInProgress.asStateFlow()
@@ -95,7 +104,7 @@ class ExtensionManager(
 
     fun getExtensionPackage(sourceId: Long): String? {
         return installedExtensionsFlow.value.find { extension ->
-            extension.sources.any { it.id == sourceId }
+            (extension as? Extension.InstalledManga)?.sources?.any { it.id == sourceId } == true
         }
             ?.pkgName
     }
@@ -103,7 +112,7 @@ class ExtensionManager(
     fun getExtensionPackageAsFlow(sourceId: Long): Flow<String?> {
         return installedExtensionsFlow.map { extensions ->
             extensions.find { extension ->
-                extension.sources.any { it.id == sourceId }
+                (extension as? Extension.InstalledManga)?.sources?.any { it.id == sourceId } == true
             }
                 ?.pkgName
         }
@@ -119,15 +128,39 @@ class ExtensionManager(
     }
 
     private var availableExtensionsSourcesData: Map<Long, StubSource> = emptyMap()
+    private var availableVideoExtensionSourceIds: Set<Long> = emptySet()
 
     private fun setupAvailableExtensionsSourcesDataMap(extensions: List<Extension.Available>) {
         if (extensions.isEmpty()) return
         availableExtensionsSourcesData = extensions
+            .filterIsInstance<Extension.AvailableManga>()
             .flatMap { ext -> ext.sources.map { it.toStubSource() } }
             .associateBy { it.id }
+        availableVideoExtensionSourceIds = extensions
+            .filterIsInstance<Extension.AvailableVideo>()
+            .flatMap { ext -> ext.sources.map { it.id } }
+            .toSet()
     }
 
     fun getSourceData(id: Long) = availableExtensionsSourcesData[id]
+
+    fun hasAvailableVideoSource(id: Long): Boolean = id in availableVideoExtensionSourceIds
+
+    fun getVideoExtensionPackage(sourceId: Long): String? {
+        return installedExtensionsFlow.value.find { extension ->
+            (extension as? Extension.InstalledVideo)?.sources?.any { it.id == sourceId } == true
+        }
+            ?.pkgName
+    }
+
+    fun getVideoExtensionPackageAsFlow(sourceId: Long): Flow<String?> {
+        return installedExtensionsFlow.map { extensions ->
+            extensions.find { extension ->
+                (extension as? Extension.InstalledVideo)?.sources?.any { it.id == sourceId } == true
+            }
+                ?.pkgName
+        }
+    }
 
     /**
      * Loads and registers the installed extensions.
@@ -210,9 +243,10 @@ class ExtensionManager(
 
         // Use the source lang as some aren't present on the extension level.
         val availableLanguages = extensions
-            .flatMap(Extension.Available::sources)
-            .distinctBy(Extension.Available.Source::lang)
-            .map(Extension.Available.Source::lang)
+            .filterIsInstance<Extension.AvailableManga>()
+            .flatMap(Extension.AvailableManga::sources)
+            .distinctBy(Extension.AvailableManga.Source::lang)
+            .map(Extension.AvailableManga.Source::lang)
 
         val deviceLanguage = Locale.getDefault().language
         val defaultLanguages = preferences.enabledLanguages.defaultValue()
@@ -334,10 +368,18 @@ class ExtensionManager(
      * @param extension The extension to be registered.
      */
     private fun registerNewExtension(extension: Extension.Installed) {
-        initializeExtensionVisibility(
-            extension.sources.map { it.id.toString() }.toSet(),
-        )
-        installedExtensionMapFlow.value += extension.copy(isObsolete = false)
+        if (extension is Extension.InstalledManga) {
+            initializeExtensionVisibility(
+                key = SourcePreferences.MANGA_HIDDEN_SOURCES_KEY,
+                extension.sources.map { it.id.toString() }.toSet(),
+            )
+        } else if (extension is Extension.InstalledVideo) {
+            initializeExtensionVisibility(
+                key = SourcePreferences.VIDEO_HIDDEN_SOURCES_KEY,
+                sourceIds = extension.sources.map { it.id.toString() }.toSet(),
+            )
+        }
+        installedExtensionMapFlow.value += extension.withObsolete(isObsolete = false)
     }
 
     /**
@@ -348,17 +390,32 @@ class ExtensionManager(
      */
     private fun registerUpdatedExtension(extension: Extension.Installed) {
         val existingSourceIds = installedExtensionMapFlow.value[extension.pkgName]
+            ?.let { it as? Extension.InstalledManga }
             ?.sources
             ?.map { it.id.toString() }
             ?.toSet()
             .orEmpty()
-        initializeExtensionVisibility(
-            extension.sources.map { it.id.toString() }.toSet() - existingSourceIds,
-        )
-        installedExtensionMapFlow.value += extension.copy(isObsolete = false)
+        if (extension is Extension.InstalledManga) {
+            initializeExtensionVisibility(
+                key = SourcePreferences.MANGA_HIDDEN_SOURCES_KEY,
+                extension.sources.map { it.id.toString() }.toSet() - existingSourceIds,
+            )
+        } else if (extension is Extension.InstalledVideo) {
+            val existingVideoSourceIds = installedExtensionMapFlow.value[extension.pkgName]
+                ?.let { it as? Extension.InstalledVideo }
+                ?.sources
+                ?.map { it.id.toString() }
+                ?.toSet()
+                .orEmpty()
+            initializeExtensionVisibility(
+                key = SourcePreferences.VIDEO_HIDDEN_SOURCES_KEY,
+                sourceIds = extension.sources.map { it.id.toString() }.toSet() - existingVideoSourceIds,
+            )
+        }
+        installedExtensionMapFlow.value += extension.withObsolete(isObsolete = false)
     }
 
-    private fun initializeExtensionVisibility(sourceIds: Set<String>) {
+    private fun initializeExtensionVisibility(key: String, sourceIds: Set<String>) {
         if (sourceIds.isEmpty()) return
 
         scope.launch {
@@ -366,7 +423,7 @@ class ExtensionManager(
             val activeProfileId = profileStore.activeProfileId
             profiles.forEach { profile ->
                 profileStore.profileStore(profile.id)
-                    .getStringSet(SourcePreferences.MANGA_HIDDEN_SOURCES_KEY, emptySet())
+                    .getStringSet(key, emptySet())
                     .getAndSet { hiddenSources ->
                         when {
                             profile.id == activeProfileId -> hiddenSources - sourceIds
@@ -425,7 +482,7 @@ class ExtensionManager(
      */
     private fun Extension.Installed.withUpdateCheck(): Extension.Installed {
         return if (updateExists()) {
-            copy(hasUpdate = true)
+            withUpdate(hasUpdate = true)
         } else {
             this
         }
@@ -453,11 +510,10 @@ class ExtensionManager(
             .filterIsInstance<LoadResult.Success>()
             .map { result ->
                 val current = currentInstalledExtensions[result.extension.pkgName]
-                result.extension.copy(
-                    hasUpdate = current?.hasUpdate ?: false,
-                    isObsolete = current?.isObsolete ?: false,
-                    repoUrl = current?.repoUrl,
-                )
+                result.extension
+                    .withUpdate(hasUpdate = current?.hasUpdate ?: false)
+                    .withObsolete(isObsolete = current?.isObsolete ?: false)
+                    .withRepoUrl(repoUrl = current?.repoUrl)
             }
             .associateBy { it.pkgName }
 
@@ -483,23 +539,45 @@ class ExtensionManager(
             val availableExtension = availableExtensionsMap[pkgName]
 
             if (availableExtension == null) {
-                extension.copy(
-                    hasUpdate = false,
-                    isObsolete = true,
-                )
+                extension
+                    .withUpdate(hasUpdate = false)
+                    .withObsolete(isObsolete = true)
             } else {
-                extension.copy(
-                    hasUpdate = extension.updateExists(availableExtension),
-                    isObsolete = false,
-                    repoUrl = availableExtension.repoUrl,
-                )
+                extension
+                    .withUpdate(hasUpdate = extension.updateExists(availableExtension))
+                    .withObsolete(isObsolete = false)
+                    .withRepoUrl(repoUrl = availableExtension.repoUrl)
             }
+        }
+    }
+
+    private fun Extension.Installed.withUpdate(hasUpdate: Boolean): Extension.Installed {
+        return when (this) {
+            is Extension.InstalledManga -> copy(hasUpdate = hasUpdate)
+            is Extension.InstalledVideo -> copy(hasUpdate = hasUpdate)
+        }
+    }
+
+    private fun Extension.Installed.withObsolete(isObsolete: Boolean): Extension.Installed {
+        return when (this) {
+            is Extension.InstalledManga -> copy(isObsolete = isObsolete)
+            is Extension.InstalledVideo -> copy(isObsolete = isObsolete)
+        }
+    }
+
+    private fun Extension.Installed.withRepoUrl(repoUrl: String?): Extension.Installed {
+        return when (this) {
+            is Extension.InstalledManga -> copy(repoUrl = repoUrl)
+            is Extension.InstalledVideo -> copy(repoUrl = repoUrl)
         }
     }
 
     private operator fun <T : Extension> Map<String, T>.plus(extension: T) = plus(extension.pkgName to extension)
 
-    private fun <T : Extension> StateFlow<Map<String, T>>.mapExtensions(scope: CoroutineScope): StateFlow<List<T>> {
-        return map { it.values.toList() }.stateIn(scope, WhileSubscribed(5_000), value.values.toList())
+    private fun <T : Extension> StateFlow<Map<String, T>>.mapExtensions(
+        scope: CoroutineScope,
+        transform: (Collection<T>) -> List<T> = { it.toList() },
+    ): StateFlow<List<T>> {
+        return map { transform(it.values) }.stateIn(scope, WhileSubscribed(5_000), transform(value.values))
     }
 }

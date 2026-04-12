@@ -333,19 +333,26 @@ Checklist:
 
 Goal: establish a dedicated extension/source contract for video.
 
-Note: initial source-api scaffolding from Phase 0 already covers the first completed checklist items below. The remaining Phase 2 work has not started.
+Status: complete
+
+Note: initial source-api scaffolding from Phase 0 already covers the first completed checklist items below. The active remaining work is runtime plumbing: typed extension models, loader branching, `VideoSourceManager`, and backend-only video extension registration.
 
 Scope:
 
 - define new video source interfaces and models
 - keep browse/listing contracts fully parallel from manga source types
+- make repo/package metadata type-aware with backward-compatible `manga` defaulting
+- split runtime extension models by media type
 - update source manager plumbing to recognize video sources
+- keep current manga extension UI manga-only while video extension plumbing remains backend-only
 - update extension compatibility/versioning strategy
 
 Locked constraints:
 
 - video extensions are separate packages
 - subtitles are not part of the first source API revision
+- missing repo/package `type` defaults to `manga`
+- no visible video extension browsing in this phase
 
 Why this phase exists:
 
@@ -356,13 +363,15 @@ Checklist:
 
 - [x] Define video source interfaces
 - [x] Define stream models
-- [ ] Decide relationship to `CatalogueSource`
-- [ ] Update source manager to expose video-capable sources
-- [ ] Add `VideoSourceManager` and typed source registration
-- [ ] Update extension loading compatibility policy
-- [ ] Add separate video extension screen models/lists
-- [ ] Add video source preference provider and configurable-source wiring
-- [ ] Write extension author guidance for video sources
+- [x] Decide relationship to `CatalogueSource`
+- [x] Parse package/repo `type` with backward-compatible `manga` fallback
+- [x] Split runtime extension models by media type
+- [x] Update source manager plumbing to keep manga/video registration separate
+- [x] Add `VideoSourceManager` and typed source registration
+- [x] Update extension loading compatibility policy and loader branching
+- [x] Keep current extension UI manga-only while adding backend-only video extension plumbing
+- [x] Add video source preference provider and configurable-source wiring
+- [x] Write extension author guidance for video sources
 
 ## Phase 3: Video Domain and Data Wiring
 
@@ -612,6 +621,10 @@ It produced:
 - a placeholder-backed video shell that does not fall back into manga tabs
 - split manga/video source visibility preferences
 - typed backup/restore handling plus startup/auth/settings-surface validation
+
+Phase 2 is planned next and is focused on runtime extension loading and manager separation, not user-visible video browse UI.
+
+Current note: Phase 2 backend/runtime plumbing is complete. The next implementation phase is Phase 3.
 
 The next implementation step is `Phase 2: Video Source API Foundation`.
 
