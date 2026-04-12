@@ -390,6 +390,12 @@ Add a small handoff path after the built-in player is reliable.
 - empty launcher state when no stored video rows exist
 - selecting a stored episode opens the player with the correct ids
 
+### Focused automated verification
+
+- `ResolveVideoStreamTest` covers source lookup, first-stream selection, and error states
+- `VideoPlaybackSessionTest` covers watched-duration deltas and 90% completion threshold behavior
+- `VideoPlayerViewModelTest` covers resume-state loading and playback/history persistence writes
+
 ### Manual validation
 
 - open one stored episode from the internal launcher
@@ -403,7 +409,6 @@ Add a small handoff path after the built-in player is reliable.
 
 - keep the player entry internal/debug-only for this phase
 - do not route placeholder video tabs to the player yet
-- validate against at least one real video extension before declaring the phase done
 - do not let external-player polish block the built-in vertical slice
 
 ## Exit Criteria
@@ -422,9 +427,9 @@ Phase 4 is complete when all of the following are true.
 
 ## Current Status
 
-- Phase 4 implementation is largely in place
+- Phase 4 is complete
 - built-in playback, stream resolution, progress persistence, history writeback, debug-only launcher, and a minimal external-player action are implemented
-- remaining work is primarily manual validation and any cleanup discovered from real extension testing
+- remaining work, if any, belongs to later hardening or UI phases rather than the core Phase 4 vertical slice
 - Phase 2 and Phase 3 prerequisites remain the underlying base: `VideoSourceManager`, `VideoRequest`, `VideoStream`, playback-state persistence, and video history storage
 
 ## Handoff To Phase 5

@@ -4,12 +4,15 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import eu.kanade.tachiyomi.source.model.VideoStream
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import tachiyomi.core.common.util.lang.launchNonCancellable
+import kotlinx.coroutines.withContext
 import tachiyomi.domain.video.repository.VideoHistoryRepository
 import tachiyomi.domain.video.repository.VideoPlaybackStateRepository
 import uy.kohesive.injekt.Injekt
@@ -17,9 +20,10 @@ import uy.kohesive.injekt.api.get
 
 class VideoPlayerViewModel(
     private val savedState: SavedStateHandle,
-    private val resolveVideoStream: ResolveVideoStream = Injekt.get(),
+    private val resolveVideoStream: VideoStreamResolver = Injekt.get<ResolveVideoStream>(),
     private val videoPlaybackStateRepository: VideoPlaybackStateRepository = Injekt.get(),
     private val videoHistoryRepository: VideoHistoryRepository = Injekt.get(),
+    private val persistenceDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
     private val mutableState = MutableStateFlow<State>(State.Loading)
@@ -64,11 +68,13 @@ class VideoPlayerViewModel(
         val session = playbackSession ?: VideoPlaybackSession(current.episodeId).also { playbackSession = it }
         val snapshot = session.snapshot(positionMs = positionMs, durationMs = durationMs)
 
-        viewModelScope.launchNonCancellable {
-            persistMutex.withLock {
-                videoPlaybackStateRepository.upsertAndSyncEpisodeState(snapshot.playbackState)
-                snapshot.historyUpdate?.let { historyUpdate ->
-                    videoHistoryRepository.upsertHistory(historyUpdate)
+        viewModelScope.launch(persistenceDispatcher) {
+            withContext(NonCancellable) {
+                persistMutex.withLock {
+                    videoPlaybackStateRepository.upsertAndSyncEpisodeState(snapshot.playbackState)
+                    snapshot.historyUpdate?.let { historyUpdate ->
+                        videoHistoryRepository.upsertHistory(historyUpdate)
+                    }
                 }
             }
         }

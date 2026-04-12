@@ -1,10 +1,12 @@
 package eu.kanade.tachiyomi.ui.video.player
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.provider.Browser
 import android.view.ViewGroup
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
@@ -37,6 +39,7 @@ import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.ui.base.activity.BaseActivity
+import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.view.setComposeContent
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.Job
@@ -258,6 +261,7 @@ class VideoPlayerActivity : BaseActivity() {
     }
 
     override fun onPause() {
+        player?.pause()
         flushPlaybackState()
         super.onPause()
     }
@@ -301,14 +305,25 @@ class VideoPlayerActivity : BaseActivity() {
     }
 
     private fun openInExternalPlayer(stream: eu.kanade.tachiyomi.source.model.VideoStream) {
+        val uri = android.net.Uri.parse(stream.request.url)
         val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(android.net.Uri.parse(stream.request.url), stream.mimeType ?: stream.type.toExternalMimeType())
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            stream.request.headers.forEach { (key, value) ->
-                putExtra(key, value)
-            }
+            setDataAndType(uri, stream.mimeType ?: stream.type.toExternalMimeType())
+            putExtra(
+                Browser.EXTRA_HEADERS,
+                android.os.Bundle().apply {
+                    stream.request.headers.forEach { (key, value) ->
+                        putString(key, value)
+                    }
+                },
+            )
         }
-        startActivity(Intent.createChooser(intent, null))
+        try {
+            startActivity(Intent.createChooser(intent, null))
+        } catch (_: ActivityNotFoundException) {
+            toast("No compatible external player found")
+        } catch (e: Throwable) {
+            toast(e.message)
+        }
     }
 
     companion object {

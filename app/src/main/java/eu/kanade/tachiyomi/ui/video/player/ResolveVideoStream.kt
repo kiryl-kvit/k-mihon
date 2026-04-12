@@ -16,9 +16,9 @@ class ResolveVideoStream(
     private val videoRepository: VideoRepository = Injekt.get(),
     private val videoEpisodeRepository: VideoEpisodeRepository = Injekt.get(),
     private val videoSourceManager: VideoSourceManager = Injekt.get(),
-) {
+) : VideoStreamResolver {
 
-    suspend operator fun invoke(videoId: Long, episodeId: Long): Result {
+    override suspend operator fun invoke(videoId: Long, episodeId: Long): Result {
         val video = runCatching { videoRepository.getVideoById(videoId) }
             .getOrElse { return Result.Error(Reason.VideoNotFound) }
         val episode = videoEpisodeRepository.getEpisodeById(episodeId)

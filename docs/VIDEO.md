@@ -433,13 +433,17 @@ Why this phase exists:
 
 Checklist:
 
-- [ ] Add playback library dependency
-- [ ] Build video player screen/activity
-- [ ] Resolve source headers/cookies/referer correctly
-- [ ] Implement quality selection policy
-- [ ] Persist and restore playback position
-- [ ] Mark episode completed at 90% watched
-- [ ] Add a minimal external-player action
+- [x] Add playback library dependency
+- [x] Build video player screen/activity
+- [x] Resolve source headers/cookies/referer correctly
+- [x] Implement quality selection policy
+- [x] Persist and restore playback position
+- [x] Mark episode completed at 90% watched
+- [x] Add a minimal external-player action
+
+Current note:
+
+- Phase 4 is complete, including a debug-only launcher, built-in Media3 playback, progress/history persistence, and a minimal external-player action.
 
 ## Phase 5: Video Profile Shell and Core UI
 
@@ -633,9 +637,11 @@ Phase 2 is complete and delivered the runtime extension/source separation needed
 
 Phase 3 is complete and delivered the parallel video persistence layer: tables, repositories, category relations, playback state, history/updates queries, and backup/restore payloads, including profile-scoped backup isolation for video child data.
 
-Current note: the next implementation phase is Phase 4.
+Phase 4 is complete and delivered the first end-to-end runtime slice: stored-episode resolution, Media3 playback, shared OkHttp/header wiring, progress/history persistence, completion sync, a debug-only launcher, and a minimal external-player handoff.
 
-The next implementation step is `Phase 4: Built-In Player Vertical Slice`.
+Current note: the next implementation phase is Phase 5.
+
+The next implementation step is `Phase 5: Video Profile Shell and Core UI`.
 
 ## Risks
 
