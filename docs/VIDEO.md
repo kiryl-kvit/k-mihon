@@ -487,6 +487,8 @@ Current note:
 
 Goal: make video profiles feel complete outside playback.
 
+Detailed plan: `docs/VIDEO-PHASE-6-HISTORY-UPDATES-SETTINGS.md`
+
 Scope:
 
 - adapt history semantics to watching

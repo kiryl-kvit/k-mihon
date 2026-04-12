@@ -1,0 +1,127 @@
+package eu.kanade.presentation.video.more
+
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
+import androidx.compose.material.icons.filled.VolunteerActivism
+import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.CloudOff
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Storage
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.unit.dp
+import eu.kanade.presentation.more.LogoHeader
+import eu.kanade.presentation.more.settings.widget.SwitchPreferenceWidget
+import eu.kanade.presentation.more.settings.widget.TextPreferenceWidget
+import eu.kanade.tachiyomi.R
+import mihon.feature.profiles.core.ProfileManager
+import tachiyomi.core.common.Constants
+import tachiyomi.i18n.MR
+import tachiyomi.presentation.core.components.ScrollbarLazyColumn
+import tachiyomi.presentation.core.components.material.Scaffold
+import tachiyomi.presentation.core.i18n.stringResource
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
+
+@Composable
+fun VideoMoreScreen(
+    downloadedOnly: Boolean,
+    onDownloadedOnlyChange: (Boolean) -> Unit,
+    incognitoMode: Boolean,
+    onIncognitoModeChange: (Boolean) -> Unit,
+    onClickDataAndStorage: () -> Unit,
+    onClickProfiles: () -> Unit,
+    onClickSettings: () -> Unit,
+    onClickSupport: () -> Unit,
+    onClickAbout: () -> Unit,
+) {
+    val uriHandler = LocalUriHandler.current
+    val profileManager = remember { Injekt.get<ProfileManager>() }
+    val profiles by profileManager.visibleProfiles.collectAsState()
+
+    Scaffold { contentPadding ->
+        ScrollbarLazyColumn(contentPadding = contentPadding) {
+            item {
+                LogoHeader(
+                    iconPadding = PaddingValues(vertical = 32.dp),
+                )
+            }
+            item {
+                SwitchPreferenceWidget(
+                    title = stringResource(MR.strings.label_downloaded_only),
+                    subtitle = stringResource(MR.strings.downloaded_only_summary_video),
+                    icon = Icons.Outlined.CloudOff,
+                    checked = downloadedOnly,
+                    onCheckedChanged = onDownloadedOnlyChange,
+                )
+            }
+            item {
+                SwitchPreferenceWidget(
+                    title = stringResource(MR.strings.pref_incognito_mode),
+                    subtitle = stringResource(MR.strings.pref_incognito_mode_summary_video),
+                    icon = ImageVector.vectorResource(R.drawable.ic_glasses_24dp),
+                    checked = incognitoMode,
+                    onCheckedChanged = onIncognitoModeChange,
+                )
+            }
+
+            item { HorizontalDivider() }
+
+            item {
+                TextPreferenceWidget(
+                    title = stringResource(MR.strings.label_data_storage),
+                    icon = Icons.Outlined.Storage,
+                    onPreferenceClick = onClickDataAndStorage,
+                )
+            }
+
+            item { HorizontalDivider() }
+
+            item {
+                TextPreferenceWidget(
+                    title = stringResource(MR.strings.label_settings),
+                    icon = Icons.Outlined.Settings,
+                    onPreferenceClick = onClickSettings,
+                )
+            }
+            if (profiles.size > 1) {
+                item {
+                    TextPreferenceWidget(
+                        title = stringResource(MR.strings.profiles_switch_summary),
+                        icon = Icons.Outlined.AccountCircle,
+                        onPreferenceClick = onClickProfiles,
+                    )
+                }
+            }
+            item {
+                TextPreferenceWidget(
+                    title = stringResource(MR.strings.label_support_us),
+                    icon = Icons.Default.VolunteerActivism,
+                    onPreferenceClick = onClickSupport,
+                )
+            }
+            item {
+                TextPreferenceWidget(
+                    title = stringResource(MR.strings.pref_category_about),
+                    icon = Icons.Outlined.Info,
+                    onPreferenceClick = onClickAbout,
+                )
+            }
+            item {
+                TextPreferenceWidget(
+                    title = stringResource(MR.strings.label_help),
+                    icon = Icons.AutoMirrored.Outlined.HelpOutline,
+                    onPreferenceClick = { uriHandler.openUri(Constants.URL_HELP) },
+                )
+            }
+        }
+    }
+}

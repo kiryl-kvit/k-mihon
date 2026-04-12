@@ -52,6 +52,7 @@ WHERE VH.profile_id = :profileId
 AND VE.profile_id = :profileId
 AND V.profile_id = :profileId
 AND VH.last_watched IS NOT NULL
+AND VH.last_watched > 0
 ORDER BY VH.last_watched DESC
 LIMIT 1;
 
@@ -77,6 +78,7 @@ WHERE VH.profile_id = :profileId
 AND VE.profile_id = :profileId
 AND V.profile_id = :profileId
 AND VH.last_watched IS NOT NULL
+AND VH.last_watched > 0
 AND (
     :query = ''
     OR V.title LIKE '%' || :query || '%'

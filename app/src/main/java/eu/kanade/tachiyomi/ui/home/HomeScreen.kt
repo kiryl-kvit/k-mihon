@@ -474,6 +474,10 @@ object HomeScreen : Screen() {
                             }
                         }
                     }
+                    tab is VideoUpdatesTab -> {
+                        // Video profiles do not yet have a dedicated unseen-updates counter.
+                        // Avoid reusing manga chapter badges for video until a real video update pipeline exists.
+                    }
                     BrowseTab::class.isInstance(tab) -> {
                         val count by produceState(initialValue = 0) {
                             val preferences = Injekt.get<GlobalSourcePreferences>()

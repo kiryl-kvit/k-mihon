@@ -65,10 +65,6 @@ sealed class VideoPlaceholderTab(
     }
 }
 
-data object VideoUpdatesTab : VideoPlaceholderTab(1u, "Video Updates", R.drawable.anim_updates_enter)
-
-data object VideoHistoryTab : VideoPlaceholderTab(2u, "Video History", R.drawable.anim_history_enter)
-
 data object VideoBrowseTab : Tab {
 
     override val options: TabOptions
@@ -106,5 +102,3 @@ data object VideoBrowseTab : Tab {
         }
     }
 }
-
-data object VideoMoreTab : VideoPlaceholderTab(4u, "Video More", R.drawable.anim_more_enter)

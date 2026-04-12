@@ -423,3 +423,5 @@ Phase 5 implementation is now functionally complete. The next doc should break d
 - real `VideoHistoryTab` presentation using `VideoHistoryRepository`
 - video-specific settings/preferences surfaces
 - notification, shortcut, and quick-action review for `VIDEO` profiles
+
+Detailed Phase 6 plan: `docs/VIDEO-PHASE-6-HISTORY-UPDATES-SETTINGS.md`
