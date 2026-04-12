@@ -470,17 +470,17 @@ Why this phase exists:
 
 Checklist:
 
-- [ ] Define video-profile home tabs
-- [ ] Add browse flow for video sources
-- [ ] Add title details flow for video titles
-- [ ] Add episode open routing
-- [ ] Add continue watching behavior
-- [ ] Add watch progress indicators in episode lists
-- [ ] Review search behavior inside video profiles
+- [x] Define video-profile home tabs
+- [x] Add browse flow for video sources
+- [x] Add title details flow for video titles
+- [x] Add episode open routing
+- [x] Add continue watching behavior
+- [x] Add watch progress indicators in episode lists
+- [x] Review search behavior inside video profiles
 
 Current note:
 
-- Phase 5 planning now lives in `docs/VIDEO-PHASE-5-UI.md`.
+- Phase 5 implementation is functionally complete; detailed status now lives in `docs/VIDEO-PHASE-5-UI.md`.
 - This phase intentionally excludes `Updates` and `History` tab presentation, which remain part of Phase 6.
 
 ## Phase 6: History, Updates, and Settings for Video
@@ -647,9 +647,11 @@ Phase 3 is complete and delivered the parallel video persistence layer: tables, 
 
 Phase 4 is complete and delivered the first end-to-end runtime slice: stored-episode resolution, Media3 playback, shared OkHttp/header wiring, progress/history persistence, completion sync, a debug-only launcher, and a minimal external-player handoff.
 
-Current note: the next implementation phase is Phase 5.
+Phase 5 is functionally complete and delivered the real video browse, library, details, continue-watching, progress, and video-only search shell while keeping `VideoUpdatesTab` and `VideoHistoryTab` deferred to Phase 6.
 
-The next implementation step is `Phase 5: Video Profile Shell and Core UI`.
+Current note: the next implementation phase is Phase 6.
+
+The next implementation step is `Phase 6: History, Updates, and Settings for Video`.
 
 ## Risks
 

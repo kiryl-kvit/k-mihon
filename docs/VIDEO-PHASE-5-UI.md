@@ -44,16 +44,16 @@ This phase does not implement:
 
 ## Why This Phase Exists
 
-The current repo state still leaves `VIDEO` profiles structurally incomplete:
+At the start of Phase 5, the repo state still left `VIDEO` profiles structurally incomplete:
 
 - `app/src/main/java/eu/kanade/tachiyomi/ui/video/VideoTabs.kt`
-  - all five video tabs are placeholders today
+  - most user-facing video tabs were still placeholder-backed at phase start
 - `app/src/main/java/eu/kanade/tachiyomi/ui/home/HomeScreen.kt`
   - `VIDEO` profiles already route to distinct tabs, so replacing placeholder tabs is now a UI concern rather than a shell concern
 - `app/src/main/java/eu/kanade/tachiyomi/ui/video/player/VideoPlayerActivity.kt`
-  - playback now exists, but the only current entry path is the internal debug launcher
+  - playback already existed, but product-facing browse/details/library entry paths were still missing
 - `app/src/main/java/eu/kanade/presentation/more/settings/screen/debug/VideoPlayerLauncherScreen.kt`
-  - confirms stored episodes can open the player, but it is not a product-facing navigation flow
+  - confirmed stored episodes could open the player, but only through an internal launcher
 
 Phase 5 turns the player spike into the first usable video product mode.
 
@@ -309,7 +309,7 @@ Replace the placeholder library tab with a first real video library surface.
 - [x] Show favorited video titles
 - [x] Open details from library entries
 - [x] Add continue-watching entry point
-- [ ] Keep the implementation video-specific and lighter than manga library
+- [x] Keep the implementation video-specific and lighter than manga library
 
 ## 9. Continue Watching And Episode Progress Indicators
 
@@ -330,7 +330,7 @@ Decide the minimum search shape for Phase 5 without drifting into Phase 6.
 
 - [x] Support video source search in browse flows
 - [x] Keep search results scoped to video only in `VIDEO` profiles
-- [ ] Defer mixed/global search decisions if they add manga/video coupling
+- [x] Defer mixed/global search decisions if they add manga/video coupling
 
 ## Implementation Batches
 
@@ -396,6 +396,7 @@ Phase 5 is complete when all of the following are true.
 
 ## Current Status
 
+- Phase 5 implementation is now functionally complete; remaining notes in this document are intentional Phase 6 deferrals rather than missing core Phase 5 UI work
 - Phase 5 planning is now defined in this document
 - Batch 1 foundation is complete and verified
 - video source-list interactors and separate pinned/last-used video source state are now implemented
@@ -409,13 +410,14 @@ Phase 5 is complete when all of the following are true.
 - video library rows now surface first-pass watch-aware state from stored episode/playback data, including unread counts, in-progress markers, and partial-progress bars
 - video library rows now also expose a direct start/resume action that opens the computed stored episode in `VideoPlayerActivity`
 - video browse now has a parallel video-only global search path, launched from the video sources tab and `VideoBrowseTab` reselect, with results scoped to video catalogue sources only
+- mixed manga/video global search remains intentionally deferred to avoid coupling the manga and video stacks
 - the current details/library flow intentionally avoids destructive episode deletion and keeps the first library surface narrower than manga library
 - Phase 4 already provides the player endpoint and playback persistence, and details episode taps now use that stored-id path directly
 - the current playback-aware details slice is verified by `./gradlew :app:compileDebugKotlin` and focused video unit tests
 
 ## Handoff To Phase 6
 
-Once Phase 5 is complete, the next doc should break down Phase 6 into concrete work items covering:
+Phase 5 implementation is now functionally complete. The next doc should break down Phase 6 into concrete work items covering:
 
 - real `VideoUpdatesTab` presentation using `VideoUpdatesRepository`
 - real `VideoHistoryTab` presentation using `VideoHistoryRepository`

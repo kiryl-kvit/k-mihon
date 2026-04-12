@@ -66,7 +66,7 @@ Relevant current seams:
 - `app/src/main/AndroidManifest.xml`
   - there is no `VideoPlayerActivity`
 - `app/src/main/java/eu/kanade/tachiyomi/ui/video/VideoTabs.kt`
-  - video tabs are still placeholders only
+  - video tabs were still placeholder-backed when Phase 4 started
 
 Without Phase 4:
 
