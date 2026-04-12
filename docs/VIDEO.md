@@ -335,7 +335,7 @@ Goal: establish a dedicated extension/source contract for video.
 
 Status: complete
 
-Note: initial source-api scaffolding from Phase 0 already covers the first completed checklist items below. The active remaining work is runtime plumbing: typed extension models, loader branching, `VideoSourceManager`, and backend-only video extension registration.
+Note: initial source-api scaffolding from Phase 0 covered the early interface work. Phase 2 is now complete and established the runtime plumbing: typed extension models, loader branching, `VideoSourceManager`, backend-only video extension registration, and separate video source preference wiring.
 
 Scope:
 
@@ -622,11 +622,11 @@ It produced:
 - split manga/video source visibility preferences
 - typed backup/restore handling plus startup/auth/settings-surface validation
 
-Phase 2 is planned next and is focused on runtime extension loading and manager separation, not user-visible video browse UI.
+Phase 2 is complete and delivered the runtime extension/source separation needed before any real video data or player work.
 
-Current note: Phase 2 backend/runtime plumbing is complete. The next implementation phase is Phase 3.
+Current note: the next implementation phase is Phase 3.
 
-The next implementation step is `Phase 2: Video Source API Foundation`.
+The next implementation step is `Phase 3: Video Domain and Data Wiring`.
 
 ## Risks
 

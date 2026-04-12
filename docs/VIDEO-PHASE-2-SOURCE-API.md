@@ -117,7 +117,7 @@ Add type metadata handling to both repo parsing and installed-package loading.
 - [x] Default missing repo `type` to `manga`
 - [x] Read installed package `type` metadata
 - [x] Default missing installed package `type` to `manga`
-- [ ] Document Phase 2 compatibility assumptions for old manga packages
+- [x] Document Phase 2 compatibility assumptions for old manga packages
 
 ## 2. Typed Runtime Extension Models
 
@@ -241,7 +241,7 @@ Make extension install/update/trust flows shared, while lookup and registration 
 ### Checklist
 
 - [x] Update `ExtensionManager` flows for typed extension payloads
-- [ ] Keep manga extension UI/interactors limited to manga payloads
+- [x] Keep manga extension UI/interactors limited to manga payloads
 - [x] Add parallel backend-only hooks for later video extension browsing if needed
 - [x] Keep source-incognito and package lookups correct for manga flows
 
@@ -297,9 +297,9 @@ Keep current manga extension UI working, but avoid prematurely exposing video ex
 
 ### Checklist
 
-- [ ] Keep current extension list/details behavior manga-only
+- [x] Keep current extension list/details behavior manga-only
 - [x] Exclude video packages from manga extension presentation flows
-- [ ] Leave `VideoBrowseTab` placeholder-backed in this phase
+- [x] Leave `VideoBrowseTab` placeholder-backed in this phase
 
 ## Implementation Batches
 
@@ -361,6 +361,10 @@ Phase 2 is complete when all of the following are true.
 - video configurable-source preferences now use a separate profile-scoped `video_source_<profileId>_<sourceId>` namespace
 - backend-only video extension grouping and video source-item flows now exist parallel to the manga extension interactors
 - current manga extension presentation/search/detail flows are filtered to manga payloads only
+
+## Status
+
+Phase 2 is complete.
 
 ## Handoff To Phase 3
 
