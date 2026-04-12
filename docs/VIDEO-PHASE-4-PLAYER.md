@@ -150,9 +150,9 @@ Implementation note:
 
 ### Checklist
 
-- [ ] Add Media3 version catalog entries
-- [ ] Add Media3 app dependencies
-- [ ] Register `VideoPlayerActivity`
+- [x] Add Media3 version catalog entries
+- [x] Add Media3 app dependencies
+- [x] Register `VideoPlayerActivity`
 
 ## 2. Stored Episode To Playback Resolver
 
@@ -179,10 +179,10 @@ Add the minimal bridge from stored video rows to a playable source request.
 
 ### Checklist
 
-- [ ] Add `VideoEpisode -> SEpisode` mapping
-- [ ] Add resolver for `VideoTitle`, `VideoEpisode`, and `VideoSource`
-- [ ] Select the first returned stream
-- [ ] Surface source-missing and no-stream errors clearly
+- [x] Add `VideoEpisode -> SEpisode` mapping
+- [x] Add resolver for `VideoTitle`, `VideoEpisode`, and `VideoSource`
+- [x] Select the first returned stream
+- [x] Surface source-missing and no-stream errors clearly
 
 ## 3. Player Activity And UI State
 
@@ -206,10 +206,10 @@ Build the dedicated player entry point.
 
 ### Checklist
 
-- [ ] Add `VideoPlayerActivity.newIntent(context, videoId, episodeId)`
-- [ ] Initialize from DB ids and finish cleanly on invalid input
-- [ ] Add loading, error, and ready states
-- [ ] Keep `ReaderActivity` manga-only
+- [x] Add `VideoPlayerActivity.newIntent(context, videoId, episodeId)`
+- [x] Initialize from DB ids and finish cleanly on invalid input
+- [x] Add loading, error, and ready states
+- [x] Keep `ReaderActivity` manga-only
 
 ## 4. Media3 Request And Datasource Integration
 
@@ -234,10 +234,10 @@ Make playback honor the resolved request metadata.
 
 ### Checklist
 
-- [ ] Create Media3 datasource integration backed by shared OkHttp
-- [ ] Forward `VideoRequest.headers`
-- [ ] Create `MediaItem` from the selected stream
-- [ ] Handle unsupported or empty stream results with explicit player errors
+- [x] Create Media3 datasource integration backed by shared OkHttp
+- [x] Forward `VideoRequest.headers`
+- [x] Create `MediaItem` from the selected stream
+- [x] Handle unsupported or empty stream results with explicit player errors
 
 ## 5. Playback State And Completion Writeback
 
@@ -262,11 +262,11 @@ Persist resume state from real playback.
 
 ### Checklist
 
-- [ ] Load saved playback state on open
-- [ ] Save progress every 10 seconds
-- [ ] Save again on pause and stop
-- [ ] Mark completed at 90% watched
-- [ ] Keep partial progress when below threshold
+- [x] Load saved playback state on open
+- [x] Save progress every 10 seconds
+- [x] Save again on pause and stop
+- [x] Mark completed at 90% watched
+- [x] Keep partial progress when below threshold
 
 ## 6. History Writeback From Real Playback
 
@@ -290,10 +290,10 @@ Connect the Phase 3 history store to actual playback sessions.
 
 ### Checklist
 
-- [ ] Track watched-duration deltas separately from absolute position
-- [ ] Upsert history during playback save points
-- [ ] Update `last_watched` from real playback events
-- [ ] Keep writes compatible with current `video_history` accumulation semantics
+- [x] Track watched-duration deltas separately from absolute position
+- [x] Upsert history during playback save points
+- [x] Update `last_watched` from real playback events
+- [x] Keep writes compatible with current `video_history` accumulation semantics
 
 ## 7. Debug-Only Launcher
 
@@ -318,10 +318,10 @@ Create the narrow internal entry path for the first vertical slice.
 
 ### Checklist
 
-- [ ] Add internal launcher entry
-- [ ] List or select stored video and episode rows
-- [ ] Open player with stable ids
-- [ ] Handle empty-state cleanly
+- [x] Add internal launcher entry
+- [x] List or select stored video and episode rows
+- [x] Open player with stable ids
+- [x] Handle empty-state cleanly
 
 ## 8. Minimal External-Player Action
 
@@ -346,9 +346,9 @@ Add a small handoff path after the built-in player is reliable.
 
 ### Checklist
 
-- [ ] Add a simple external-player action
-- [ ] Reuse the resolved stream request where feasible
-- [ ] Keep external handoff non-blocking
+- [x] Add a simple external-player action
+- [x] Reuse the resolved stream request where feasible
+- [x] Keep external handoff non-blocking
 
 ## Implementation Batches
 
@@ -422,9 +422,10 @@ Phase 4 is complete when all of the following are true.
 
 ## Current Status
 
-- Phase 4 planning is now defined in this document
-- implementation has not started yet
-- Phase 2 and Phase 3 prerequisites already exist: `VideoSourceManager`, `VideoRequest`, `VideoStream`, playback-state persistence, and video history storage
+- Phase 4 implementation is largely in place
+- built-in playback, stream resolution, progress persistence, history writeback, debug-only launcher, and a minimal external-player action are implemented
+- remaining work is primarily manual validation and any cleanup discovered from real extension testing
+- Phase 2 and Phase 3 prerequisites remain the underlying base: `VideoSourceManager`, `VideoRequest`, `VideoStream`, playback-state persistence, and video history storage
 
 ## Handoff To Phase 5
 

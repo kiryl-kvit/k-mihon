@@ -49,6 +49,10 @@ class DebugInfoScreen : Screen() {
                         onClick = { navigator.push(WorkerInfoScreen()) },
                     ),
                     Preference.PreferenceItem.TextPreference(
+                        title = VideoPlayerLauncherScreen.TITLE,
+                        onClick = { navigator.push(VideoPlayerLauncherScreen()) },
+                    ),
+                    Preference.PreferenceItem.TextPreference(
                         title = BackupSchemaScreen.TITLE,
                         onClick = { navigator.push(BackupSchemaScreen()) },
                     ),
