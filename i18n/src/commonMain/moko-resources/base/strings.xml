@@ -752,6 +752,14 @@
     <string name="pref_incognito_mode_extension_summary">Pause reading history for extension</string>
     <string name="pref_incognito_mode_summary_video">Pauses watch history</string>
     <string name="downloaded_only_summary_video">Filters library entries with cached video data</string>
+    <string name="information_no_recent_video">Nothing watched recently</string>
+    <string name="video_no_episodes">No episodes available</string>
+    <string name="video_no_description">No description available</string>
+    <string name="video_watched">Watched</string>
+    <string name="video_profiles">Profiles</string>
+    <string name="video_source_compatibility_note">External player support is best effort and may fail for sources that require cookies, referer headers, or expiring URLs.</string>
+    <string name="video_no_global_search_results">No video sources returned results</string>
+    <string name="video_no_pinned_sources_results">Pin one or more video sources to search only pinned sources.</string>
     <string name="notification_incognito_text">Disable incognito mode</string>
     <string name="downloaded_only_summary">Filters all entries in your library</string>
 

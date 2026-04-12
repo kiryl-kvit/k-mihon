@@ -5,7 +5,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.VolunteerActivism
 import androidx.compose.material.icons.outlined.AccountCircle
-import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Storage
@@ -33,8 +32,6 @@ import uy.kohesive.injekt.api.get
 
 @Composable
 fun VideoMoreScreen(
-    downloadedOnly: Boolean,
-    onDownloadedOnlyChange: (Boolean) -> Unit,
     incognitoMode: Boolean,
     onIncognitoModeChange: (Boolean) -> Unit,
     onClickDataAndStorage: () -> Unit,
@@ -52,15 +49,6 @@ fun VideoMoreScreen(
             item {
                 LogoHeader(
                     iconPadding = PaddingValues(vertical = 32.dp),
-                )
-            }
-            item {
-                SwitchPreferenceWidget(
-                    title = stringResource(MR.strings.label_downloaded_only),
-                    subtitle = stringResource(MR.strings.downloaded_only_summary_video),
-                    icon = Icons.Outlined.CloudOff,
-                    checked = downloadedOnly,
-                    onCheckedChanged = onDownloadedOnlyChange,
                 )
             }
             item {
@@ -95,7 +83,7 @@ fun VideoMoreScreen(
             if (profiles.size > 1) {
                 item {
                     TextPreferenceWidget(
-                        title = stringResource(MR.strings.profiles_switch_summary),
+                        title = stringResource(MR.strings.video_profiles),
                         icon = Icons.Outlined.AccountCircle,
                         onPreferenceClick = onClickProfiles,
                     )

@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 import tachiyomi.domain.source.service.VideoSourceManager
@@ -46,7 +47,49 @@ class ResolveVideoStreamTest {
 
         (result as ResolveVideoStream.Result.Success).video shouldBe video
         result.episode shouldBe episode
-        result.stream shouldBe firstStream
+        result.stream shouldBe secondStream
+    }
+
+    @Test
+    fun `returns timeout when source manager does not initialize in time`() = runTest {
+        val video = videoTitle(id = 1L, sourceId = 99L)
+        val episode = videoEpisode(id = 2L, videoId = 1L)
+
+        val resolver = ResolveVideoStream(
+            videoRepository = FakeVideoRepository(video),
+            videoEpisodeRepository = FakeVideoEpisodeRepository(episode),
+            videoSourceManager = FakeVideoSourceManager(
+                source = FakeVideoSource(video.source) { emptyList() },
+                initialized = false,
+            ),
+            sourceInitTimeoutMs = 1L,
+        )
+
+        val result = resolver(video.id, episode.id)
+
+        result shouldBe ResolveVideoStream.Result.Error(ResolveVideoStream.Reason.SourceLoadTimeout)
+    }
+
+    @Test
+    fun `returns timeout when stream fetch takes too long`() = runTest {
+        val video = videoTitle(id = 1L, sourceId = 99L)
+        val episode = videoEpisode(id = 2L, videoId = 1L)
+
+        val resolver = ResolveVideoStream(
+            videoRepository = FakeVideoRepository(video),
+            videoEpisodeRepository = FakeVideoEpisodeRepository(episode),
+            videoSourceManager = FakeVideoSourceManager(
+                source = FakeVideoSource(video.source) {
+                    delay(10)
+                    emptyList()
+                },
+            ),
+            streamFetchTimeoutMs = 1L,
+        )
+
+        val result = resolver(video.id, episode.id)
+
+        result shouldBe ResolveVideoStream.Result.Error(ResolveVideoStream.Reason.StreamFetchTimeout)
     }
 
     @Test
@@ -172,8 +215,9 @@ class ResolveVideoStreamTest {
 
     private class FakeVideoSourceManager(
         private val source: VideoSource?,
+        initialized: Boolean = true,
     ) : VideoSourceManager {
-        override val isInitialized = MutableStateFlow(true)
+        override val isInitialized = MutableStateFlow(initialized)
         override val catalogueSources = emptyFlow<List<eu.kanade.tachiyomi.source.VideoCatalogueSource>>()
 
         override fun get(sourceKey: Long): VideoSource? = source?.takeIf { it.id == sourceKey }

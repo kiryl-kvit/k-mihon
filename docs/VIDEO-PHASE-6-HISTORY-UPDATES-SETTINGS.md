@@ -296,3 +296,5 @@ Phase 6 is complete when all of the following are true.
 - `VideoUpdatesTab` is now implemented as a real recent-updates surface with manga-style recent-window bounding, grouped rows, and direct details/player routing, while staying free of manga action-mode/filter-sheet behavior
 - `VideoMoreTab` is now implemented as a minimal video-safe More surface with relabeled incognito copy and shared/general destinations only
 - Phase 6 shell audit is complete: tab defaults/reselect behavior now matches the new video tabs, shortcut routing remains profile-safe, and the home updates badge explicitly stays manga-only until a real video unseen-updates counter/notification pipeline exists
+
+Detailed Phase 7 plan: `docs/VIDEO-PHASE-7-HARDENING-AND-POLISH.md`

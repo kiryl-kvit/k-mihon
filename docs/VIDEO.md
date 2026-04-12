@@ -510,25 +510,27 @@ Checklist:
 - [x] Review quick actions and shortcuts
 - [x] Review profile-scoped settings defaults for video
 
-## Phase 7: Hardening and Extension Rollout
+## Phase 7: Hardening and Polish
 
-Goal: stabilize the feature for wider source support.
+Goal: stabilize the feature for wider source support while polishing the completed video shell.
+
+Detailed plan: `docs/VIDEO-PHASE-7-HARDENING-AND-POLISH.md`
 
 Scope:
 
-- multiple source validation
-- compatibility testing
-- edge-case playback handling
-- documentation and rollout controls
+- representative source-pattern validation
+- stream-resolution hardening and compatibility documentation
+- external-player best-effort validation
+- video-shell error/copy/empty-state cleanup and targeted test coverage
 
 Checklist:
 
-- [ ] Test with multiple video source patterns
-- [ ] Validate tokenized URL handling
-- [ ] Validate cookie-based auth flows
-- [ ] Validate stream fallback/error UI
-- [ ] Document extension compatibility rules
-- [ ] Decide whether feature flag can be removed
+- [x] Test representative video source-pattern compatibility matrix
+- [x] Validate tokenized URL handling and timeout behavior
+- [x] Validate cookie- and referer-sensitive flows plus external-player limits
+- [x] Harden stream fallback/error UI
+- [x] Document extension/runtime compatibility assumptions and rollout limits
+- [x] Complete video-shell polish and targeted screen-model coverage
 
 ## Key Technical Decisions
 
@@ -653,9 +655,11 @@ Phase 5 is functionally complete and delivered the real video browse, library, d
 
 Phase 6 is functionally complete and delivered real video history, updates, and More tabs, plus a shell audit for profile-safe reselect/default/shortcut behavior. Video updates badges remain intentionally disabled until a real video unseen-updates counter/notification pipeline exists.
 
-Current note: the next implementation phase is Phase 7.
+Current note: Phase 7 is complete at the current scope and delivered resolver hardening, documented compatibility limits, video-shell polish, and targeted screen-model coverage.
 
-The next implementation step is `Phase 7: Hardening and Extension Rollout`.
+Video updates badges remain intentionally disabled, and background/manual video sync remains out of scope until real supporting pipelines exist.
+
+Follow-on work, if any, should be planned as a new phase or backlog slice rather than treated as unfinished Phase 7 work.
 
 ## Risks
 

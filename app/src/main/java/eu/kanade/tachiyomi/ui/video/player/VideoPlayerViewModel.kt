@@ -105,8 +105,10 @@ class VideoPlayerViewModel(
             ResolveVideoStream.Reason.VideoNotFound -> "Video not found"
             ResolveVideoStream.Reason.EpisodeNotFound -> "Episode not found"
             ResolveVideoStream.Reason.EpisodeMismatch -> "Episode does not belong to the selected video"
+            ResolveVideoStream.Reason.SourceLoadTimeout -> "Video source took too long to load"
             ResolveVideoStream.Reason.SourceNotFound -> "Video source not available"
             ResolveVideoStream.Reason.NoStreams -> "No playable streams returned"
+            ResolveVideoStream.Reason.StreamFetchTimeout -> "Timed out while resolving streams"
             is ResolveVideoStream.Reason.StreamFetchFailed -> cause.message ?: "Failed to resolve streams"
         }
     }

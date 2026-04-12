@@ -45,9 +45,9 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.i18n.MR
-import tachiyomi.presentation.core.i18n.stringResource
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -320,9 +320,9 @@ class VideoPlayerActivity : BaseActivity() {
         try {
             startActivity(Intent.createChooser(intent, null))
         } catch (_: ActivityNotFoundException) {
-            toast("No compatible external player found")
+            toast(stringResource(MR.strings.video_source_compatibility_note))
         } catch (e: Throwable) {
-            toast(e.message)
+            toast(e.message ?: stringResource(MR.strings.video_source_compatibility_note))
         }
     }
 

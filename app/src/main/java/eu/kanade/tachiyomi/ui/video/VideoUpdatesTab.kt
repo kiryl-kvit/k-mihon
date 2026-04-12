@@ -58,6 +58,7 @@ data object VideoUpdatesTab : Tab {
             state = state,
             onClickCover = { videoId -> navigator.push(VideoScreen(videoId)) },
             onClickUpdate = { videoId, episodeId -> context.openVideoEpisode(videoId, episodeId) },
+            onRetry = { navigator.replace(VideoUpdatesTab) },
         )
 
         LaunchedEffect(state.isLoading) {

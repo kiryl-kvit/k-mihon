@@ -272,7 +272,7 @@ private fun VideoScreenContent(
         item {
             Text(
                 text = state.video.description.takeUnless { it.isNullOrBlank() }
-                    ?: stringResource(MR.strings.description_placeholder),
+                    ?: stringResource(MR.strings.video_no_description),
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
@@ -280,7 +280,7 @@ private fun VideoScreenContent(
         if (state.episodes.isEmpty() && !state.isRefreshing) {
             item {
                 Text(
-                    text = stringResource(MR.strings.no_results_found),
+                    text = stringResource(MR.strings.video_no_episodes),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -321,7 +321,7 @@ private fun VideoScreenContent(
                                     } else if (resumeText != null) {
                                         add(stringResource(MR.strings.action_resume) + " " + resumeText)
                                     } else if (episode.watched) {
-                                        add(stringResource(MR.strings.label_read_chapters))
+                                        add(stringResource(MR.strings.video_watched))
                                     }
                                     if (episode.dateUpload > 0L) {
                                         add(java.text.DateFormat.getDateInstance().format(java.util.Date(episode.dateUpload)))

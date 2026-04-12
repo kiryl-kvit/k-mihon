@@ -85,7 +85,7 @@ fun VideoHistoryScreen(
                 stringRes = if (!state.searchQuery.isNullOrEmpty()) {
                     MR.strings.no_results_found
                 } else {
-                    MR.strings.information_no_recent_manga
+                    MR.strings.information_no_recent_video
                 },
                 modifier = Modifier.padding(contentPadding),
             )

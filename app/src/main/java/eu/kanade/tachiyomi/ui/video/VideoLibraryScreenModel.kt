@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.ui.video
 
 import androidx.compose.runtime.Immutable
+import android.app.Application
 import cafe.adriel.voyager.core.model.StateScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import eu.kanade.domain.video.model.toMangaCover
@@ -13,7 +14,9 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import logcat.LogPriority
 import tachiyomi.core.common.util.lang.launchIO
+import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
+import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.domain.source.service.VideoSourceManager
 import tachiyomi.domain.video.model.VideoEpisode
 import tachiyomi.domain.video.model.VideoHistoryWithRelations
@@ -32,6 +35,7 @@ class VideoLibraryScreenModel(
     private val videoPlaybackStateRepository: VideoPlaybackStateRepository = Injekt.get(),
     private val videoHistoryRepository: VideoHistoryRepository = Injekt.get(),
     private val videoSourceManager: VideoSourceManager = Injekt.get(),
+    private val application: Application = Injekt.get(),
 ) : StateScreenModel<VideoLibraryScreenModel.State>(State.Loading) {
 
     init {
@@ -69,7 +73,7 @@ class VideoLibraryScreenModel(
                 }
                 .catch { e ->
                     logcat(LogPriority.ERROR, e)
-                    mutableState.value = State.Error(e.message ?: "Unknown error")
+                    mutableState.value = State.Error(withUIContext { application.stringResource(tachiyomi.i18n.MR.strings.unknown_error) })
                 }
                 .collectLatest { mutableState.value = it }
         }

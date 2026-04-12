@@ -56,6 +56,7 @@ import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
+import tachiyomi.presentation.core.screens.EmptyScreen
 import tachiyomi.presentation.core.screens.LoadingScreen
 
 class VideoGlobalSearchScreen(
@@ -229,6 +230,14 @@ private fun VideoGlobalSearchContent(
     onLongClickItem: (VideoTitle) -> Unit,
 ) {
     LazyColumn(contentPadding = contentPadding) {
+        if (items.isEmpty()) {
+            item {
+                EmptyScreen(
+                    stringRes = MR.strings.video_no_global_search_results,
+                )
+            }
+            return@LazyColumn
+        }
         items.forEach { (source, result) ->
             item(key = source.id) {
                 GlobalSearchResultItem(
@@ -247,7 +256,7 @@ private fun VideoGlobalSearchContent(
                             )
                         }
                         is SearchItemResult.Error -> {
-                            GlobalSearchErrorResultItem(message = result.throwable.message)
+                            GlobalSearchErrorResultItem(message = stringResource(MR.strings.unknown_error))
                         }
                     }
                 }
@@ -265,7 +274,7 @@ private fun VideoGlobalSearchCardRow(
 ) {
     if (titles.isEmpty()) {
         Text(
-            text = stringResource(MR.strings.no_results_found),
+            text = stringResource(MR.strings.video_no_global_search_results),
             modifier = Modifier.padding(
                 horizontal = MaterialTheme.padding.medium,
                 vertical = MaterialTheme.padding.small,

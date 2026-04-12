@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -29,14 +30,17 @@ import tachiyomi.presentation.core.components.ListGroupHeader
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
+import tachiyomi.presentation.core.screens.EmptyScreenAction
 import tachiyomi.presentation.core.screens.EmptyScreen
 import tachiyomi.presentation.core.screens.LoadingScreen
+import kotlinx.collections.immutable.persistentListOf
 
 @Composable
 fun VideoUpdatesScreen(
     state: VideoUpdatesScreenModel.State,
     onClickCover: (videoId: Long) -> Unit,
     onClickUpdate: (videoId: Long, episodeId: Long) -> Unit,
+    onRetry: () -> Unit,
 ) {
     Scaffold(
         topBar = { scrollBehavior ->
@@ -50,6 +54,13 @@ fun VideoUpdatesScreen(
             state.isLoading -> LoadingScreen(Modifier.padding(contentPadding))
             state.error != null -> EmptyScreen(
                 message = state.error,
+                actions = persistentListOf(
+                    EmptyScreenAction(
+                        stringRes = MR.strings.action_retry,
+                        icon = Icons.Outlined.Refresh,
+                        onClick = onRetry,
+                    ),
+                ),
                 modifier = Modifier.padding(contentPadding),
             )
             state.list.isEmpty() -> EmptyScreen(
@@ -153,13 +164,16 @@ private fun VideoUpdatesItem(
                                 .padding(end = 4.dp),
                             tint = MaterialTheme.colorScheme.primary,
                         )
+                    } else {
+                        Text(
+                            text = stringResource(MR.strings.video_watched),
+                            maxLines = 1,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(end = 6.dp),
+                        )
                     }
-                    Icon(
-                        imageVector = Icons.Filled.PlayArrow,
-                        contentDescription = null,
-                        modifier = Modifier.padding(end = 2.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                     Text(
                         text = update.episodeName,
                         maxLines = 1,

@@ -4,16 +4,20 @@ import androidx.compose.animation.graphics.res.animatedVectorResource
 import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.animation.graphics.vector.AnimatedImageVector
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.rememberScreenModel
+import cafe.adriel.voyager.core.model.screenModelScope
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import cafe.adriel.voyager.navigator.tab.TabOptions
+import eu.kanade.core.preference.asState
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.util.Tab
@@ -24,7 +28,6 @@ import mihon.feature.profiles.core.ProfileManager
 import mihon.feature.profiles.ui.ProfilePickerScreen
 import mihon.feature.profiles.ui.handleProfileShortcut
 import mihon.feature.support.SupportUsScreen
-import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 import uy.kohesive.injekt.Injekt
@@ -59,10 +62,8 @@ data object VideoMoreTab : Tab {
         val uiPreferences = remember { Injekt.get<UiPreferences>() }
 
         VideoMoreScreen(
-            downloadedOnly = screenModel.downloadedOnly(),
-            onDownloadedOnlyChange = screenModel::setDownloadedOnly,
-            incognitoMode = screenModel.incognitoMode(),
-            onIncognitoModeChange = screenModel::setIncognitoMode,
+            incognitoMode = screenModel.incognitoMode,
+            onIncognitoModeChange = { screenModel.incognitoMode = it },
             onClickDataAndStorage = { navigator.push(SettingsScreen(SettingsScreen.Destination.DataAndStorage)) },
             onClickProfiles = {
                 scope.launch {
@@ -83,21 +84,7 @@ data object VideoMoreTab : Tab {
 
 private class VideoMoreScreenModel(
     basePreferences: BasePreferences = Injekt.get(),
-    libraryPreferences: LibraryPreferences = Injekt.get(),
 ) : ScreenModel {
 
-    private val downloadedOnlyPreference = libraryPreferences.downloadedOnly
-    private val incognitoModePreference = basePreferences.incognitoMode
-
-    fun downloadedOnly(): Boolean = downloadedOnlyPreference.get()
-
-    fun incognitoMode(): Boolean = incognitoModePreference.get()
-
-    fun setDownloadedOnly(value: Boolean) {
-        downloadedOnlyPreference.set(value)
-    }
-
-    fun setIncognitoMode(value: Boolean) {
-        incognitoModePreference.set(value)
-    }
+    var incognitoMode by basePreferences.incognitoMode.asState(screenModelScope)
 }
