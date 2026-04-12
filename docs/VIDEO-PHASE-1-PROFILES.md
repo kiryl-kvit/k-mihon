@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document plans Phase 1 of video support: introducing typed profiles and making the app shell respond to profile type.
+This document tracks Phase 1 of video support: introducing typed profiles and making the app shell respond to profile type.
 
 Phase 0 locked the architecture. Phase 1 turns those decisions into the first product-facing foundation without implementing real video sources, video data, or playback yet.
 

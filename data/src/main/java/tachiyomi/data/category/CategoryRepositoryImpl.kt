@@ -1,6 +1,7 @@
 package tachiyomi.data.category
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flatMapLatest
 import tachiyomi.data.ActiveProfileProvider
 import tachiyomi.data.Database
@@ -9,6 +10,7 @@ import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.category.model.CategoryUpdate
 import tachiyomi.domain.category.repository.CategoryRepository
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class CategoryRepositoryImpl(
     private val handler: DatabaseHandler,
     private val profileProvider: ActiveProfileProvider,
@@ -42,6 +44,20 @@ class CategoryRepositoryImpl(
         return profileProvider.activeProfileIdFlow.flatMapLatest { profileId ->
             handler.subscribeToList {
                 categoriesQueries.getCategoriesByMangaId(profileId, mangaId, ::mapCategory)
+            }
+        }
+    }
+
+    override suspend fun getCategoriesByVideoId(videoId: Long): List<Category> {
+        return handler.awaitList {
+            categoriesQueries.getCategoriesByVideoId(profileProvider.activeProfileId, videoId, ::mapCategory)
+        }
+    }
+
+    override fun getCategoriesByVideoIdAsFlow(videoId: Long): Flow<List<Category>> {
+        return profileProvider.activeProfileIdFlow.flatMapLatest { profileId ->
+            handler.subscribeToList {
+                categoriesQueries.getCategoriesByVideoId(profileId, videoId, ::mapCategory)
             }
         }
     }

@@ -4,6 +4,7 @@ import eu.kanade.tachiyomi.data.backup.models.BackupCategory
 import eu.kanade.tachiyomi.data.backup.models.BackupManga
 import eu.kanade.tachiyomi.data.backup.models.BackupPreference
 import eu.kanade.tachiyomi.data.backup.models.BackupSourcePreferences
+import eu.kanade.tachiyomi.data.backup.models.BackupVideo
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.protobuf.ProtoNumber
 import tachiyomi.domain.profile.model.ProfileType
@@ -15,6 +16,7 @@ data class ProfileScopedBackup(
     @ProtoNumber(3) val manga: List<BackupManga> = emptyList(),
     @ProtoNumber(4) val preferences: List<BackupPreference> = emptyList(),
     @ProtoNumber(5) val sourcePreferences: List<BackupSourcePreferences> = emptyList(),
+    @ProtoNumber(6) val video: List<BackupVideo> = emptyList(),
 )
 
 @Serializable

@@ -1,0 +1,142 @@
+import kotlin.collections.List;
+import kotlin.Boolean;
+import kotlin.String;
+
+CREATE TABLE videos(
+    _id INTEGER NOT NULL PRIMARY KEY,
+    profile_id INTEGER NOT NULL DEFAULT 1,
+    source INTEGER NOT NULL,
+    url TEXT NOT NULL,
+    title TEXT NOT NULL,
+    display_name TEXT,
+    description TEXT,
+    genre TEXT AS List<String>,
+    thumbnail_url TEXT,
+    favorite INTEGER AS Boolean NOT NULL,
+    initialized INTEGER AS Boolean NOT NULL,
+    last_update INTEGER,
+    next_update INTEGER,
+    date_added INTEGER NOT NULL,
+    last_modified_at INTEGER NOT NULL DEFAULT 0,
+    favorite_modified_at INTEGER,
+    version INTEGER NOT NULL DEFAULT 0,
+    notes TEXT NOT NULL DEFAULT "",
+    FOREIGN KEY(profile_id) REFERENCES profiles (_id)
+    ON DELETE CASCADE
+);
+
+CREATE INDEX videos_favorite_index ON videos(profile_id, favorite) WHERE favorite = 1;
+CREATE INDEX idx_videos_source ON videos(profile_id, source);
+CREATE INDEX idx_videos_url ON videos(profile_id, url);
+CREATE UNIQUE INDEX idx_videos_profile_source_url ON videos(profile_id, source, url);
+
+CREATE TRIGGER update_last_favorited_at_videos
+AFTER UPDATE OF favorite ON videos
+BEGIN
+  UPDATE videos
+  SET favorite_modified_at = strftime('%s', 'now')
+  WHERE _id = new._id;
+END;
+
+CREATE TRIGGER update_last_modified_at_videos
+AFTER UPDATE ON videos
+FOR EACH ROW
+BEGIN
+  UPDATE videos
+  SET last_modified_at = strftime('%s', 'now')
+  WHERE _id = new._id;
+END;
+
+CREATE TRIGGER update_video_version AFTER UPDATE ON videos
+BEGIN
+    UPDATE videos SET version = version + 1
+    WHERE _id = new._id;
+END;
+
+getVideoById:
+SELECT *
+FROM videos
+WHERE _id = :id
+AND profile_id = :profileId;
+
+getVideoByUrlAndSource:
+SELECT *
+FROM videos
+WHERE profile_id = :profileId
+AND url = :url
+AND source = :source
+LIMIT 1;
+
+getFavorites:
+SELECT *
+FROM videos
+WHERE profile_id = :profileId
+AND favorite = 1;
+
+getAllVideos:
+SELECT *
+FROM videos
+WHERE profile_id = :profileId;
+
+deleteByProfile:
+DELETE FROM videos
+WHERE profile_id = :profileId;
+
+insert:
+INSERT INTO videos(profile_id, source, url, title, display_name, description, genre, thumbnail_url, favorite, initialized, last_update, next_update, date_added, last_modified_at, version, notes)
+VALUES (:profileId, :source, :url, :title, :displayName, :description, :genre, :thumbnailUrl, :favorite, :initialized, :lastUpdate, :nextUpdate, :dateAdded, 0, :version, :notes);
+
+update:
+UPDATE videos SET
+    source = coalesce(:source, source),
+    url = coalesce(:url, url),
+    title = coalesce(:title, title),
+    display_name = coalesce(:displayName, display_name),
+    description = coalesce(:description, description),
+    genre = coalesce(:genre, genre),
+    thumbnail_url = coalesce(:thumbnailUrl, thumbnail_url),
+    favorite = coalesce(:favorite, favorite),
+    initialized = coalesce(:initialized, initialized),
+    last_update = coalesce(:lastUpdate, last_update),
+    next_update = coalesce(:nextUpdate, next_update),
+    date_added = coalesce(:dateAdded, date_added),
+    version = coalesce(:version, version),
+    notes = coalesce(:notes, notes)
+WHERE _id = :videoId
+AND profile_id = :profileId;
+
+selectLastInsertedRowId:
+SELECT last_insert_rowid();
+
+insertNetworkVideo {
+    INSERT INTO videos(
+        profile_id, source, url, title, display_name, description, genre, thumbnail_url,
+        favorite, initialized, last_update, next_update, date_added, last_modified_at, version, notes
+    )
+    SELECT
+        :profileId, :source, :url, :title, NULL, :description, :genre, :thumbnailUrl,
+        :favorite, :initialized, :lastUpdate, :nextUpdate, :dateAdded, 0, :version, :notes
+    WHERE NOT EXISTS(
+        SELECT 0 FROM videos
+        WHERE profile_id = :profileId
+        AND source = :source
+        AND url = :url
+    );
+
+    UPDATE videos
+    SET
+        title = CASE WHEN :updateTitle THEN :title ELSE title END,
+        thumbnail_url = CASE WHEN :updateCover THEN :thumbnailUrl ELSE thumbnail_url END,
+        description = CASE WHEN :updateDetails THEN :description ELSE description END,
+        genre = CASE WHEN :updateDetails THEN :genre ELSE genre END,
+        initialized = :updateDetails
+    WHERE profile_id = :profileId
+    AND source = :source
+    AND url = :url;
+
+    SELECT *
+    FROM videos
+    WHERE profile_id = :profileId
+    AND source = :source
+    AND url = :url;
+}

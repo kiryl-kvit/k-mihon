@@ -781,7 +781,7 @@ Current status:
 
 - all Phase 0 architecture decisions are now locked in this document
 - the initial `source-api` video contract exists in the repo and compiles
-- the next step is Phase 1 execution, not more Phase 0 architecture work
+- Phase 0 work is complete and later execution has progressed through Phases 1, 2, and 3
 
 ## Implementation Handoff To Phase 1
 

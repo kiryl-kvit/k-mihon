@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document plans Phase 2 of video support: turning the locked video source API direction into runtime extension loading and source-manager plumbing that can carry video packages without leaking manga `Source` assumptions.
+This document tracks Phase 2 of video support: turning the locked video source API direction into runtime extension loading and source-manager plumbing that can carry video packages without leaking manga `Source` assumptions.
 
 Phase 0 locked the architecture and Phase 1 completed typed profile separation. Phase 2 is the backend/runtime phase that makes video extensions loadable and registerable, while keeping manga extension behavior intact.
 

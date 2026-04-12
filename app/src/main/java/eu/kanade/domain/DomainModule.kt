@@ -54,14 +54,21 @@ import tachiyomi.data.source.SourceRepositoryImpl
 import tachiyomi.data.source.StubSourceRepositoryImpl
 import tachiyomi.data.track.TrackRepositoryImpl
 import tachiyomi.data.updates.UpdatesRepositoryImpl
+import tachiyomi.data.video.VideoEpisodeRepositoryImpl
+import tachiyomi.data.video.VideoHistoryRepositoryImpl
+import tachiyomi.data.video.VideoPlaybackStateRepositoryImpl
+import tachiyomi.data.video.VideoRepositoryImpl
+import tachiyomi.data.video.VideoUpdatesRepositoryImpl
 import tachiyomi.domain.category.interactor.CreateCategoryWithName
 import tachiyomi.domain.category.interactor.DeleteCategory
 import tachiyomi.domain.category.interactor.GetCategories
+import tachiyomi.domain.category.interactor.GetVideoCategories
 import tachiyomi.domain.category.interactor.RenameCategory
 import tachiyomi.domain.category.interactor.ReorderCategory
 import tachiyomi.domain.category.interactor.ResetCategoryFlags
 import tachiyomi.domain.category.interactor.SetDisplayMode
 import tachiyomi.domain.category.interactor.SetMangaCategories
+import tachiyomi.domain.category.interactor.SetVideoCategories
 import tachiyomi.domain.category.interactor.SetSortModeForCategory
 import tachiyomi.domain.category.interactor.UpdateCategory
 import tachiyomi.domain.category.repository.CategoryRepository
@@ -108,6 +115,11 @@ import tachiyomi.domain.track.interactor.InsertTrack
 import tachiyomi.domain.track.repository.TrackRepository
 import tachiyomi.domain.updates.interactor.GetUpdates
 import tachiyomi.domain.updates.repository.UpdatesRepository
+import tachiyomi.domain.video.repository.VideoEpisodeRepository
+import tachiyomi.domain.video.repository.VideoHistoryRepository
+import tachiyomi.domain.video.repository.VideoPlaybackStateRepository
+import tachiyomi.domain.video.repository.VideoRepository
+import tachiyomi.domain.video.repository.VideoUpdatesRepository
 import uy.kohesive.injekt.api.InjektModule
 import uy.kohesive.injekt.api.InjektRegistrar
 import uy.kohesive.injekt.api.addFactory
@@ -119,6 +131,7 @@ class DomainModule : InjektModule {
     override fun InjektRegistrar.registerInjectables() {
         addSingletonFactory<CategoryRepository> { CategoryRepositoryImpl(get(), get()) }
         addFactory { GetCategories(get()) }
+        addFactory { GetVideoCategories(get()) }
         addFactory { ResetCategoryFlags(get(), get()) }
         addFactory { SetDisplayMode(get()) }
         addFactory { SetSortModeForCategory(get(), get()) }
@@ -151,6 +164,7 @@ class DomainModule : InjektModule {
         addFactory { UpdateMergedManga(get()) }
         addFactory { UpdateMangaNotes(get()) }
         addFactory { SetMangaCategories(get()) }
+        addFactory { SetVideoCategories(get()) }
         addFactory { GetExcludedScanlators(get(), get()) }
         addFactory { SetExcludedScanlators(get(), get()) }
         addFactory {
@@ -200,6 +214,12 @@ class DomainModule : InjektModule {
 
         addSingletonFactory<UpdatesRepository> { UpdatesRepositoryImpl(get(), get()) }
         addFactory { GetUpdates(get(), get()) }
+
+        addSingletonFactory<VideoRepository> { VideoRepositoryImpl(get(), get()) }
+        addSingletonFactory<VideoEpisodeRepository> { VideoEpisodeRepositoryImpl(get(), get()) }
+        addSingletonFactory<VideoHistoryRepository> { VideoHistoryRepositoryImpl(get(), get()) }
+        addSingletonFactory<VideoPlaybackStateRepository> { VideoPlaybackStateRepositoryImpl(get(), get()) }
+        addSingletonFactory<VideoUpdatesRepository> { VideoUpdatesRepositoryImpl(get(), get()) }
 
         addSingletonFactory<HiddenSourceIds> { ProfileHiddenSourceIds(get()) }
         addSingletonFactory<SourceRepository> { SourceRepositoryImpl(get(), get(), get()) }

@@ -377,9 +377,11 @@ Checklist:
 
 Goal: make video titles and episodes storable and queryable under video profiles.
 
+Status: complete
+
 Scope:
 
-- route video-source browse results into the app domain
+- establish the parallel app/domain/data path for video titles and episodes
 - keep video profile data separated cleanly
 - add playback state persistence
 - establish video-specific library/history/update data paths
@@ -387,6 +389,9 @@ Scope:
 Locked constraints:
 
 - categories should support the same UX as manga profiles
+- reuse the existing `categories` table rather than duplicating category definitions
+- store watched/completed state on `video_episodes`
+- store resume/progress state in a dedicated `video_playback_state` table
 
 Why this phase exists:
 
@@ -395,16 +400,16 @@ Why this phase exists:
 
 Checklist:
 
-- [ ] Define app/domain/data models for video titles and episodes
-- [ ] Add storage/query strategy for video titles and episodes
-- [ ] Add video title-category relations
-- [ ] Add video stub-source and fallback label strategy if needed
-- [ ] Add playback-progress persistence
-- [ ] Add watched/completed update logic
-- [ ] Define video history query behavior
-- [ ] Define video updates query behavior
-- [ ] Define video library counters and badges
-- [ ] Review backup serialization for video data
+- [x] Define app/domain/data models for video titles and episodes
+- [x] Add storage/query strategy for video titles and episodes
+- [x] Add video title-category relations
+- [x] Confirm video stub-source and fallback label strategy is not yet needed for Phase 3 backend/data work
+- [x] Add playback-progress persistence
+- [x] Add watched/completed update logic
+- [x] Define video history query behavior
+- [x] Define video updates query behavior
+- [x] Defer video library counters and badges to later video UI phases
+- [x] Review backup serialization for video data
 
 ## Phase 4: Built-In Player Vertical Slice
 
@@ -624,9 +629,11 @@ It produced:
 
 Phase 2 is complete and delivered the runtime extension/source separation needed before any real video data or player work.
 
-Current note: the next implementation phase is Phase 3.
+Phase 3 is complete and delivered the parallel video persistence layer: tables, repositories, category relations, playback state, history/updates queries, and backup/restore payloads, including profile-scoped backup isolation for video child data.
 
-The next implementation step is `Phase 3: Video Domain and Data Wiring`.
+Current note: the next implementation phase is Phase 4.
+
+The next implementation step is `Phase 4: Built-In Player Vertical Slice`.
 
 ## Risks
 

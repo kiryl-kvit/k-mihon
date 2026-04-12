@@ -1,0 +1,41 @@
+import kotlin.Boolean;
+
+CREATE TABLE video_playback_state(
+    _id INTEGER NOT NULL PRIMARY KEY,
+    profile_id INTEGER NOT NULL DEFAULT 1,
+    episode_id INTEGER NOT NULL,
+    position_ms INTEGER NOT NULL,
+    duration_ms INTEGER NOT NULL,
+    completed INTEGER AS Boolean NOT NULL,
+    last_watched_at INTEGER NOT NULL,
+    FOREIGN KEY(episode_id) REFERENCES video_episodes (_id)
+    ON DELETE CASCADE,
+    FOREIGN KEY(profile_id) REFERENCES profiles (_id)
+    ON DELETE CASCADE,
+    UNIQUE(profile_id, episode_id)
+);
+
+CREATE INDEX idx_video_playback_state_last_watched_at ON video_playback_state(profile_id, last_watched_at);
+
+getByEpisodeId:
+SELECT *
+FROM video_playback_state
+WHERE profile_id = :profileId
+AND episode_id = :episodeId;
+
+deleteByProfile:
+DELETE FROM video_playback_state
+WHERE profile_id = :profileId;
+
+upsertUpdate:
+UPDATE video_playback_state
+SET position_ms = :positionMs,
+    duration_ms = :durationMs,
+    completed = :completed,
+    last_watched_at = :lastWatchedAt
+WHERE profile_id = :profileId
+AND episode_id = :episodeId;
+
+upsertInsert:
+INSERT OR IGNORE INTO video_playback_state(profile_id, episode_id, position_ms, duration_ms, completed, last_watched_at)
+VALUES (:profileId, :episodeId, :positionMs, :durationMs, :completed, :lastWatchedAt);

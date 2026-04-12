@@ -10,6 +10,7 @@ import eu.kanade.tachiyomi.data.backup.create.creators.ExtensionRepoBackupCreato
 import eu.kanade.tachiyomi.data.backup.create.creators.MangaBackupCreator
 import eu.kanade.tachiyomi.data.backup.create.creators.PreferenceBackupCreator
 import eu.kanade.tachiyomi.data.backup.create.creators.SourcesBackupCreator
+import eu.kanade.tachiyomi.data.backup.create.creators.VideoBackupCreator
 import eu.kanade.tachiyomi.data.backup.models.Backup
 import eu.kanade.tachiyomi.data.backup.models.BackupCategory
 import eu.kanade.tachiyomi.data.backup.models.BackupExtensionRepos
@@ -17,6 +18,7 @@ import eu.kanade.tachiyomi.data.backup.models.BackupManga
 import eu.kanade.tachiyomi.data.backup.models.BackupPreference
 import eu.kanade.tachiyomi.data.backup.models.BackupSource
 import eu.kanade.tachiyomi.data.backup.models.BackupSourcePreferences
+import eu.kanade.tachiyomi.data.backup.models.BackupVideo
 import kotlinx.serialization.protobuf.ProtoBuf
 import logcat.LogPriority
 import mihon.feature.profiles.core.ProfileBackup
@@ -31,6 +33,7 @@ import tachiyomi.domain.backup.service.BackupPreferences
 import tachiyomi.domain.manga.interactor.GetFavorites
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.repository.MangaRepository
+import tachiyomi.domain.video.repository.VideoRepository
 import tachiyomi.i18n.MR
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -49,9 +52,11 @@ class BackupCreator(
     private val backupPreferences: BackupPreferences = Injekt.get(),
     private val profileManager: ProfileManager = Injekt.get(),
     private val mangaRepository: MangaRepository = Injekt.get(),
+    private val videoRepository: VideoRepository = Injekt.get(),
 
     private val categoriesBackupCreator: CategoriesBackupCreator = CategoriesBackupCreator(),
     private val mangaBackupCreator: MangaBackupCreator = MangaBackupCreator(),
+    private val videoBackupCreator: VideoBackupCreator = VideoBackupCreator(),
     private val preferenceBackupCreator: PreferenceBackupCreator = PreferenceBackupCreator(),
     private val extensionRepoBackupCreator: ExtensionRepoBackupCreator = ExtensionRepoBackupCreator(),
     private val sourcesBackupCreator: SourcesBackupCreator = SourcesBackupCreator(),
@@ -84,6 +89,7 @@ class BackupCreator(
             val nonFavoriteManga = if (options.readEntries) mangaRepository.getReadMangaNotInLibrary() else emptyList()
             val activeProfile = profileManager.activeProfile.value
             val backupManga = backupMangas(activeProfile?.id, getFavorites.await() + nonFavoriteManga, options)
+            val backupVideo = backupVideos(activeProfile?.id, options)
             val backupProfiles = backupProfiles(options)
             val backupSources = backupSources(
                 mangas = backupManga + backupProfiles.flatMap(ProfileScopedBackup::manga),
@@ -98,6 +104,7 @@ class BackupCreator(
                 backupSourcePreferences = backupSourcePreferences(options),
                 backupProfiles = backupProfiles,
                 activeProfileUuid = activeProfile?.uuid,
+                backupVideo = backupVideo,
             )
 
             val byteArray = parser.encodeToByteArray(Backup.serializer(), backup)
@@ -159,6 +166,26 @@ class BackupCreator(
         return sourcesBackupCreator(mangas)
     }
 
+    private suspend fun backupVideos(profileId: Long?, options: BackupOptions): List<BackupVideo> {
+        if (!options.libraryEntries) return emptyList()
+
+        val videos = if (profileId != null) {
+            videoRepository.getAllVideosByProfile(profileId)
+        } else {
+            val activeProfileId = profileManager.activeProfile.value?.id
+            if (activeProfileId != null) {
+                videoRepository.getAllVideosByProfile(activeProfileId)
+            } else {
+                emptyList()
+            }
+        }
+        return if (profileId != null) {
+            videoBackupCreator(profileId, videos, options)
+        } else {
+            videoBackupCreator(videos, options)
+        }
+    }
+
     private fun backupAppPreferences(options: BackupOptions): List<BackupPreference> {
         if (!options.appSettings) return emptyList()
 
@@ -191,6 +218,12 @@ class BackupCreator(
                     emptyList()
                 }
                 backupMangas(profileId, favorites + nonLibrary, options)
+            } else {
+                emptyList()
+            }
+
+            val video = if (options.libraryEntries) {
+                backupVideos(profileId, options)
             } else {
                 emptyList()
             }
@@ -231,6 +264,7 @@ class BackupCreator(
                 ),
                 categories = categories,
                 manga = manga,
+                video = video,
                 preferences = appPreferences,
                 sourcePreferences = sourcePreferences,
             )

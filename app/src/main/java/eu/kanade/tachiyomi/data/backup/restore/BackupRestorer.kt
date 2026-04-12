@@ -11,10 +11,12 @@ import eu.kanade.tachiyomi.data.backup.models.BackupExtensionRepos
 import eu.kanade.tachiyomi.data.backup.models.BackupManga
 import eu.kanade.tachiyomi.data.backup.models.BackupPreference
 import eu.kanade.tachiyomi.data.backup.models.BackupSourcePreferences
+import eu.kanade.tachiyomi.data.backup.models.BackupVideo
 import eu.kanade.tachiyomi.data.backup.restore.restorers.CategoriesRestorer
 import eu.kanade.tachiyomi.data.backup.restore.restorers.ExtensionRepoRestorer
 import eu.kanade.tachiyomi.data.backup.restore.restorers.MangaRestorer
 import eu.kanade.tachiyomi.data.backup.restore.restorers.PreferenceRestorer
+import eu.kanade.tachiyomi.data.backup.restore.restorers.VideoRestorer
 import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
 import eu.kanade.tachiyomi.util.system.createFileInCacheDir
 import kotlinx.coroutines.CoroutineScope
@@ -46,6 +48,7 @@ class BackupRestorer(
     private val preferenceRestorer: PreferenceRestorer = PreferenceRestorer(context),
     private val extensionRepoRestorer: ExtensionRepoRestorer = ExtensionRepoRestorer(),
     private val mangaRestorer: MangaRestorer = MangaRestorer(),
+    private val videoRestorer: VideoRestorer = VideoRestorer(),
     private val profileDatabase: ProfileDatabase = Injekt.get(),
     private val profileManager: ProfileManager = Injekt.get(),
     private val profileStore: ProfileStore = Injekt.get(),
@@ -99,6 +102,7 @@ class BackupRestorer(
 
         if (options.libraryEntries) {
             restoreAmount += backup.backupManga.size
+            restoreAmount += backup.backupVideo.size
         }
         if (options.categories) {
             restoreAmount += 1
@@ -125,6 +129,7 @@ class BackupRestorer(
             }
             if (options.libraryEntries) {
                 restoreManga(backup.backupManga, if (options.categories) backup.backupCategories else emptyList())
+                restoreVideo(backup.backupVideo, if (options.categories) backup.backupCategories else emptyList())
             }
             if (options.extensionRepoSettings) {
                 restoreExtensionRepos(backup.backupExtensionRepo)
@@ -144,7 +149,7 @@ class BackupRestorer(
         val previousProfileId = profileManager.activeProfileId
 
         if (options.libraryEntries) {
-            restoreAmount += backupProfiles.sumOf { it.manga.size }
+            restoreAmount += backupProfiles.sumOf { it.manga.size + it.video.size }
         }
         if (options.categories) {
             restoreAmount += backupProfiles.size
@@ -228,6 +233,27 @@ class BackupRestorer(
                     }
 
                 mangaRestorer.restorePendingMerges()
+
+                videoRestorer.sortByNew(profileBackup.video)
+                    .forEach {
+                        try {
+                            videoRestorer.restore(
+                                it,
+                                if (options.categories) profileBackup.categories else emptyList(),
+                            )
+                        } catch (e: Exception) {
+                            val sourceName = sourceMapping[it.source] ?: it.source.toString()
+                            errors.add(Date() to "${it.title} [$sourceName]: ${e.message}")
+                        }
+
+                        restoreProgress += 1
+                        notifier.showRestoreProgress(
+                            "${profile.name}: ${it.title}",
+                            restoreProgress,
+                            restoreAmount,
+                            isSync,
+                        )
+                    }
             }
         }
 
@@ -351,6 +377,26 @@ class BackupRestorer(
             }
 
         mangaRestorer.restorePendingMerges()
+    }
+
+    private fun CoroutineScope.restoreVideo(
+        backupVideos: List<BackupVideo>,
+        backupCategories: List<BackupCategory>,
+    ) = launch {
+        videoRestorer.sortByNew(backupVideos)
+            .forEach {
+                ensureActive()
+
+                try {
+                    videoRestorer.restore(it, backupCategories)
+                } catch (e: Exception) {
+                    val sourceName = sourceMapping[it.source] ?: it.source.toString()
+                    errors.add(Date() to "${it.title} [$sourceName]: ${e.message}")
+                }
+
+                restoreProgress += 1
+                notifier.showRestoreProgress(it.title, restoreProgress, restoreAmount, isSync)
+            }
     }
 
     private fun CoroutineScope.restoreAppPreferences(

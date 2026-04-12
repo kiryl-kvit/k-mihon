@@ -138,9 +138,9 @@ Notes:
 - missing `type` defaults to `manga`, again only for backward compatibility
 - new video repos should always emit `type: "video"`
 
-## Current Phase 2 Scope
+## Current Runtime Scope
 
-At the current Phase 2 state:
+At the current implementation state:
 
 - video extensions are loadable and register into `VideoSourceManager`
 - video extension backend grouping exists
