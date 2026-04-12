@@ -503,12 +503,12 @@ Locked constraints:
 
 Checklist:
 
-- [ ] Define watched history presentation
-- [ ] Define episode update presentation
-- [ ] Add video-specific preferences
-- [ ] Review notifications for video profiles
-- [ ] Review quick actions and shortcuts
-- [ ] Review profile-scoped settings defaults for video
+- [x] Define watched history presentation
+- [x] Define episode update presentation
+- [x] Add video-specific preferences
+- [x] Review notifications for video profiles
+- [x] Review quick actions and shortcuts
+- [x] Review profile-scoped settings defaults for video
 
 ## Phase 7: Hardening and Extension Rollout
 
@@ -649,11 +649,13 @@ Phase 3 is complete and delivered the parallel video persistence layer: tables, 
 
 Phase 4 is complete and delivered the first end-to-end runtime slice: stored-episode resolution, Media3 playback, shared OkHttp/header wiring, progress/history persistence, completion sync, a debug-only launcher, and a minimal external-player handoff.
 
-Phase 5 is functionally complete and delivered the real video browse, library, details, continue-watching, progress, and video-only search shell while keeping `VideoUpdatesTab` and `VideoHistoryTab` deferred to Phase 6.
+Phase 5 is functionally complete and delivered the real video browse, library, details, continue-watching, progress, and video-only search shell while keeping `VideoUpdatesTab`, `VideoHistoryTab`, and `VideoMoreTab` deferred to Phase 6.
 
-Current note: the next implementation phase is Phase 6.
+Phase 6 is functionally complete and delivered real video history, updates, and More tabs, plus a shell audit for profile-safe reselect/default/shortcut behavior. Video updates badges remain intentionally disabled until a real video unseen-updates counter/notification pipeline exists.
 
-The next implementation step is `Phase 6: History, Updates, and Settings for Video`.
+Current note: the next implementation phase is Phase 7.
+
+The next implementation step is `Phase 7: Hardening and Extension Rollout`.
 
 ## Risks
 
