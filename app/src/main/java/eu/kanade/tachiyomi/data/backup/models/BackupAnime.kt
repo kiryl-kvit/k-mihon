@@ -26,6 +26,7 @@ data class BackupAnime(
     @ProtoNumber(18) var version: Long = 0,
     @ProtoNumber(19) var notes: String = "",
     @ProtoNumber(20) var displayName: String? = null,
+    @ProtoNumber(21) var playbackPreferences: BackupAnimePlaybackPreferences? = null,
 ) {
     fun getAnimeImpl(): AnimeTitle {
         return AnimeTitle.create().copy(

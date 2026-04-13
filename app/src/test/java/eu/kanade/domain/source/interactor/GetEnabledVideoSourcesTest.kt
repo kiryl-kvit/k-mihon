@@ -6,7 +6,8 @@ import eu.kanade.tachiyomi.source.AnimeSource
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.SEpisode
 import eu.kanade.tachiyomi.source.model.SAnime
-import eu.kanade.tachiyomi.source.model.VideoStream
+import eu.kanade.tachiyomi.source.model.VideoPlaybackData
+import eu.kanade.tachiyomi.source.model.VideoPlaybackSelection
 import eu.kanade.tachiyomi.source.model.AnimesPage
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
@@ -100,7 +101,7 @@ private data class FakeAnimeCatalogueSource(
 
     override suspend fun getEpisodeList(anime: SAnime): List<SEpisode> = error("Not used")
 
-    override suspend fun getStreamList(episode: SEpisode): List<VideoStream> = error("Not used")
+    override suspend fun getPlaybackData(episode: SEpisode, selection: VideoPlaybackSelection): VideoPlaybackData = error("Not used")
 }
 
 internal class InteractorTestPreferenceStore : PreferenceStore {

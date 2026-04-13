@@ -2,7 +2,8 @@ package eu.kanade.tachiyomi.source
 
 import eu.kanade.tachiyomi.source.model.SEpisode
 import eu.kanade.tachiyomi.source.model.SAnime
-import eu.kanade.tachiyomi.source.model.VideoStream
+import eu.kanade.tachiyomi.source.model.VideoPlaybackData
+import eu.kanade.tachiyomi.source.model.VideoPlaybackSelection
 
 /**
  * A basic interface for creating an anime source.
@@ -39,11 +40,18 @@ interface AnimeSource {
     suspend fun getEpisodeList(anime: SAnime): List<SEpisode>
 
     /**
-     * Get the playable streams for an episode.
-     * Streams should be returned in the preferred selection order.
+     * Resolve playback metadata and playable streams for an episode.
+     *
+     * Sources may expose dub and source quality choices. When a requested selection isn't
+     * available for the episode, the source should return the resolved fallback selection in the
+     * resulting [VideoPlaybackData].
      *
      * @param episode the episode.
-     * @return the playable streams for the episode.
+     * @param selection the preferred playback selection.
+     * @return playback metadata and playable streams for the episode.
      */
-    suspend fun getStreamList(episode: SEpisode): List<VideoStream>
+    suspend fun getPlaybackData(
+        episode: SEpisode,
+        selection: VideoPlaybackSelection = VideoPlaybackSelection(),
+    ): VideoPlaybackData
 }

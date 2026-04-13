@@ -60,6 +60,7 @@ import tachiyomi.data.track.TrackRepositoryImpl
 import tachiyomi.data.updates.UpdatesRepositoryImpl
 import tachiyomi.data.anime.AnimeEpisodeRepositoryImpl
 import tachiyomi.data.anime.AnimeHistoryRepositoryImpl
+import tachiyomi.data.anime.AnimePlaybackPreferencesRepositoryImpl
 import tachiyomi.data.anime.AnimePlaybackStateRepositoryImpl
 import tachiyomi.data.anime.AnimeRepositoryImpl
 import tachiyomi.data.anime.AnimeUpdatesRepositoryImpl
@@ -123,6 +124,7 @@ import tachiyomi.domain.updates.interactor.GetUpdates
 import tachiyomi.domain.updates.repository.UpdatesRepository
 import tachiyomi.domain.anime.repository.AnimeEpisodeRepository
 import tachiyomi.domain.anime.repository.AnimeHistoryRepository
+import tachiyomi.domain.anime.repository.AnimePlaybackPreferencesRepository
 import tachiyomi.domain.anime.repository.AnimePlaybackStateRepository
 import tachiyomi.domain.anime.repository.AnimeRepository
 import tachiyomi.domain.anime.repository.AnimeUpdatesRepository
@@ -227,6 +229,7 @@ class DomainModule : InjektModule {
         addSingletonFactory<AnimeRepository> { AnimeRepositoryImpl(get(), get()) }
         addSingletonFactory<AnimeEpisodeRepository> { AnimeEpisodeRepositoryImpl(get(), get()) }
         addSingletonFactory<AnimeHistoryRepository> { AnimeHistoryRepositoryImpl(get(), get()) }
+        addSingletonFactory<AnimePlaybackPreferencesRepository> { AnimePlaybackPreferencesRepositoryImpl(get(), get()) }
         addSingletonFactory<AnimePlaybackStateRepository> { AnimePlaybackStateRepositoryImpl(get(), get()) }
         addSingletonFactory<AnimeUpdatesRepository> { AnimeUpdatesRepositoryImpl(get(), get()) }
         addFactory { GetAnime(get()) }

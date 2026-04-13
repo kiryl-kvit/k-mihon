@@ -1,6 +1,8 @@
 package eu.kanade.tachiyomi.ui.video.player
 
 import androidx.lifecycle.SavedStateHandle
+import eu.kanade.tachiyomi.source.model.VideoPlaybackData
+import eu.kanade.tachiyomi.source.model.VideoPlaybackSelection
 import eu.kanade.tachiyomi.source.model.VideoRequest
 import eu.kanade.tachiyomi.source.model.VideoStream
 import eu.kanade.tachiyomi.source.model.VideoStreamType
@@ -20,10 +22,13 @@ import org.junit.jupiter.api.Test
 import tachiyomi.domain.anime.model.AnimeHistory
 import tachiyomi.domain.anime.model.AnimeHistoryWithRelations
 import tachiyomi.domain.anime.model.AnimeHistoryUpdate
+import tachiyomi.domain.anime.model.AnimePlaybackPreferences
 import tachiyomi.domain.anime.model.AnimePlaybackState
 import tachiyomi.domain.anime.model.AnimeTitle
 import tachiyomi.domain.anime.model.AnimeEpisode
+import tachiyomi.domain.anime.model.PlayerQualityMode
 import tachiyomi.domain.anime.repository.AnimeHistoryRepository
+import tachiyomi.domain.anime.repository.AnimePlaybackPreferencesRepository
 import tachiyomi.domain.anime.repository.AnimePlaybackStateRepository
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -56,6 +61,7 @@ class VideoPlayerViewModelTest {
         val viewModel = VideoPlayerViewModel(
             savedState = SavedStateHandle(),
             resolveVideoStream = fakeResolver(animeId = 1L, episodeId = 2L),
+            animePlaybackPreferencesRepository = FakeAnimePlaybackPreferencesRepository(),
             videoPlaybackStateRepository = playbackRepository,
             videoHistoryRepository = historyRepository,
             resolveDispatcher = dispatcher,
@@ -80,6 +86,7 @@ class VideoPlayerViewModelTest {
         val viewModel = VideoPlayerViewModel(
             savedState = SavedStateHandle(),
             resolveVideoStream = fakeResolver(animeId = 1L, episodeId = 2L),
+            animePlaybackPreferencesRepository = FakeAnimePlaybackPreferencesRepository(),
             videoPlaybackStateRepository = playbackRepository,
             videoHistoryRepository = historyRepository,
             resolveDispatcher = dispatcher,
@@ -107,6 +114,7 @@ class VideoPlayerViewModelTest {
         val viewModel = VideoPlayerViewModel(
             savedState = SavedStateHandle(),
             resolveVideoStream = fakeResolver(animeId = 1L, episodeId = 2L),
+            animePlaybackPreferencesRepository = FakeAnimePlaybackPreferencesRepository(),
             videoPlaybackStateRepository = playbackRepository,
             videoHistoryRepository = historyRepository,
             resolveDispatcher = dispatcher,
@@ -148,9 +156,40 @@ class VideoPlayerViewModelTest {
             type = VideoStreamType.HLS,
         )
 
-        return VideoStreamResolver { _, _ ->
-            ResolveVideoStream.Result.Success(video = video, episode = episode, stream = stream)
+        return object : VideoStreamResolver {
+            override suspend fun invoke(
+                animeId: Long,
+                episodeId: Long,
+                selection: VideoPlaybackSelection?,
+            ): ResolveVideoStream.Result {
+                return ResolveVideoStream.Result.Success(
+                    video = video,
+                    episode = episode,
+                    playbackData = VideoPlaybackData(
+                        selection = selection ?: VideoPlaybackSelection(),
+                        streams = listOf(stream),
+                    ),
+                    stream = stream,
+                    savedPreferences = AnimePlaybackPreferences(
+                        animeId = animeId,
+                        dubKey = null,
+                        streamKey = null,
+                        sourceQualityKey = null,
+                        playerQualityMode = PlayerQualityMode.AUTO,
+                        playerQualityHeight = null,
+                        updatedAt = 0L,
+                    ),
+                )
+            }
         }
+    }
+
+    private class FakeAnimePlaybackPreferencesRepository : AnimePlaybackPreferencesRepository {
+        override suspend fun getByAnimeId(animeId: Long): AnimePlaybackPreferences? = null
+
+        override fun getByAnimeIdAsFlow(animeId: Long): Flow<AnimePlaybackPreferences?> = emptyFlow()
+
+        override suspend fun upsert(preferences: AnimePlaybackPreferences) = Unit
     }
 
     private class FakeAnimePlaybackStateRepository(

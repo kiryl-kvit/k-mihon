@@ -7,9 +7,11 @@ import tachiyomi.data.DatabaseHandler
 import tachiyomi.domain.category.interactor.GetAnimeCategories
 import tachiyomi.domain.anime.model.AnimeEpisodeUpdate
 import tachiyomi.domain.anime.model.AnimeHistoryUpdate
+import tachiyomi.domain.anime.model.AnimePlaybackPreferences
 import tachiyomi.domain.anime.model.AnimePlaybackState
 import tachiyomi.domain.anime.repository.AnimeEpisodeRepository
 import tachiyomi.domain.anime.repository.AnimeHistoryRepository
+import tachiyomi.domain.anime.repository.AnimePlaybackPreferencesRepository
 import tachiyomi.domain.anime.repository.AnimePlaybackStateRepository
 import tachiyomi.domain.anime.repository.AnimeRepository
 import uy.kohesive.injekt.Injekt
@@ -23,6 +25,7 @@ class AnimeRestorer(
     private val animeRepository: AnimeRepository = Injekt.get(),
     private val animeEpisodeRepository: AnimeEpisodeRepository = Injekt.get(),
     private val animeHistoryRepository: AnimeHistoryRepository = Injekt.get(),
+    private val animePlaybackPreferencesRepository: AnimePlaybackPreferencesRepository = Injekt.get(),
     private val animePlaybackStateRepository: AnimePlaybackStateRepository = Injekt.get(),
 ) {
 
@@ -72,6 +75,7 @@ class AnimeRestorer(
             restoreCategories(restoredAnime.id, backupAnime.categories, backupCategories)
             restoreEpisodes(restoredAnime.id, backupAnime)
             restoreHistory(restoredAnime.id, backupAnime)
+            restorePlaybackPreferences(restoredAnime.id, backupAnime)
         }
     }
 
@@ -149,5 +153,20 @@ class AnimeRestorer(
                 ),
             )
         }
+    }
+
+    private suspend fun restorePlaybackPreferences(animeId: Long, backupAnime: BackupAnime) {
+        val preferences = backupAnime.playbackPreferences?.toPlaybackPreferences() ?: return
+        animePlaybackPreferencesRepository.upsert(
+            AnimePlaybackPreferences(
+                animeId = animeId,
+                dubKey = preferences.dubKey,
+                streamKey = preferences.streamKey,
+                sourceQualityKey = preferences.sourceQualityKey,
+                playerQualityMode = preferences.playerQualityMode,
+                playerQualityHeight = preferences.playerQualityHeight,
+                updatedAt = preferences.updatedAt,
+            ),
+        )
     }
 }

@@ -13,10 +13,13 @@ import tachiyomi.data.DatabaseHandler
 import tachiyomi.domain.category.interactor.GetAnimeCategories
 import tachiyomi.domain.anime.model.AnimeEpisode
 import tachiyomi.domain.anime.model.AnimeHistory
+import tachiyomi.domain.anime.model.AnimePlaybackPreferences
 import tachiyomi.domain.anime.model.AnimePlaybackState
 import tachiyomi.domain.anime.model.AnimeTitle
+import tachiyomi.domain.anime.model.PlayerQualityMode
 import tachiyomi.domain.anime.repository.AnimeEpisodeRepository
 import tachiyomi.domain.anime.repository.AnimeHistoryRepository
+import tachiyomi.domain.anime.repository.AnimePlaybackPreferencesRepository
 import tachiyomi.domain.anime.repository.AnimePlaybackStateRepository
 import tachiyomi.domain.anime.repository.AnimeRepository
 import java.util.Date
@@ -29,6 +32,7 @@ class AnimeBackupCreatorTest {
     private val animeRepository = mockk<AnimeRepository>()
     private val animeEpisodeRepository = mockk<AnimeEpisodeRepository>()
     private val animeHistoryRepository = mockk<AnimeHistoryRepository>()
+    private val animePlaybackPreferencesRepository = mockk<AnimePlaybackPreferencesRepository>()
     private val animePlaybackStateRepository = mockk<AnimePlaybackStateRepository>()
 
     private val creator = AnimeBackupCreator(
@@ -38,6 +42,7 @@ class AnimeBackupCreatorTest {
         animeRepository = animeRepository,
         animeEpisodeRepository = animeEpisodeRepository,
         animeHistoryRepository = animeHistoryRepository,
+        animePlaybackPreferencesRepository = animePlaybackPreferencesRepository,
         animePlaybackStateRepository = animePlaybackStateRepository,
     )
 
@@ -79,12 +84,22 @@ class AnimeBackupCreatorTest {
             watchedAt = Date(999L),
             watchedDuration = 1_500L,
         )
+        val playbackPreferences = AnimePlaybackPreferences(
+            animeId = video.id,
+            dubKey = "dub-1",
+            streamKey = "stream-1",
+            sourceQualityKey = "720p",
+            playerQualityMode = PlayerQualityMode.AUTO,
+            playerQualityHeight = null,
+            updatedAt = 1_234L,
+        )
 
         coEvery { handler.awaitList<Any>(false, any()) } returnsMany listOf(
             listOf(episode),
             listOf(history),
         )
         coEvery { handler.awaitOneOrNull<Any>(false, any()) } returnsMany listOf(
+            playbackPreferences,
             episode,
             playbackState,
             episode,
@@ -97,6 +112,9 @@ class AnimeBackupCreatorTest {
         )
 
         backup.size shouldBe 1
+        backup.single().playbackPreferences?.dubKey shouldBe playbackPreferences.dubKey
+        backup.single().playbackPreferences?.streamKey shouldBe playbackPreferences.streamKey
+        backup.single().playbackPreferences?.sourceQualityKey shouldBe playbackPreferences.sourceQualityKey
         backup.single().episodes.single().url shouldBe episode.url
         backup.single().playbackStates.single().url shouldBe episode.url
         backup.single().playbackStates.single().positionMs shouldBe playbackState.positionMs
@@ -105,7 +123,7 @@ class AnimeBackupCreatorTest {
         backup.single().history.single().watchedDuration shouldBe history.watchedDuration
 
         coVerify(exactly = 2) { handler.awaitList<Any>(false, any()) }
-        coVerify(exactly = 3) { handler.awaitOneOrNull<Any>(false, any()) }
+        coVerify(exactly = 4) { handler.awaitOneOrNull<Any>(false, any()) }
 
         coVerify(exactly = 0) { animeEpisodeRepository.getEpisodesByAnimeId(any()) }
         coVerify(exactly = 0) { animeEpisodeRepository.getEpisodeByUrlAndAnimeId(any(), any()) }

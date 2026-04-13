@@ -13,21 +13,27 @@ import android.view.ViewGroup
 import androidx.activity.viewModels
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -60,6 +66,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import tachiyomi.presentation.core.components.HeadingItem
+import tachiyomi.presentation.core.components.SettingsChipRow
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.i18n.MR
 import uy.kohesive.injekt.Injekt
@@ -185,6 +193,7 @@ class VideoPlayerActivity : BaseActivity() {
                 val context = LocalContext.current
                 var controlsVisible by remember(current.streamUrl) { mutableStateOf(false) }
                 var startupOverlayVisible by remember(current.streamUrl) { mutableStateOf(true) }
+                var settingsVisible by remember(current.streamUrl) { mutableStateOf(false) }
                 val currentPlayer = remember(current.streamUrl) {
                     buildVideoPlayer(
                         context = context,
@@ -206,6 +215,10 @@ class VideoPlayerActivity : BaseActivity() {
                                 override fun onRenderedFirstFrame() {
                                     startupOverlayVisible = false
                                 }
+
+                                override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                                    viewModel.updateAdaptiveQualities(exoPlayer.availableAdaptiveQualities())
+                                }
                             },
                         )
                         if (current.resumePositionMs > 0L) {
@@ -218,8 +231,13 @@ class VideoPlayerActivity : BaseActivity() {
                     releasePlayer(persistState = false)
                     player = currentPlayer
                     startProgressSaves(currentPlayer)
+                    currentPlayer.applyAdaptiveQuality(current.playback.currentAdaptiveQuality)
                     currentPlayer.playWhenReady = true
                     currentPlayer.prepare()
+                }
+
+                LaunchedEffect(current.playback.currentAdaptiveQuality, currentPlayer) {
+                    currentPlayer.applyAdaptiveQuality(current.playback.currentAdaptiveQuality)
                 }
 
                 Box(
@@ -262,7 +280,19 @@ class VideoPlayerActivity : BaseActivity() {
                             videoTitle = current.videoTitle,
                             episodeName = current.episodeName,
                             onBack = ::finish,
+                            onOpenSettings = { settingsVisible = true },
                             onOpenExternal = { openInExternalPlayer(current.stream) },
+                        )
+                    }
+
+                    if (settingsVisible) {
+                        VideoPlayerSettingsSheet(
+                            playback = current.playback,
+                            onDismissRequest = { settingsVisible = false },
+                            onSelectDub = viewModel::selectDub,
+                            onSelectStream = viewModel::selectStream,
+                            onSelectSourceQuality = viewModel::selectSourceQuality,
+                            onSelectAdaptiveQuality = viewModel::selectAdaptiveQuality,
                         )
                     }
                 }
@@ -313,6 +343,7 @@ class VideoPlayerActivity : BaseActivity() {
         videoTitle: String,
         episodeName: String,
         onBack: () -> Unit,
+        onOpenSettings: () -> Unit,
         onOpenExternal: () -> Unit,
     ) {
         Row(
@@ -350,6 +381,13 @@ class VideoPlayerActivity : BaseActivity() {
                 )
             }
             Spacer(modifier = Modifier.padding(horizontal = 4.dp))
+            IconButton(onClick = onOpenSettings) {
+                Icon(
+                    imageVector = Icons.Outlined.Settings,
+                    contentDescription = stringResource(MR.strings.label_settings),
+                    tint = Color.White,
+                )
+            }
             IconButton(onClick = onOpenExternal) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Outlined.OpenInNew,
@@ -411,6 +449,94 @@ class VideoPlayerActivity : BaseActivity() {
     private fun HideSystemUiEffect() {
         LaunchedEffect(Unit) {
             hideSystemUi()
+        }
+    }
+
+    @Composable
+    private fun VideoPlayerSettingsSheet(
+        playback: VideoPlaybackUiState,
+        onDismissRequest: () -> Unit,
+        onSelectDub: (String?) -> Unit,
+        onSelectStream: (String?) -> Unit,
+        onSelectSourceQuality: (String?) -> Unit,
+        onSelectAdaptiveQuality: (VideoAdaptiveQualityPreference) -> Unit,
+    ) {
+        ModalBottomSheet(onDismissRequest = onDismissRequest) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 520.dp),
+                contentPadding = PaddingValues(bottom = 24.dp),
+            ) {
+                if (playback.playbackData.dubs.isNotEmpty()) {
+                    item {
+                        HeadingItem(MR.strings.anime_playback_dub)
+                        PlaybackOptionRow(
+                            options = playback.playbackData.dubs,
+                            titleRes = MR.strings.anime_playback_dub,
+                            selectedKey = playback.sourceSelection.dubKey,
+                            onSelect = onSelectDub,
+                        )
+                    }
+                }
+
+                if (playback.streamOptions.size > 1) {
+                    item {
+                        HeadingItem(MR.strings.anime_playback_stream)
+                        PlaybackOptionRow(
+                            options = playback.streamOptions,
+                            titleRes = MR.strings.anime_playback_stream,
+                            selectedKey = playback.sourceSelection.streamKey,
+                            onSelect = onSelectStream,
+                        )
+                    }
+                }
+
+                if (playback.playbackData.sourceQualities.isNotEmpty()) {
+                    item {
+                        HeadingItem(MR.strings.anime_playback_source_quality)
+                        PlaybackOptionRow(
+                            options = playback.playbackData.sourceQualities,
+                            titleRes = MR.strings.anime_playback_source_quality,
+                            selectedKey = playback.sourceSelection.sourceQualityKey,
+                            onSelect = onSelectSourceQuality,
+                        )
+                    }
+                }
+
+                if (playback.adaptiveQualities.size > 1) {
+                    item {
+                        HeadingItem(MR.strings.anime_playback_quality)
+                        SettingsChipRow(MR.strings.anime_playback_quality) {
+                            playback.adaptiveQualities.forEach { option ->
+                                FilterChip(
+                                    selected = option.preference == playback.currentAdaptiveQuality,
+                                    onClick = { onSelectAdaptiveQuality(option.preference) },
+                                    label = { Text(option.label) },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun PlaybackOptionRow(
+        options: List<eu.kanade.tachiyomi.source.model.VideoPlaybackOption>,
+        titleRes: dev.icerock.moko.resources.StringResource,
+        selectedKey: String?,
+        onSelect: (String?) -> Unit,
+    ) {
+        SettingsChipRow(titleRes) {
+            options.forEach { option ->
+                FilterChip(
+                    selected = option.key == selectedKey,
+                    onClick = { onSelect(option.key) },
+                    label = { Text(option.label) },
+                )
+            }
         }
     }
 

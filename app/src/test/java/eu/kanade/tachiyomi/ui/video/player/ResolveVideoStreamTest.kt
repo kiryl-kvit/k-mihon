@@ -1,6 +1,8 @@
 package eu.kanade.tachiyomi.ui.video.player
 
 import eu.kanade.tachiyomi.source.AnimeSource
+import eu.kanade.tachiyomi.source.model.VideoPlaybackData
+import eu.kanade.tachiyomi.source.model.VideoPlaybackSelection
 import eu.kanade.tachiyomi.source.model.VideoRequest
 import eu.kanade.tachiyomi.source.model.VideoStream
 import eu.kanade.tachiyomi.source.model.VideoStreamType
@@ -14,8 +16,11 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 import tachiyomi.domain.source.service.AnimeSourceManager
 import tachiyomi.domain.anime.model.AnimeEpisode
+import tachiyomi.domain.anime.model.AnimePlaybackPreferences
+import tachiyomi.domain.anime.model.PlayerQualityMode
 import tachiyomi.domain.anime.model.AnimeTitle
 import tachiyomi.domain.anime.repository.AnimeEpisodeRepository
+import tachiyomi.domain.anime.repository.AnimePlaybackPreferencesRepository
 import tachiyomi.domain.anime.repository.AnimeRepository
 
 class ResolveVideoStreamTest {
@@ -38,6 +43,7 @@ class ResolveVideoStreamTest {
         val resolver = ResolveVideoStream(
             videoRepository = FakeAnimeRepository(video),
             videoEpisodeRepository = FakeAnimeEpisodeRepository(episode),
+            animePlaybackPreferencesRepository = FakeAnimePlaybackPreferencesRepository(),
             videoSourceManager = FakeAnimeSourceManager(
                 source = FakeAnimeSource(video.source) { listOf(firstStream, secondStream) },
             ),
@@ -58,6 +64,7 @@ class ResolveVideoStreamTest {
         val resolver = ResolveVideoStream(
             videoRepository = FakeAnimeRepository(video),
             videoEpisodeRepository = FakeAnimeEpisodeRepository(episode),
+            animePlaybackPreferencesRepository = FakeAnimePlaybackPreferencesRepository(),
             videoSourceManager = FakeAnimeSourceManager(
                 source = FakeAnimeSource(video.source) { emptyList() },
                 initialized = false,
@@ -78,6 +85,7 @@ class ResolveVideoStreamTest {
         val resolver = ResolveVideoStream(
             videoRepository = FakeAnimeRepository(video),
             videoEpisodeRepository = FakeAnimeEpisodeRepository(episode),
+            animePlaybackPreferencesRepository = FakeAnimePlaybackPreferencesRepository(),
             videoSourceManager = FakeAnimeSourceManager(
                 source = FakeAnimeSource(video.source) {
                     delay(10)
@@ -100,6 +108,7 @@ class ResolveVideoStreamTest {
         val resolver = ResolveVideoStream(
             videoRepository = FakeAnimeRepository(video),
             videoEpisodeRepository = FakeAnimeEpisodeRepository(episode),
+            animePlaybackPreferencesRepository = FakeAnimePlaybackPreferencesRepository(),
             videoSourceManager = FakeAnimeSourceManager(source = null),
         )
 
@@ -116,6 +125,7 @@ class ResolveVideoStreamTest {
         val resolver = ResolveVideoStream(
             videoRepository = FakeAnimeRepository(video),
             videoEpisodeRepository = FakeAnimeEpisodeRepository(episode),
+            animePlaybackPreferencesRepository = FakeAnimePlaybackPreferencesRepository(),
             videoSourceManager = FakeAnimeSourceManager(
                 source = FakeAnimeSource(video.source) { emptyList() },
             ),
@@ -134,6 +144,7 @@ class ResolveVideoStreamTest {
         val resolver = ResolveVideoStream(
             videoRepository = FakeAnimeRepository(video),
             videoEpisodeRepository = FakeAnimeEpisodeRepository(episode),
+            animePlaybackPreferencesRepository = FakeAnimePlaybackPreferencesRepository(),
             videoSourceManager = FakeAnimeSourceManager(
                 source = FakeAnimeSource(video.source) { emptyList() },
             ),
@@ -235,6 +246,32 @@ class ResolveVideoStreamTest {
 
         override suspend fun getEpisodeList(anime: eu.kanade.tachiyomi.source.model.SAnime) = error("Not used")
 
-        override suspend fun getStreamList(episode: eu.kanade.tachiyomi.source.model.SEpisode): List<VideoStream> = streams()
+        override suspend fun getPlaybackData(
+            episode: eu.kanade.tachiyomi.source.model.SEpisode,
+            selection: VideoPlaybackSelection,
+        ): VideoPlaybackData {
+            return VideoPlaybackData(
+                selection = selection,
+                streams = streams(),
+            )
+        }
+    }
+
+    private class FakeAnimePlaybackPreferencesRepository : AnimePlaybackPreferencesRepository {
+        override suspend fun getByAnimeId(animeId: Long): AnimePlaybackPreferences? {
+            return AnimePlaybackPreferences(
+                animeId = animeId,
+                dubKey = null,
+                streamKey = null,
+                sourceQualityKey = null,
+                playerQualityMode = PlayerQualityMode.AUTO,
+                playerQualityHeight = null,
+                updatedAt = 0L,
+            )
+        }
+
+        override fun getByAnimeIdAsFlow(animeId: Long) = emptyFlow<AnimePlaybackPreferences?>()
+
+        override suspend fun upsert(preferences: AnimePlaybackPreferences) = Unit
     }
 }

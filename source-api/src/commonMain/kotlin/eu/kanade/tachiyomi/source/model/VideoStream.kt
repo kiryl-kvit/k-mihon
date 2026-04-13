@@ -8,6 +8,7 @@ data class VideoStream(
     val label: String = "",
     val type: VideoStreamType = VideoStreamType.UNKNOWN,
     val mimeType: String? = null,
+    val key: String = "",
 )
 
 @Serializable

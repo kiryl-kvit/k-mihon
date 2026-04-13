@@ -83,6 +83,12 @@ class ProfileDatabase(
 
     suspend fun clearProfileData(profileId: Long) {
         handler.await(inTransaction = true) {
+            anime_playback_preferencesQueries.deleteByProfile(profileId)
+            anime_historyQueries.removeAllHistory(profileId)
+            anime_playback_stateQueries.deleteByProfile(profileId)
+            animes_categoriesQueries.deleteByProfile(profileId)
+            anime_episodesQueries.deleteByProfile(profileId)
+            animesQueries.deleteByProfile(profileId)
             historyQueries.removeAllHistory(profileId)
             excluded_scanlatorsQueries.deleteByProfile(profileId)
             manga_syncQueries.deleteByProfile(profileId)

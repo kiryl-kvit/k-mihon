@@ -4,20 +4,24 @@ import eu.kanade.tachiyomi.data.backup.create.BackupOptions
 import eu.kanade.tachiyomi.data.backup.models.BackupAnime
 import eu.kanade.tachiyomi.data.backup.models.BackupAnimeEpisode
 import eu.kanade.tachiyomi.data.backup.models.BackupAnimeHistory
+import eu.kanade.tachiyomi.data.backup.models.BackupAnimePlaybackPreferences
 import eu.kanade.tachiyomi.data.backup.models.BackupAnimePlaybackState
 import tachiyomi.data.ActiveProfileProvider
 import tachiyomi.data.DatabaseHandler
 import tachiyomi.data.anime.AnimeEpisodeMapper
 import tachiyomi.data.anime.AnimeHistoryMapper
+import tachiyomi.data.anime.AnimePlaybackPreferencesMapper
 import tachiyomi.data.anime.AnimePlaybackStateMapper
 import tachiyomi.domain.category.interactor.GetAnimeCategories
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.anime.model.AnimeEpisode
 import tachiyomi.domain.anime.model.AnimeHistory
+import tachiyomi.domain.anime.model.AnimePlaybackPreferences
 import tachiyomi.domain.anime.model.AnimePlaybackState
 import tachiyomi.domain.anime.model.AnimeTitle
 import tachiyomi.domain.anime.repository.AnimeEpisodeRepository
 import tachiyomi.domain.anime.repository.AnimeHistoryRepository
+import tachiyomi.domain.anime.repository.AnimePlaybackPreferencesRepository
 import tachiyomi.domain.anime.repository.AnimePlaybackStateRepository
 import tachiyomi.domain.anime.repository.AnimeRepository
 import uy.kohesive.injekt.Injekt
@@ -30,6 +34,7 @@ class AnimeBackupCreator(
     private val animeRepository: AnimeRepository = Injekt.get(),
     private val animeEpisodeRepository: AnimeEpisodeRepository = Injekt.get(),
     private val animeHistoryRepository: AnimeHistoryRepository = Injekt.get(),
+    private val animePlaybackPreferencesRepository: AnimePlaybackPreferencesRepository = Injekt.get(),
     private val animePlaybackStateRepository: AnimePlaybackStateRepository = Injekt.get(),
 ) {
 
@@ -51,6 +56,16 @@ class AnimeBackupCreator(
         options: BackupOptions,
     ): BackupAnime {
         val animeObject = anime.toBackupAnime()
+        getPlaybackPreferencesForBackup(profileId, anime.id)?.let { preferences ->
+            animeObject.playbackPreferences = BackupAnimePlaybackPreferences(
+                dubKey = preferences.dubKey,
+                streamKey = preferences.streamKey,
+                sourceQualityKey = preferences.sourceQualityKey,
+                playerQualityMode = AnimePlaybackPreferencesMapper.encodePlayerQualityMode(preferences.playerQualityMode),
+                playerQualityHeight = preferences.playerQualityHeight,
+                updatedAt = preferences.updatedAt,
+            )
+        }
 
         if (options.chapters) {
             animeObject.episodes = getEpisodesForBackup(profileId, anime.id)
@@ -154,6 +169,20 @@ class AnimeBackupCreator(
         } else {
             handler.awaitOneOrNull {
                 anime_playback_stateQueries.getByEpisodeId(profileId, episodeId, AnimePlaybackStateMapper::mapState)
+            }
+        }
+    }
+
+    private suspend fun getPlaybackPreferencesForBackup(profileId: Long, animeId: Long): AnimePlaybackPreferences? {
+        return if (profileId == profileProvider.activeProfileId) {
+            animePlaybackPreferencesRepository.getByAnimeId(animeId)
+        } else {
+            handler.awaitOneOrNull {
+                anime_playback_preferencesQueries.getByAnimeId(
+                    profileId,
+                    animeId,
+                    AnimePlaybackPreferencesMapper::mapPreferences,
+                )
             }
         }
     }

@@ -161,7 +161,10 @@ class AnimeLibraryScreenModelTest {
 
         override suspend fun getEpisodeList(anime: eu.kanade.tachiyomi.source.model.SAnime) = error("Not used")
 
-        override suspend fun getStreamList(episode: eu.kanade.tachiyomi.source.model.SEpisode) = error("Not used")
+        override suspend fun getPlaybackData(
+            episode: eu.kanade.tachiyomi.source.model.SEpisode,
+            selection: eu.kanade.tachiyomi.source.model.VideoPlaybackSelection,
+        ) = error("Not used")
     }
 
     private class FakeCategoryRepository : CategoryRepository {

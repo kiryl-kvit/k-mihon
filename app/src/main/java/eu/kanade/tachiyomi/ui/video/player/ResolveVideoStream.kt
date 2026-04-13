@@ -1,15 +1,20 @@
 package eu.kanade.tachiyomi.ui.video.player
 
 import eu.kanade.domain.anime.model.toSEpisode
+import eu.kanade.tachiyomi.source.model.VideoPlaybackData
+import eu.kanade.tachiyomi.source.model.VideoPlaybackSelection
 import eu.kanade.tachiyomi.source.model.VideoStream
 import eu.kanade.tachiyomi.source.model.VideoStreamType
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
+import tachiyomi.domain.anime.model.AnimePlaybackPreferences
+import tachiyomi.domain.anime.model.PlayerQualityMode
 import tachiyomi.domain.source.service.AnimeSourceManager
 import tachiyomi.domain.anime.model.AnimeEpisode
 import tachiyomi.domain.anime.model.AnimeTitle
 import tachiyomi.domain.anime.repository.AnimeEpisodeRepository
+import tachiyomi.domain.anime.repository.AnimePlaybackPreferencesRepository
 import tachiyomi.domain.anime.repository.AnimeRepository
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -17,12 +22,17 @@ import uy.kohesive.injekt.api.get
 class ResolveVideoStream(
     private val videoRepository: AnimeRepository = Injekt.get(),
     private val videoEpisodeRepository: AnimeEpisodeRepository = Injekt.get(),
+    private val animePlaybackPreferencesRepository: AnimePlaybackPreferencesRepository = Injekt.get(),
     private val videoSourceManager: AnimeSourceManager = Injekt.get(),
     private val sourceInitTimeoutMs: Long = SOURCE_INIT_TIMEOUT_MS,
     private val streamFetchTimeoutMs: Long = STREAM_FETCH_TIMEOUT_MS,
 ) : VideoStreamResolver {
 
-    override suspend operator fun invoke(animeId: Long, episodeId: Long): Result {
+    override suspend operator fun invoke(
+        animeId: Long,
+        episodeId: Long,
+        selection: VideoPlaybackSelection?,
+    ): Result {
         val video = runCatching { videoRepository.getAnimeById(animeId) }
             .getOrElse { return Result.Error(Reason.VideoNotFound) }
         val episode = videoEpisodeRepository.getEpisodeById(episodeId)
@@ -42,23 +52,40 @@ class ResolveVideoStream(
         val source = videoSourceManager.get(video.source)
             ?: return Result.Error(Reason.SourceNotFound)
 
-        val streams = runCatching {
+        val savedPreferences = animePlaybackPreferencesRepository.getByAnimeId(video.id)
+            ?: defaultPlaybackPreferences(video.id)
+        val requestedSelection = selection ?: VideoPlaybackSelection(
+            dubKey = savedPreferences.dubKey,
+            streamKey = savedPreferences.streamKey,
+            sourceQualityKey = savedPreferences.sourceQualityKey,
+        )
+
+        val playbackData = runCatching {
             withTimeoutOrNull(streamFetchTimeoutMs) {
-                source.getStreamList(episode.toSEpisode())
+                source.getPlaybackData(episode.toSEpisode(), requestedSelection)
             } ?: return Result.Error(Reason.StreamFetchTimeout)
         }.getOrElse {
             return Result.Error(Reason.StreamFetchFailed(it))
         }
 
-        val stream = streams
-            .filter { it.request.url.isNotBlank() }
-            .maxByOrNull(::streamScore)
+        val validStreams = playbackData.streams.filter { it.request.url.isNotBlank() }
+        val stream = validStreams
+            .firstOrNull { streamChoiceKey(it) == requestedSelection.streamKey }
+            ?: validStreams.maxByOrNull(::streamScore)
             ?: return Result.Error(Reason.NoStreams)
+
+        val resolvedPlaybackData = playbackData.copy(
+            selection = playbackData.selection.copy(
+                streamKey = streamChoiceKey(stream),
+            ),
+        )
 
         return Result.Success(
             video = video,
             episode = episode,
+            playbackData = resolvedPlaybackData,
             stream = stream,
+            savedPreferences = savedPreferences,
         )
     }
 
@@ -66,7 +93,9 @@ class ResolveVideoStream(
         data class Success(
             val video: AnimeTitle,
             val episode: AnimeEpisode,
+            val playbackData: VideoPlaybackData,
             val stream: VideoStream,
+            val savedPreferences: AnimePlaybackPreferences,
         ) : Result
 
         data class Error(val reason: Reason) : Result
@@ -106,6 +135,24 @@ class ResolveVideoStream(
         val headerScore = if (stream.request.headers.isNotEmpty()) 5 else 0
         val labelScore = if (stream.label.isNotBlank()) 1 else 0
         return typeScore + mimeScore + headerScore + labelScore
+    }
+
+    private fun streamChoiceKey(stream: VideoStream): String {
+        return stream.key.ifBlank {
+            stream.label.ifBlank { stream.request.url }
+        }
+    }
+
+    private fun defaultPlaybackPreferences(animeId: Long): AnimePlaybackPreferences {
+        return AnimePlaybackPreferences(
+            animeId = animeId,
+            dubKey = null,
+            streamKey = null,
+            sourceQualityKey = null,
+            playerQualityMode = PlayerQualityMode.AUTO,
+            playerQualityHeight = null,
+            updatedAt = 0L,
+        )
     }
 
     private companion object {
