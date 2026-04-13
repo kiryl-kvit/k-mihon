@@ -7,8 +7,8 @@ import eu.kanade.domain.download.interactor.DeleteDownload
 import eu.kanade.domain.extension.interactor.GetExtensionLanguages
 import eu.kanade.domain.extension.interactor.GetExtensionSources
 import eu.kanade.domain.extension.interactor.GetExtensionsByType
-import eu.kanade.domain.extension.interactor.GetVideoExtensionSources
-import eu.kanade.domain.extension.interactor.GetVideoExtensions
+import eu.kanade.domain.extension.interactor.GetAnimeExtensionSources
+import eu.kanade.domain.extension.interactor.GetAnimeExtensions
 import eu.kanade.domain.extension.interactor.TrustExtension
 import eu.kanade.domain.manga.interactor.EnhanceDuplicateLibraryManga
 import eu.kanade.domain.manga.interactor.GetEnhancedDuplicateLibraryManga
@@ -17,7 +17,7 @@ import eu.kanade.domain.manga.interactor.SetExcludedScanlators
 import eu.kanade.domain.manga.interactor.SetMangaViewerFlags
 import eu.kanade.domain.manga.interactor.UpdateManga
 import eu.kanade.domain.source.interactor.GetEnabledSources
-import eu.kanade.domain.source.interactor.GetEnabledVideoSources
+import eu.kanade.domain.source.interactor.GetEnabledAnimeSources
 import eu.kanade.domain.source.interactor.GetIncognitoState
 import eu.kanade.domain.source.interactor.GetLanguagesWithSources
 import eu.kanade.domain.source.interactor.GetSourcesWithFavoriteCount
@@ -26,8 +26,8 @@ import eu.kanade.domain.source.interactor.ToggleIncognito
 import eu.kanade.domain.source.interactor.ToggleLanguage
 import eu.kanade.domain.source.interactor.ToggleSource
 import eu.kanade.domain.source.interactor.ToggleSourcePin
-import eu.kanade.domain.source.interactor.ToggleVideoSource
-import eu.kanade.domain.source.interactor.ToggleVideoSourcePin
+import eu.kanade.domain.source.interactor.ToggleAnimeSource
+import eu.kanade.domain.source.interactor.ToggleAnimeSourcePin
 import eu.kanade.domain.source.service.BrowseFeedService
 import eu.kanade.domain.source.service.ProfileHiddenSourceIds
 import eu.kanade.domain.track.interactor.AddTracks
@@ -55,24 +55,24 @@ import tachiyomi.data.manga.MergedMangaRepositoryImpl
 import tachiyomi.data.release.ReleaseServiceImpl
 import tachiyomi.data.source.SourceRepositoryImpl
 import tachiyomi.data.source.StubSourceRepositoryImpl
-import tachiyomi.data.source.VideoSourceRepositoryImpl
+import tachiyomi.data.source.AnimeSourceRepositoryImpl
 import tachiyomi.data.track.TrackRepositoryImpl
 import tachiyomi.data.updates.UpdatesRepositoryImpl
-import tachiyomi.data.video.VideoEpisodeRepositoryImpl
-import tachiyomi.data.video.VideoHistoryRepositoryImpl
-import tachiyomi.data.video.VideoPlaybackStateRepositoryImpl
-import tachiyomi.data.video.VideoRepositoryImpl
-import tachiyomi.data.video.VideoUpdatesRepositoryImpl
+import tachiyomi.data.anime.AnimeEpisodeRepositoryImpl
+import tachiyomi.data.anime.AnimeHistoryRepositoryImpl
+import tachiyomi.data.anime.AnimePlaybackStateRepositoryImpl
+import tachiyomi.data.anime.AnimeRepositoryImpl
+import tachiyomi.data.anime.AnimeUpdatesRepositoryImpl
 import tachiyomi.domain.category.interactor.CreateCategoryWithName
 import tachiyomi.domain.category.interactor.DeleteCategory
 import tachiyomi.domain.category.interactor.GetCategories
-import tachiyomi.domain.category.interactor.GetVideoCategories
+import tachiyomi.domain.category.interactor.GetAnimeCategories
 import tachiyomi.domain.category.interactor.RenameCategory
 import tachiyomi.domain.category.interactor.ReorderCategory
 import tachiyomi.domain.category.interactor.ResetCategoryFlags
 import tachiyomi.domain.category.interactor.SetDisplayMode
 import tachiyomi.domain.category.interactor.SetMangaCategories
-import tachiyomi.domain.category.interactor.SetVideoCategories
+import tachiyomi.domain.category.interactor.SetAnimeCategories
 import tachiyomi.domain.category.interactor.SetSortModeForCategory
 import tachiyomi.domain.category.interactor.UpdateCategory
 import tachiyomi.domain.category.repository.CategoryRepository
@@ -108,11 +108,11 @@ import tachiyomi.domain.manga.repository.MergedMangaRepository
 import tachiyomi.domain.release.interactor.GetApplicationRelease
 import tachiyomi.domain.release.service.ReleaseService
 import tachiyomi.domain.source.interactor.GetRemoteManga
-import tachiyomi.domain.source.interactor.GetRemoteVideo
+import tachiyomi.domain.source.interactor.GetRemoteAnime
 import tachiyomi.domain.source.interactor.GetSourcesWithNonLibraryManga
 import tachiyomi.domain.source.repository.SourceRepository
 import tachiyomi.domain.source.repository.StubSourceRepository
-import tachiyomi.domain.source.repository.VideoSourceRepository
+import tachiyomi.domain.source.repository.AnimeSourceRepository
 import tachiyomi.domain.source.service.HiddenSourceIds
 import tachiyomi.domain.track.interactor.DeleteTrack
 import tachiyomi.domain.track.interactor.GetTracks
@@ -121,14 +121,14 @@ import tachiyomi.domain.track.interactor.InsertTrack
 import tachiyomi.domain.track.repository.TrackRepository
 import tachiyomi.domain.updates.interactor.GetUpdates
 import tachiyomi.domain.updates.repository.UpdatesRepository
-import tachiyomi.domain.video.repository.VideoEpisodeRepository
-import tachiyomi.domain.video.repository.VideoHistoryRepository
-import tachiyomi.domain.video.repository.VideoPlaybackStateRepository
-import tachiyomi.domain.video.repository.VideoRepository
-import tachiyomi.domain.video.repository.VideoUpdatesRepository
-import tachiyomi.domain.video.interactor.GetVideo
-import tachiyomi.domain.video.interactor.NetworkToLocalVideo
-import tachiyomi.domain.video.interactor.SyncVideoWithSource
+import tachiyomi.domain.anime.repository.AnimeEpisodeRepository
+import tachiyomi.domain.anime.repository.AnimeHistoryRepository
+import tachiyomi.domain.anime.repository.AnimePlaybackStateRepository
+import tachiyomi.domain.anime.repository.AnimeRepository
+import tachiyomi.domain.anime.repository.AnimeUpdatesRepository
+import tachiyomi.domain.anime.interactor.GetAnime
+import tachiyomi.domain.anime.interactor.NetworkToLocalAnime
+import tachiyomi.domain.anime.interactor.SyncAnimeWithSource
 import uy.kohesive.injekt.api.InjektModule
 import uy.kohesive.injekt.api.InjektRegistrar
 import uy.kohesive.injekt.api.addFactory
@@ -140,7 +140,7 @@ class DomainModule : InjektModule {
     override fun InjektRegistrar.registerInjectables() {
         addSingletonFactory<CategoryRepository> { CategoryRepositoryImpl(get(), get()) }
         addFactory { GetCategories(get()) }
-        addFactory { GetVideoCategories(get()) }
+        addFactory { GetAnimeCategories(get()) }
         addFactory { ResetCategoryFlags(get(), get()) }
         addFactory { SetDisplayMode(get()) }
         addFactory { SetSortModeForCategory(get(), get()) }
@@ -173,7 +173,7 @@ class DomainModule : InjektModule {
         addFactory { UpdateMergedManga(get()) }
         addFactory { UpdateMangaNotes(get()) }
         addFactory { SetMangaCategories(get()) }
-        addFactory { SetVideoCategories(get()) }
+        addFactory { SetAnimeCategories(get()) }
         addFactory { GetExcludedScanlators(get(), get()) }
         addFactory { SetExcludedScanlators(get(), get()) }
         addFactory {
@@ -217,40 +217,40 @@ class DomainModule : InjektModule {
 
         addFactory { GetExtensionsByType(get(), get()) }
         addFactory { GetExtensionSources(get()) }
-        addFactory { GetVideoExtensions(get()) }
-        addFactory { GetVideoExtensionSources(get()) }
+        addFactory { GetAnimeExtensions(get()) }
+        addFactory { GetAnimeExtensionSources(get()) }
         addFactory { GetExtensionLanguages(get(), get()) }
 
         addSingletonFactory<UpdatesRepository> { UpdatesRepositoryImpl(get(), get()) }
         addFactory { GetUpdates(get(), get()) }
 
-        addSingletonFactory<VideoRepository> { VideoRepositoryImpl(get(), get()) }
-        addSingletonFactory<VideoEpisodeRepository> { VideoEpisodeRepositoryImpl(get(), get()) }
-        addSingletonFactory<VideoHistoryRepository> { VideoHistoryRepositoryImpl(get(), get()) }
-        addSingletonFactory<VideoPlaybackStateRepository> { VideoPlaybackStateRepositoryImpl(get(), get()) }
-        addSingletonFactory<VideoUpdatesRepository> { VideoUpdatesRepositoryImpl(get(), get()) }
-        addFactory { GetVideo(get()) }
-        addFactory { NetworkToLocalVideo(get()) }
-        addFactory { SyncVideoWithSource(get(), get(), get()) }
+        addSingletonFactory<AnimeRepository> { AnimeRepositoryImpl(get(), get()) }
+        addSingletonFactory<AnimeEpisodeRepository> { AnimeEpisodeRepositoryImpl(get(), get()) }
+        addSingletonFactory<AnimeHistoryRepository> { AnimeHistoryRepositoryImpl(get(), get()) }
+        addSingletonFactory<AnimePlaybackStateRepository> { AnimePlaybackStateRepositoryImpl(get(), get()) }
+        addSingletonFactory<AnimeUpdatesRepository> { AnimeUpdatesRepositoryImpl(get(), get()) }
+        addFactory { GetAnime(get()) }
+        addFactory { NetworkToLocalAnime(get()) }
+        addFactory { SyncAnimeWithSource(get(), get(), get()) }
 
         addSingletonFactory<HiddenSourceIds> { ProfileHiddenSourceIds(get()) }
         addSingletonFactory<SourceRepository> { SourceRepositoryImpl(get(), get(), get()) }
-        addSingletonFactory<VideoSourceRepository> { VideoSourceRepositoryImpl(get()) }
+        addSingletonFactory<AnimeSourceRepository> { AnimeSourceRepositoryImpl(get()) }
         addSingletonFactory<StubSourceRepository> { StubSourceRepositoryImpl(get()) }
         addFactory { GetEnabledSources(get(), get()) }
-        addFactory { GetEnabledVideoSources(get(), get()) }
+        addFactory { GetEnabledAnimeSources(get(), get()) }
         addSingletonFactory { BrowseFeedService(get()) }
         addFactory { GetLanguagesWithSources(get(), get()) }
         addFactory { GetRemoteManga(get()) }
-        addFactory { GetRemoteVideo(get()) }
+        addFactory { GetRemoteAnime(get()) }
         addFactory { GetSourcesWithFavoriteCount(get(), get()) }
         addFactory { GetSourcesWithNonLibraryManga(get(), get()) }
         addFactory { SetMigrateSorting(get()) }
         addFactory { ToggleLanguage(get()) }
         addFactory { ToggleSource(get()) }
-        addFactory { ToggleVideoSource(get()) }
+        addFactory { ToggleAnimeSource(get()) }
         addFactory { ToggleSourcePin(get()) }
-        addFactory { ToggleVideoSourcePin(get()) }
+        addFactory { ToggleAnimeSourcePin(get()) }
         addFactory { TrustExtension(get(), get()) }
 
         addSingletonFactory<ExtensionRepoRepository> { ExtensionRepoRepositoryImpl(get()) }

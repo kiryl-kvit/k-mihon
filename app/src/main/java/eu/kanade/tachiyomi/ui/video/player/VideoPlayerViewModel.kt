@@ -13,16 +13,16 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import tachiyomi.domain.video.repository.VideoHistoryRepository
-import tachiyomi.domain.video.repository.VideoPlaybackStateRepository
+import tachiyomi.domain.anime.repository.AnimeHistoryRepository
+import tachiyomi.domain.anime.repository.AnimePlaybackStateRepository
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 class VideoPlayerViewModel(
     private val savedState: SavedStateHandle,
     private val resolveVideoStream: VideoStreamResolver = Injekt.get<ResolveVideoStream>(),
-    private val videoPlaybackStateRepository: VideoPlaybackStateRepository = Injekt.get(),
-    private val videoHistoryRepository: VideoHistoryRepository = Injekt.get(),
+    private val videoPlaybackStateRepository: AnimePlaybackStateRepository = Injekt.get(),
+    private val videoHistoryRepository: AnimeHistoryRepository = Injekt.get(),
     private val persistenceDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
@@ -33,15 +33,15 @@ class VideoPlayerViewModel(
     private var playbackSession: VideoPlaybackSession? = null
     private val persistMutex = Mutex()
 
-    fun init(videoId: Long, episodeId: Long) {
+    fun init(animeId: Long, episodeId: Long) {
         if (initialized) return
         initialized = true
-        savedState[VIDEO_ID_KEY] = videoId
+        savedState[VIDEO_ID_KEY] = animeId
         savedState[EPISODE_ID_KEY] = episodeId
 
         viewModelScope.launch {
             mutableState.value = State.Loading
-            mutableState.value = when (val result = resolveVideoStream(videoId, episodeId)) {
+            mutableState.value = when (val result = resolveVideoStream(animeId, episodeId)) {
                 is ResolveVideoStream.Result.Success -> State.Ready(
                     episodeId = result.episode.id,
                     videoTitle = result.video.displayTitle,

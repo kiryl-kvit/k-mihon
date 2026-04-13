@@ -1,4 +1,4 @@
-CREATE TABLE videos(
+CREATE TABLE animes(
     _id INTEGER NOT NULL PRIMARY KEY,
     profile_id INTEGER NOT NULL DEFAULT 1,
     source INTEGER NOT NULL,
@@ -20,35 +20,35 @@ CREATE TABLE videos(
     FOREIGN KEY(profile_id) REFERENCES profiles (_id)
     ON DELETE CASCADE
 );
-CREATE INDEX videos_favorite_index ON videos(profile_id, favorite) WHERE favorite = 1;
-CREATE INDEX idx_videos_source ON videos(profile_id, source);
-CREATE INDEX idx_videos_url ON videos(profile_id, url);
-CREATE UNIQUE INDEX idx_videos_profile_source_url ON videos(profile_id, source, url);
-CREATE TRIGGER update_last_favorited_at_videos
-AFTER UPDATE OF favorite ON videos
+CREATE INDEX animes_favorite_index ON animes(profile_id, favorite) WHERE favorite = 1;
+CREATE INDEX idx_animes_source ON animes(profile_id, source);
+CREATE INDEX idx_animes_url ON animes(profile_id, url);
+CREATE UNIQUE INDEX idx_animes_profile_source_url ON animes(profile_id, source, url);
+CREATE TRIGGER update_last_favorited_at_animes
+AFTER UPDATE OF favorite ON animes
 BEGIN
-  UPDATE videos
+  UPDATE animes
   SET favorite_modified_at = strftime('%s', 'now')
   WHERE _id = new._id;
 END;
-CREATE TRIGGER update_last_modified_at_videos
-AFTER UPDATE ON videos
+CREATE TRIGGER update_last_modified_at_animes
+AFTER UPDATE ON animes
 FOR EACH ROW
 BEGIN
-  UPDATE videos
+  UPDATE animes
   SET last_modified_at = strftime('%s', 'now')
   WHERE _id = new._id;
 END;
-CREATE TRIGGER update_video_version AFTER UPDATE ON videos
+CREATE TRIGGER update_anime_version AFTER UPDATE ON animes
 BEGIN
-    UPDATE videos SET version = version + 1
+    UPDATE animes SET version = version + 1
     WHERE _id = new._id;
 END;
 
-CREATE TABLE video_episodes(
+CREATE TABLE anime_episodes(
     _id INTEGER NOT NULL PRIMARY KEY,
     profile_id INTEGER NOT NULL DEFAULT 1,
-    video_id INTEGER NOT NULL,
+    anime_id INTEGER NOT NULL,
     url TEXT NOT NULL,
     name TEXT NOT NULL,
     watched INTEGER NOT NULL,
@@ -59,56 +59,56 @@ CREATE TABLE video_episodes(
     date_upload INTEGER NOT NULL,
     last_modified_at INTEGER NOT NULL DEFAULT 0,
     version INTEGER NOT NULL DEFAULT 0,
-    FOREIGN KEY(video_id) REFERENCES videos (_id)
+    FOREIGN KEY(anime_id) REFERENCES animes (_id)
     ON DELETE CASCADE,
     FOREIGN KEY(profile_id) REFERENCES profiles (_id)
     ON DELETE CASCADE
 );
-CREATE INDEX idx_video_episodes_video_id ON video_episodes(profile_id, video_id);
-CREATE INDEX idx_video_episodes_url ON video_episodes(profile_id, url);
-CREATE UNIQUE INDEX idx_video_episodes_profile_video_url ON video_episodes(profile_id, video_id, url);
-CREATE TRIGGER update_last_modified_at_video_episodes
-AFTER UPDATE ON video_episodes
+CREATE INDEX idx_anime_episodes_anime_id ON anime_episodes(profile_id, anime_id);
+CREATE INDEX idx_anime_episodes_url ON anime_episodes(profile_id, url);
+CREATE UNIQUE INDEX idx_anime_episodes_profile_anime_url ON anime_episodes(profile_id, anime_id, url);
+CREATE TRIGGER update_last_modified_at_anime_episodes
+AFTER UPDATE ON anime_episodes
 FOR EACH ROW
 BEGIN
-  UPDATE video_episodes
+  UPDATE anime_episodes
   SET last_modified_at = strftime('%s', 'now')
   WHERE _id = new._id;
 END;
-CREATE TRIGGER update_video_episode_and_video_version AFTER UPDATE ON video_episodes
+CREATE TRIGGER update_anime_episode_and_anime_version AFTER UPDATE ON anime_episodes
 WHEN (
     new.watched != old.watched OR
     new.completed != old.completed
 )
 BEGIN
-    UPDATE video_episodes SET version = version + 1
+    UPDATE anime_episodes SET version = version + 1
     WHERE _id = new._id;
-    UPDATE videos SET version = version + 1
-    WHERE _id = new.video_id;
+    UPDATE animes SET version = version + 1
+    WHERE _id = new.anime_id;
 END;
 
-CREATE TABLE videos_categories(
+CREATE TABLE animes_categories(
     _id INTEGER NOT NULL PRIMARY KEY,
     profile_id INTEGER NOT NULL DEFAULT 1,
-    video_id INTEGER NOT NULL,
+    anime_id INTEGER NOT NULL,
     category_id INTEGER NOT NULL,
     FOREIGN KEY(category_id) REFERENCES categories (_id)
     ON DELETE CASCADE,
-    FOREIGN KEY(video_id) REFERENCES videos (_id)
+    FOREIGN KEY(anime_id) REFERENCES animes (_id)
     ON DELETE CASCADE,
     FOREIGN KEY(profile_id) REFERENCES profiles (_id)
     ON DELETE CASCADE
 );
-CREATE INDEX idx_videos_categories_video_id ON videos_categories(profile_id, video_id);
-CREATE INDEX idx_videos_categories_category_id ON videos_categories(profile_id, category_id);
-CREATE TRIGGER insert_video_category_update_version AFTER INSERT ON videos_categories
+CREATE INDEX idx_animes_categories_anime_id ON animes_categories(profile_id, anime_id);
+CREATE INDEX idx_animes_categories_category_id ON animes_categories(profile_id, category_id);
+CREATE TRIGGER insert_anime_category_update_version AFTER INSERT ON animes_categories
 BEGIN
-    UPDATE videos
+    UPDATE animes
     SET version = version + 1
-    WHERE _id = new.video_id;
+    WHERE _id = new.anime_id;
 END;
 
-CREATE TABLE video_playback_state(
+CREATE TABLE anime_playback_state(
     _id INTEGER NOT NULL PRIMARY KEY,
     profile_id INTEGER NOT NULL DEFAULT 1,
     episode_id INTEGER NOT NULL,
@@ -116,25 +116,25 @@ CREATE TABLE video_playback_state(
     duration_ms INTEGER NOT NULL,
     completed INTEGER NOT NULL,
     last_watched_at INTEGER NOT NULL,
-    FOREIGN KEY(episode_id) REFERENCES video_episodes (_id)
+    FOREIGN KEY(episode_id) REFERENCES anime_episodes (_id)
     ON DELETE CASCADE,
     FOREIGN KEY(profile_id) REFERENCES profiles (_id)
     ON DELETE CASCADE,
     UNIQUE(profile_id, episode_id)
 );
-CREATE INDEX idx_video_playback_state_last_watched_at ON video_playback_state(profile_id, last_watched_at);
+CREATE INDEX idx_anime_playback_state_last_watched_at ON anime_playback_state(profile_id, last_watched_at);
 
-CREATE TABLE video_history(
+CREATE TABLE anime_history(
     _id INTEGER NOT NULL PRIMARY KEY,
     profile_id INTEGER NOT NULL DEFAULT 1,
     episode_id INTEGER NOT NULL,
     last_watched INTEGER,
     time_watched INTEGER NOT NULL,
     UNIQUE(profile_id, episode_id),
-    FOREIGN KEY(episode_id) REFERENCES video_episodes (_id)
+    FOREIGN KEY(episode_id) REFERENCES anime_episodes (_id)
     ON DELETE CASCADE,
     FOREIGN KEY(profile_id) REFERENCES profiles (_id)
     ON DELETE CASCADE
 );
-CREATE INDEX idx_video_history_episode_id ON video_history(profile_id, episode_id);
-CREATE INDEX idx_video_history_last_watched ON video_history(profile_id, last_watched);
+CREATE INDEX idx_anime_history_episode_id ON anime_history(profile_id, episode_id);
+CREATE INDEX idx_anime_history_last_watched ON anime_history(profile_id, last_watched);

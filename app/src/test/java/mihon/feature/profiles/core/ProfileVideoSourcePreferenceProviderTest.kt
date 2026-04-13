@@ -3,21 +3,21 @@ package mihon.feature.profiles.core
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 
-class ProfileVideoSourcePreferenceProviderTest {
+class ProfileAnimeSourcePreferenceProviderTest {
 
     @Test
-    fun `video source preference key uses separate namespace from manga source prefs`() {
+    fun `anime source preference key uses separate namespace from manga source prefs`() {
         val mangaKey = "source_7_42"
-        val videoKey = videoSourcePreferenceKey(profileId = 7L, sourceId = 42L)
+        val animeKey = animeSourcePreferenceKey(profileId = 7L, sourceId = 42L)
 
-        videoKey shouldBe "video_source_7_42"
-        videoKey shouldBeNot mangaKey
+        animeKey shouldBe "anime_source_7_42"
+        animeKey shouldBeNot mangaKey
     }
 
     @Test
-    fun `video source preference key is profile scoped`() {
-        videoSourcePreferenceKey(profileId = 1L, sourceId = 42L) shouldBe "video_source_1_42"
-        videoSourcePreferenceKey(profileId = 2L, sourceId = 42L) shouldBe "video_source_2_42"
+    fun `anime source preference key is profile scoped`() {
+        animeSourcePreferenceKey(profileId = 1L, sourceId = 42L) shouldBe "anime_source_1_42"
+        animeSourcePreferenceKey(profileId = 2L, sourceId = 42L) shouldBe "anime_source_2_42"
     }
 
     private infix fun String.shouldBeNot(other: String) {

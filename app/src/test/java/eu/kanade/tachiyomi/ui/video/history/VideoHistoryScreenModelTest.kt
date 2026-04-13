@@ -1,4 +1,4 @@
-package eu.kanade.tachiyomi.ui.video.history
+package eu.kanade.tachiyomi.ui.anime.history
 
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
@@ -13,14 +13,14 @@ import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import tachiyomi.domain.video.model.VideoHistory
-import tachiyomi.domain.video.model.VideoHistoryUpdate
-import tachiyomi.domain.video.model.VideoHistoryWithRelations
-import tachiyomi.domain.video.repository.VideoHistoryRepository
+import tachiyomi.domain.anime.model.AnimeHistory
+import tachiyomi.domain.anime.model.AnimeHistoryUpdate
+import tachiyomi.domain.anime.model.AnimeHistoryWithRelations
+import tachiyomi.domain.anime.repository.AnimeHistoryRepository
 import java.util.Date
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class VideoHistoryScreenModelTest {
+class AnimeHistoryScreenModelTest {
 
     private val dispatcher = StandardTestDispatcher()
 
@@ -36,7 +36,7 @@ class VideoHistoryScreenModelTest {
 
     @Test
     fun `groups history rows by watched date`() = runTest(dispatcher) {
-        val repository = FakeVideoHistoryRepository(
+        val repository = FakeAnimeHistoryRepository(
             listOf(
                 historyWithRelations(1L, Date(1_700_000_000_000L)),
                 historyWithRelations(2L, Date(1_700_000_000_000L)),
@@ -44,24 +44,24 @@ class VideoHistoryScreenModelTest {
             ),
         )
 
-        val model = VideoHistoryScreenModel(videoHistoryRepository = repository)
+        val model = AnimeHistoryScreenModel(animeHistoryRepository = repository)
 
         advanceUntilIdle()
 
         val list = (model.state.value.list ?: emptyList())
         list.shouldHaveSize(5)
-        list[0]::class shouldBe VideoHistoryUiModel.Header::class
-        list[1]::class shouldBe VideoHistoryUiModel.Item::class
-        list[2]::class shouldBe VideoHistoryUiModel.Item::class
-        list[3]::class shouldBe VideoHistoryUiModel.Header::class
-        list[4]::class shouldBe VideoHistoryUiModel.Item::class
+        list[0]::class shouldBe AnimeHistoryUiModel.Header::class
+        list[1]::class shouldBe AnimeHistoryUiModel.Item::class
+        list[2]::class shouldBe AnimeHistoryUiModel.Item::class
+        list[3]::class shouldBe AnimeHistoryUiModel.Header::class
+        list[4]::class shouldBe AnimeHistoryUiModel.Item::class
     }
 
-    private fun historyWithRelations(id: Long, watchedAt: Date): VideoHistoryWithRelations {
-        return VideoHistoryWithRelations(
+    private fun historyWithRelations(id: Long, watchedAt: Date): AnimeHistoryWithRelations {
+        return AnimeHistoryWithRelations(
             id = id,
             episodeId = id,
-            videoId = id,
+            animeId = id,
             title = "Video $id",
             episodeName = "Episode $id",
             coverData = tachiyomi.domain.manga.model.MangaCover(
@@ -76,24 +76,24 @@ class VideoHistoryScreenModelTest {
         )
     }
 
-    private class FakeVideoHistoryRepository(
-        private val items: List<VideoHistoryWithRelations>,
-    ) : VideoHistoryRepository {
-        override fun getHistory(query: String): Flow<List<VideoHistoryWithRelations>> = flowOf(items)
+    private class FakeAnimeHistoryRepository(
+        private val items: List<AnimeHistoryWithRelations>,
+    ) : AnimeHistoryRepository {
+        override fun getHistory(query: String): Flow<List<AnimeHistoryWithRelations>> = flowOf(items)
 
-        override suspend fun getLastHistory(): VideoHistoryWithRelations? = items.firstOrNull()
+        override suspend fun getLastHistory(): AnimeHistoryWithRelations? = items.firstOrNull()
 
-        override fun getLastHistoryAsFlow(): Flow<VideoHistoryWithRelations?> = flowOf(items.firstOrNull())
+        override fun getLastHistoryAsFlow(): Flow<AnimeHistoryWithRelations?> = flowOf(items.firstOrNull())
 
         override suspend fun getTotalWatchedDuration(): Long = 0L
 
-        override suspend fun getHistoryByVideoId(videoId: Long): List<VideoHistory> = emptyList()
+        override suspend fun getHistoryByAnimeId(animeId: Long): List<AnimeHistory> = emptyList()
 
-        override suspend fun upsertHistory(historyUpdate: VideoHistoryUpdate) = Unit
+        override suspend fun upsertHistory(historyUpdate: AnimeHistoryUpdate) = Unit
 
         override suspend fun resetHistory(historyId: Long) = Unit
 
-        override suspend fun resetHistoryByVideoId(videoId: Long) = Unit
+        override suspend fun resetHistoryByAnimeId(animeId: Long) = Unit
 
         override suspend fun deleteAllHistory(): Boolean = true
     }

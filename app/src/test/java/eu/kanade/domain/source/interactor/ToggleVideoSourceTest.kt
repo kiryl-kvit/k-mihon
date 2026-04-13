@@ -5,7 +5,7 @@ import io.kotest.matchers.collections.shouldContainExactly
 import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Test
 
-class ToggleVideoSourceTest {
+class ToggleAnimeSourceTest {
 
     private val preferences = SourcePreferences(
         preferenceStore = InteractorTestPreferenceStore(),
@@ -19,17 +19,17 @@ class ToggleVideoSourceTest {
     fun `toggle video source updates only video hidden sources`() {
         preferences.disabledSources.set(setOf("1"))
 
-        ToggleVideoSource(preferences).await(2L, enable = false)
+        ToggleAnimeSource(preferences).await(2L, enable = false)
 
         preferences.disabledSources.get() shouldContainExactly setOf("1")
-        preferences.disabledVideoSources.get() shouldContainExactly setOf("2")
+        preferences.disabledAnimeSources.get() shouldContainExactly setOf("2")
     }
 
     @Test
     fun `toggle video source pin updates only video pinned sources`() {
         preferences.pinnedSources.set(setOf("1"))
 
-        ToggleVideoSourcePin(preferences).await(
+        ToggleAnimeSourcePin(preferences).await(
             tachiyomi.domain.source.model.Source(
                 id = 2L,
                 lang = "en",
@@ -40,6 +40,6 @@ class ToggleVideoSourceTest {
         )
 
         preferences.pinnedSources.get() shouldContainExactly setOf("1")
-        preferences.pinnedVideoSources.get() shouldContainExactly setOf("2")
+        preferences.pinnedAnimeSources.get() shouldContainExactly setOf("2")
     }
 }

@@ -122,7 +122,7 @@ class ProfileManager(
             .getStringSet(SourcePreferences.MANGA_HIDDEN_SOURCES_KEY, hiddenSourceIds)
             .set(hiddenSourceIds)
         profileStore.profileStore(id)
-            .getStringSet(SourcePreferences.VIDEO_HIDDEN_SOURCES_KEY, emptySet())
+            .getStringSet(SourcePreferences.ANIME_HIDDEN_SOURCES_KEY, emptySet())
             .set(emptySet())
         val customPreferences = CustomPreferences(profileStore.appStateStore(id))
         customPreferences.homeScreenTabs.set(defaultHomeScreenTabsFor(type))
@@ -411,13 +411,13 @@ class ProfileManager(
             val store = profileStore.profileStore(profile.id)
             val legacy = store.getStringSet(SourcePreferences.LEGACY_HIDDEN_SOURCES_KEY, emptySet())
             val manga = store.getStringSet(SourcePreferences.MANGA_HIDDEN_SOURCES_KEY, emptySet())
-            val video = store.getStringSet(SourcePreferences.VIDEO_HIDDEN_SOURCES_KEY, emptySet())
+            val anime = store.getStringSet(SourcePreferences.ANIME_HIDDEN_SOURCES_KEY, emptySet())
 
             if (!manga.isSet() && legacy.isSet()) {
                 manga.set(legacy.get())
             }
-            if (!video.isSet()) {
-                video.set(emptySet())
+            if (!anime.isSet()) {
+                anime.set(emptySet())
             }
             if (legacy.isSet()) {
                 legacy.delete()
@@ -461,14 +461,14 @@ class ProfileManager(
     private fun defaultHomeScreenTabsFor(type: ProfileType): Set<String> {
         return when (type) {
             ProfileType.MANGA -> defaultHomeScreenTabs()
-            ProfileType.VIDEO -> defaultHomeScreenTabs()
+            ProfileType.ANIME -> defaultHomeScreenTabs()
         }
     }
 
     private fun defaultHomeScreenStartupTabFor(type: ProfileType): HomeScreenTabs {
         return when (type) {
             ProfileType.MANGA -> HomeScreenTabs.Library
-            ProfileType.VIDEO -> HomeScreenTabs.Library
+            ProfileType.ANIME -> HomeScreenTabs.Library
         }
     }
 

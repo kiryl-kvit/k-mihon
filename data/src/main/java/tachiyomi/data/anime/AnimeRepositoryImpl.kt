@@ -1,0 +1,160 @@
+package tachiyomi.data.anime
+
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flatMapLatest
+import logcat.LogPriority
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import tachiyomi.core.common.util.system.logcat
+import tachiyomi.data.ActiveProfileProvider
+import tachiyomi.data.DatabaseHandler
+import tachiyomi.domain.anime.model.AnimeTitle
+import tachiyomi.domain.anime.model.AnimeTitleUpdate
+import tachiyomi.domain.anime.repository.AnimeRepository
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class AnimeRepositoryImpl(
+    private val handler: DatabaseHandler,
+    private val profileProvider: ActiveProfileProvider,
+) : AnimeRepository {
+
+    override suspend fun getAnimeById(id: Long): AnimeTitle {
+        return handler.awaitOne {
+            animesQueries.getAnimeById(id, profileProvider.activeProfileId, AnimeMapper::mapAnime)
+        }
+    }
+
+    override suspend fun getAnimeByIdAsFlow(id: Long): Flow<AnimeTitle> {
+        return profileProvider.activeProfileIdFlow.flatMapLatest { profileId ->
+            handler.subscribeToOneOrNull {
+                animesQueries.getAnimeById(id, profileId, AnimeMapper::mapAnime)
+            }.filterNotNull()
+        }
+    }
+
+    override suspend fun getAnimeByUrlAndSourceId(url: String, sourceId: Long): AnimeTitle? {
+        return handler.awaitOneOrNull {
+            animesQueries.getAnimeByUrlAndSource(
+                profileProvider.activeProfileId,
+                url,
+                sourceId,
+                AnimeMapper::mapAnime,
+            )
+        }
+    }
+
+    override fun getAnimeByUrlAndSourceIdAsFlow(url: String, sourceId: Long): Flow<AnimeTitle?> {
+        return profileProvider.activeProfileIdFlow.flatMapLatest { profileId ->
+            handler.subscribeToOneOrNull {
+                animesQueries.getAnimeByUrlAndSource(
+                    profileId,
+                    url,
+                    sourceId,
+                    AnimeMapper::mapAnime,
+                )
+            }
+        }
+    }
+
+    override suspend fun getFavorites(): List<AnimeTitle> {
+        return handler.awaitList {
+            animesQueries.getFavorites(profileProvider.activeProfileId, AnimeMapper::mapAnime)
+        }
+    }
+
+    override fun getFavoritesAsFlow(): Flow<List<AnimeTitle>> {
+        return profileProvider.activeProfileIdFlow.flatMapLatest { profileId ->
+            handler.subscribeToList {
+                animesQueries.getFavorites(profileId, AnimeMapper::mapAnime)
+            }
+        }
+    }
+
+    override suspend fun getAllAnimeByProfile(profileId: Long): List<AnimeTitle> {
+        return handler.awaitList {
+            animesQueries.getAllAnime(profileId, AnimeMapper::mapAnime)
+        }
+    }
+
+    override suspend fun update(update: AnimeTitleUpdate): Boolean {
+        return try {
+            partialUpdate(update)
+            true
+        } catch (e: Exception) {
+            logcat(LogPriority.ERROR, e)
+            false
+        }
+    }
+
+    override suspend fun updateAll(animeUpdates: List<AnimeTitleUpdate>): Boolean {
+        return try {
+            partialUpdate(*animeUpdates.toTypedArray())
+            true
+        } catch (e: Exception) {
+            logcat(LogPriority.ERROR, e)
+            false
+        }
+    }
+
+    override suspend fun insertNetworkAnime(animes: List<AnimeTitle>): List<AnimeTitle> {
+        return handler.await(inTransaction = true) {
+            animes.map {
+                animesQueries.insertNetworkAnime(
+                    profileId = profileProvider.activeProfileId,
+                    source = it.source,
+                    url = it.url,
+                    title = it.title,
+                    description = it.description,
+                    genre = it.genre,
+                    thumbnailUrl = it.thumbnailUrl,
+                    favorite = it.favorite,
+                    initialized = it.initialized,
+                    lastUpdate = it.lastUpdate,
+                    nextUpdate = it.nextUpdate,
+                    dateAdded = it.dateAdded,
+                    version = it.version,
+                    notes = it.notes,
+                    updateTitle = it.title.isNotBlank(),
+                    updateCover = !it.thumbnailUrl.isNullOrBlank(),
+                    updateDetails = it.initialized,
+                )
+                    .executeAsOne()
+                    .let { row -> AnimeMapper.mapAnime(row) }
+            }
+        }
+    }
+
+    override suspend fun setAnimeCategories(animeId: Long, categoryIds: List<Long>) {
+        handler.await(inTransaction = true) {
+            animes_categoriesQueries.deleteAnimeCategoryByAnimeId(profileProvider.activeProfileId, animeId)
+            categoryIds.forEach { categoryId ->
+                animes_categoriesQueries.insert(profileProvider.activeProfileId, animeId, categoryId)
+            }
+        }
+    }
+
+    private suspend fun partialUpdate(vararg animeUpdates: AnimeTitleUpdate) {
+        handler.await(inTransaction = true) {
+            animeUpdates.forEach { value ->
+                animesQueries.update(
+                    source = value.source,
+                    url = value.url,
+                    title = value.title,
+                    displayName = value.displayName,
+                    description = value.description,
+                    genre = AnimeMapper.encodeGenre(value.genre),
+                    thumbnailUrl = value.thumbnailUrl,
+                    favorite = value.favorite,
+                    initialized = value.initialized,
+                    lastUpdate = value.lastUpdate,
+                    nextUpdate = value.nextUpdate,
+                    dateAdded = value.dateAdded,
+                    animeId = value.id,
+                    version = value.version,
+                    notes = value.notes,
+                    profileId = profileProvider.activeProfileId,
+                )
+            }
+        }
+    }
+}

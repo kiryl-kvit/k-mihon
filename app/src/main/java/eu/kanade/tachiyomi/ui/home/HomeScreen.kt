@@ -52,11 +52,11 @@ import eu.kanade.tachiyomi.ui.library.LibraryTab
 import eu.kanade.tachiyomi.ui.manga.MangaScreen
 import eu.kanade.tachiyomi.ui.more.MoreTab
 import eu.kanade.tachiyomi.ui.updates.UpdatesTab
-import eu.kanade.tachiyomi.ui.video.VideoBrowseTab
-import eu.kanade.tachiyomi.ui.video.VideoHistoryTab
-import eu.kanade.tachiyomi.ui.video.VideoLibraryTab
-import eu.kanade.tachiyomi.ui.video.VideoMoreTab
-import eu.kanade.tachiyomi.ui.video.VideoUpdatesTab
+import eu.kanade.tachiyomi.ui.anime.AnimeBrowseTab
+import eu.kanade.tachiyomi.ui.anime.AnimeHistoryTab
+import eu.kanade.tachiyomi.ui.anime.AnimeLibraryTab
+import eu.kanade.tachiyomi.ui.anime.AnimeMoreTab
+import eu.kanade.tachiyomi.ui.anime.AnimeUpdatesTab
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
@@ -474,7 +474,7 @@ object HomeScreen : Screen() {
                             }
                         }
                     }
-                    tab is VideoUpdatesTab -> {
+                    tab is AnimeUpdatesTab -> {
                         // Video profiles do not yet have a dedicated unseen-updates counter.
                         // Avoid reusing manga chapter badges for video until a real video update pipeline exists.
                     }
@@ -561,12 +561,12 @@ object HomeScreen : Screen() {
                 HomeScreenTabs.More -> MoreTab
                 HomeScreenTabs.Profiles -> error("Profiles is a navigation item, not a content tab")
             }
-            ProfileType.VIDEO -> when (tab) {
-                HomeScreenTabs.Library -> VideoLibraryTab
-                HomeScreenTabs.Updates -> VideoUpdatesTab
-                HomeScreenTabs.History -> VideoHistoryTab
-                HomeScreenTabs.Browse -> VideoBrowseTab
-                HomeScreenTabs.More -> VideoMoreTab
+            ProfileType.ANIME -> when (tab) {
+                HomeScreenTabs.Library -> AnimeLibraryTab
+                HomeScreenTabs.Updates -> AnimeUpdatesTab
+                HomeScreenTabs.History -> AnimeHistoryTab
+                HomeScreenTabs.Browse -> AnimeBrowseTab
+                HomeScreenTabs.More -> AnimeMoreTab
                 HomeScreenTabs.Profiles -> error("Profiles is a navigation item, not a content tab")
             }
         }
@@ -574,11 +574,11 @@ object HomeScreen : Screen() {
 
     private fun VoyagerTab.toHomeScreenTab(): HomeScreenTabs {
         return when (this) {
-            is LibraryTab, is VideoLibraryTab -> HomeScreenTabs.Library
-            is UpdatesTab, is VideoUpdatesTab -> HomeScreenTabs.Updates
-            is HistoryTab, is VideoHistoryTab -> HomeScreenTabs.History
-            is BrowseTab, is VideoBrowseTab -> HomeScreenTabs.Browse
-            is MoreTab, is VideoMoreTab -> HomeScreenTabs.More
+            is LibraryTab, is AnimeLibraryTab -> HomeScreenTabs.Library
+            is UpdatesTab, is AnimeUpdatesTab -> HomeScreenTabs.Updates
+            is HistoryTab, is AnimeHistoryTab -> HomeScreenTabs.History
+            is BrowseTab, is AnimeBrowseTab -> HomeScreenTabs.Browse
+            is MoreTab, is AnimeMoreTab -> HomeScreenTabs.More
             else -> HomeScreenTabs.More
         }
     }

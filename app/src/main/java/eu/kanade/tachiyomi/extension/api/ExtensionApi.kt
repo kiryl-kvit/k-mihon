@@ -189,7 +189,7 @@ internal class ExtensionApi {
                         repoUrl = repoUrl,
                     )
 
-                    ExtensionType.VIDEO -> Extension.AvailableVideo(
+                    ExtensionType.ANIME -> Extension.AvailableAnime(
                         name = extensionJson.name.substringAfter("Tachiyomi: "),
                         pkgName = extensionJson.pkg,
                         versionName = extensionJson.version,
@@ -197,7 +197,7 @@ internal class ExtensionApi {
                         libVersion = extensionJson.extractLibVersion(),
                         lang = extensionJson.lang,
                         isNsfw = extensionJson.nsfw == 1,
-                        sources = extensionJson.sources?.map(videoExtensionSourceMapper).orEmpty(),
+                        sources = extensionJson.sources?.map(animeExtensionSourceMapper).orEmpty(),
                         apkName = extensionJson.apk,
                         iconUrl = "$repoUrl/icon/${extensionJson.pkg}.png",
                         repoUrl = repoUrl,
@@ -251,8 +251,8 @@ private val mangaExtensionSourceMapper: (ExtensionSourceJsonObject) -> Extension
     )
 }
 
-private val videoExtensionSourceMapper: (ExtensionSourceJsonObject) -> Extension.AvailableVideo.Source = {
-    Extension.AvailableVideo.Source(
+private val animeExtensionSourceMapper: (ExtensionSourceJsonObject) -> Extension.AvailableAnime.Source = {
+    Extension.AvailableAnime.Source(
         id = it.id,
         lang = it.lang,
         name = it.name,

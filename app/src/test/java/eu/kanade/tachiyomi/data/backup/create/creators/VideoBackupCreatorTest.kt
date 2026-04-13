@@ -10,35 +10,35 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 import tachiyomi.data.ActiveProfileProvider
 import tachiyomi.data.DatabaseHandler
-import tachiyomi.domain.category.interactor.GetVideoCategories
-import tachiyomi.domain.video.model.VideoEpisode
-import tachiyomi.domain.video.model.VideoHistory
-import tachiyomi.domain.video.model.VideoPlaybackState
-import tachiyomi.domain.video.model.VideoTitle
-import tachiyomi.domain.video.repository.VideoEpisodeRepository
-import tachiyomi.domain.video.repository.VideoHistoryRepository
-import tachiyomi.domain.video.repository.VideoPlaybackStateRepository
-import tachiyomi.domain.video.repository.VideoRepository
+import tachiyomi.domain.category.interactor.GetAnimeCategories
+import tachiyomi.domain.anime.model.AnimeEpisode
+import tachiyomi.domain.anime.model.AnimeHistory
+import tachiyomi.domain.anime.model.AnimePlaybackState
+import tachiyomi.domain.anime.model.AnimeTitle
+import tachiyomi.domain.anime.repository.AnimeEpisodeRepository
+import tachiyomi.domain.anime.repository.AnimeHistoryRepository
+import tachiyomi.domain.anime.repository.AnimePlaybackStateRepository
+import tachiyomi.domain.anime.repository.AnimeRepository
 import java.util.Date
 
-class VideoBackupCreatorTest {
+class AnimeBackupCreatorTest {
 
     private val handler = mockk<DatabaseHandler>()
     private val profileProvider = mockk<ActiveProfileProvider>()
-    private val getVideoCategories = mockk<GetVideoCategories>()
-    private val videoRepository = mockk<VideoRepository>()
-    private val videoEpisodeRepository = mockk<VideoEpisodeRepository>()
-    private val videoHistoryRepository = mockk<VideoHistoryRepository>()
-    private val videoPlaybackStateRepository = mockk<VideoPlaybackStateRepository>()
+    private val getAnimeCategories = mockk<GetAnimeCategories>()
+    private val animeRepository = mockk<AnimeRepository>()
+    private val animeEpisodeRepository = mockk<AnimeEpisodeRepository>()
+    private val animeHistoryRepository = mockk<AnimeHistoryRepository>()
+    private val animePlaybackStateRepository = mockk<AnimePlaybackStateRepository>()
 
-    private val creator = VideoBackupCreator(
+    private val creator = AnimeBackupCreator(
         handler = handler,
         profileProvider = profileProvider,
-        getVideoCategories = getVideoCategories,
-        videoRepository = videoRepository,
-        videoEpisodeRepository = videoEpisodeRepository,
-        videoHistoryRepository = videoHistoryRepository,
-        videoPlaybackStateRepository = videoPlaybackStateRepository,
+        getAnimeCategories = getAnimeCategories,
+        animeRepository = animeRepository,
+        animeEpisodeRepository = animeEpisodeRepository,
+        animeHistoryRepository = animeHistoryRepository,
+        animePlaybackStateRepository = animePlaybackStateRepository,
     )
 
     init {
@@ -47,7 +47,7 @@ class VideoBackupCreatorTest {
 
     @Test
     fun `non-active profile backup reads child video data from requested profile`() = runTest {
-        val video = VideoTitle.create().copy(
+        val video = AnimeTitle.create().copy(
             id = 100L,
             source = 10L,
             url = "/video",
@@ -55,9 +55,9 @@ class VideoBackupCreatorTest {
             favorite = true,
             initialized = true,
         )
-        val episode = VideoEpisode.create().copy(
+        val episode = AnimeEpisode.create().copy(
             id = 200L,
-            videoId = video.id,
+            animeId = video.id,
             url = "/episode-1",
             name = "Episode 1",
             watched = true,
@@ -66,14 +66,14 @@ class VideoBackupCreatorTest {
             episodeNumber = 1.0,
             sourceOrder = 1L,
         )
-        val playbackState = VideoPlaybackState(
+        val playbackState = AnimePlaybackState(
             episodeId = episode.id,
             positionMs = 12_000L,
             durationMs = 24_000L,
             completed = false,
             lastWatchedAt = 789L,
         )
-        val history = VideoHistory(
+        val history = AnimeHistory(
             id = 300L,
             episodeId = episode.id,
             watchedAt = Date(999L),
@@ -92,7 +92,7 @@ class VideoBackupCreatorTest {
 
         val backup = creator.invoke(
             profileId = 2L,
-            videos = listOf(video),
+            animes = listOf(video),
             options = BackupOptions(categories = false, chapters = true, history = true),
         )
 
@@ -107,10 +107,10 @@ class VideoBackupCreatorTest {
         coVerify(exactly = 2) { handler.awaitList<Any>(false, any()) }
         coVerify(exactly = 3) { handler.awaitOneOrNull<Any>(false, any()) }
 
-        coVerify(exactly = 0) { videoEpisodeRepository.getEpisodesByVideoId(any()) }
-        coVerify(exactly = 0) { videoEpisodeRepository.getEpisodeByUrlAndVideoId(any(), any()) }
-        coVerify(exactly = 0) { videoEpisodeRepository.getEpisodeById(any()) }
-        coVerify(exactly = 0) { videoHistoryRepository.getHistoryByVideoId(any()) }
-        coVerify(exactly = 0) { videoPlaybackStateRepository.getByEpisodeId(any()) }
+        coVerify(exactly = 0) { animeEpisodeRepository.getEpisodesByAnimeId(any()) }
+        coVerify(exactly = 0) { animeEpisodeRepository.getEpisodeByUrlAndAnimeId(any(), any()) }
+        coVerify(exactly = 0) { animeEpisodeRepository.getEpisodeById(any()) }
+        coVerify(exactly = 0) { animeHistoryRepository.getHistoryByAnimeId(any()) }
+        coVerify(exactly = 0) { animePlaybackStateRepository.getByEpisodeId(any()) }
     }
 }

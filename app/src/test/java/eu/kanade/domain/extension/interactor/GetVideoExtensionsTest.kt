@@ -5,11 +5,11 @@ import eu.kanade.tachiyomi.extension.model.ExtensionType
 import io.kotest.matchers.collections.shouldContainExactly
 import org.junit.jupiter.api.Test
 
-class GetVideoExtensionsTest {
+class GetAnimeExtensionsTest {
 
     @Test
-    fun `buildVideoExtensions keeps only video payloads and separates updates`() {
-        val result = buildVideoExtensions(
+    fun `buildAnimeExtensions keeps only video payloads and separates updates`() {
+        val result = buildAnimeExtensions(
             installed = listOf(
                 installedVideo("video-installed", hasUpdate = true),
                 installedVideo("video-stable", hasUpdate = false),
@@ -29,7 +29,7 @@ class GetVideoExtensionsTest {
         result.untrusted.map { it.name } shouldContainExactly listOf("video-untrusted")
     }
 
-    private fun installedVideo(name: String, hasUpdate: Boolean = false) = Extension.InstalledVideo(
+    private fun installedVideo(name: String, hasUpdate: Boolean = false) = Extension.InstalledAnime(
         name = name,
         pkgName = "$name.pkg",
         versionName = "1.0.0",
@@ -45,7 +45,7 @@ class GetVideoExtensionsTest {
         isShared = false,
     )
 
-    private fun availableVideo(name: String) = Extension.AvailableVideo(
+    private fun availableVideo(name: String) = Extension.AvailableAnime(
         name = name,
         pkgName = "$name.pkg",
         versionName = "1.0.0",
@@ -66,6 +66,6 @@ class GetVideoExtensionsTest {
         versionCode = 1L,
         libVersion = 1.5,
         signatureHash = "sig",
-        type = ExtensionType.VIDEO,
+        type = ExtensionType.ANIME,
     )
 }

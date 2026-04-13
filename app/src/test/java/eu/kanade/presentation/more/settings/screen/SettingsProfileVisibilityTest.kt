@@ -10,34 +10,34 @@ class SettingsProfileVisibilityTest {
 
     @Test
     fun `video profiles hide manga-specific settings screens`() {
-        isSettingsScreenVisibleForProfileType(SettingsLibraryScreen, ProfileType.VIDEO) shouldBe false
-        isSettingsScreenVisibleForProfileType(SettingsReaderScreen, ProfileType.VIDEO) shouldBe false
-        isSettingsScreenVisibleForProfileType(SettingsDownloadScreen, ProfileType.VIDEO) shouldBe false
-        isSettingsScreenVisibleForProfileType(SettingsTrackingScreen, ProfileType.VIDEO) shouldBe false
-        isSettingsScreenVisibleForProfileType(SettingsBrowseScreen, ProfileType.VIDEO) shouldBe false
-        isSettingsScreenVisibleForProfileType(CustomSettingsScreen, ProfileType.VIDEO) shouldBe false
+        isSettingsScreenVisibleForProfileType(SettingsLibraryScreen, ProfileType.ANIME) shouldBe false
+        isSettingsScreenVisibleForProfileType(SettingsReaderScreen, ProfileType.ANIME) shouldBe false
+        isSettingsScreenVisibleForProfileType(SettingsDownloadScreen, ProfileType.ANIME) shouldBe false
+        isSettingsScreenVisibleForProfileType(SettingsTrackingScreen, ProfileType.ANIME) shouldBe false
+        isSettingsScreenVisibleForProfileType(SettingsBrowseScreen, ProfileType.ANIME) shouldBe false
+        isSettingsScreenVisibleForProfileType(CustomSettingsScreen, ProfileType.ANIME) shouldBe false
     }
 
     @Test
     fun `video profiles keep neutral settings screens`() {
-        isSettingsScreenVisibleForProfileType(SettingsAppearanceScreen, ProfileType.VIDEO) shouldBe true
-        isSettingsScreenVisibleForProfileType(SettingsDataScreen, ProfileType.VIDEO) shouldBe true
-        isSettingsScreenVisibleForProfileType(SettingsSecurityScreen, ProfileType.VIDEO) shouldBe true
-        isSettingsScreenVisibleForProfileType(SettingsAdvancedScreen, ProfileType.VIDEO) shouldBe true
-        isSettingsScreenVisibleForProfileType(AboutScreen, ProfileType.VIDEO) shouldBe true
+        isSettingsScreenVisibleForProfileType(SettingsAppearanceScreen, ProfileType.ANIME) shouldBe true
+        isSettingsScreenVisibleForProfileType(SettingsDataScreen, ProfileType.ANIME) shouldBe true
+        isSettingsScreenVisibleForProfileType(SettingsSecurityScreen, ProfileType.ANIME) shouldBe true
+        isSettingsScreenVisibleForProfileType(SettingsAdvancedScreen, ProfileType.ANIME) shouldBe true
+        isSettingsScreenVisibleForProfileType(AboutScreen, ProfileType.ANIME) shouldBe true
     }
 
     @Test
     fun `video profile disallowed direct destination falls back to neutral start screen`() {
         resolveSettingsStartScreen(
             destination = SettingsScreen.Destination.Tracking,
-            profileType = ProfileType.VIDEO,
+            profileType = ProfileType.ANIME,
             twoPane = false,
         ) shouldBe SettingsMainScreen
 
         resolveSettingsStartScreen(
             destination = SettingsScreen.Destination.Tracking,
-            profileType = ProfileType.VIDEO,
+            profileType = ProfileType.ANIME,
             twoPane = true,
         ) shouldBe SettingsAppearanceScreen
     }
@@ -46,7 +46,7 @@ class SettingsProfileVisibilityTest {
     fun `video profile allowed direct destination stays intact`() {
         resolveSettingsStartScreen(
             destination = SettingsScreen.Destination.DataAndStorage,
-            profileType = ProfileType.VIDEO,
+            profileType = ProfileType.ANIME,
             twoPane = false,
         ) shouldBe SettingsDataScreen
     }

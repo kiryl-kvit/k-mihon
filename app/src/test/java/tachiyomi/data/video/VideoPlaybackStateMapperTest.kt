@@ -1,13 +1,13 @@
-package tachiyomi.data.video
+package tachiyomi.data.anime
 
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 
-class VideoPlaybackStateMapperTest {
+class AnimePlaybackStateMapperTest {
 
     @Test
     fun `mapState maps playback row fields`() {
-        val state = VideoPlaybackStateMapper.mapState(
+        val state = AnimePlaybackStateMapper.mapState(
             id = 1L,
             profileId = 2L,
             episodeId = 3L,

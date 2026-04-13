@@ -9,7 +9,7 @@ class MainActivityStartupGateTest {
 
     @Test
     fun `initial startup shows picker before profile auth`() {
-        val profile = profile(id = 2L, type = ProfileType.VIDEO)
+        val profile = profile(id = 2L, type = ProfileType.ANIME)
 
         resolveInitialStartupGateDecision(
             shouldShowPicker = true,
@@ -25,7 +25,7 @@ class MainActivityStartupGateTest {
 
     @Test
     fun `initial startup authenticates locked video profile when picker is skipped`() {
-        val profile = profile(id = 2L, type = ProfileType.VIDEO)
+        val profile = profile(id = 2L, type = ProfileType.ANIME)
 
         resolveInitialStartupGateDecision(
             shouldShowPicker = false,
@@ -57,7 +57,7 @@ class MainActivityStartupGateTest {
 
     @Test
     fun `picker collapse authenticates remaining locked profile regardless of type`() {
-        val profile = profile(id = 3L, type = ProfileType.VIDEO)
+        val profile = profile(id = 3L, type = ProfileType.ANIME)
 
         resolvePickerCollapseStartupGateDecision(
             profile = profile,
@@ -73,7 +73,7 @@ class MainActivityStartupGateTest {
     @Test
     fun `picker collapse becomes ready when remaining profile does not require auth`() {
         resolvePickerCollapseStartupGateDecision(
-            profile = profile(id = 4L, type = ProfileType.VIDEO),
+            profile = profile(id = 4L, type = ProfileType.ANIME),
             requiresProfileUnlock = false,
             shouldSkipProfileAuth = false,
         ) shouldBe ProfileStartupDecision(

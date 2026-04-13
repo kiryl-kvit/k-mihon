@@ -1,34 +1,34 @@
 package eu.kanade.tachiyomi.ui.video.player
 
-import eu.kanade.domain.video.model.toSEpisode
+import eu.kanade.domain.anime.model.toSEpisode
 import eu.kanade.tachiyomi.source.model.VideoStream
 import eu.kanade.tachiyomi.source.model.VideoStreamType
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
-import tachiyomi.domain.source.service.VideoSourceManager
-import tachiyomi.domain.video.model.VideoEpisode
-import tachiyomi.domain.video.model.VideoTitle
-import tachiyomi.domain.video.repository.VideoEpisodeRepository
-import tachiyomi.domain.video.repository.VideoRepository
+import tachiyomi.domain.source.service.AnimeSourceManager
+import tachiyomi.domain.anime.model.AnimeEpisode
+import tachiyomi.domain.anime.model.AnimeTitle
+import tachiyomi.domain.anime.repository.AnimeEpisodeRepository
+import tachiyomi.domain.anime.repository.AnimeRepository
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 class ResolveVideoStream(
-    private val videoRepository: VideoRepository = Injekt.get(),
-    private val videoEpisodeRepository: VideoEpisodeRepository = Injekt.get(),
-    private val videoSourceManager: VideoSourceManager = Injekt.get(),
+    private val videoRepository: AnimeRepository = Injekt.get(),
+    private val videoEpisodeRepository: AnimeEpisodeRepository = Injekt.get(),
+    private val videoSourceManager: AnimeSourceManager = Injekt.get(),
     private val sourceInitTimeoutMs: Long = SOURCE_INIT_TIMEOUT_MS,
     private val streamFetchTimeoutMs: Long = STREAM_FETCH_TIMEOUT_MS,
 ) : VideoStreamResolver {
 
-    override suspend operator fun invoke(videoId: Long, episodeId: Long): Result {
-        val video = runCatching { videoRepository.getVideoById(videoId) }
+    override suspend operator fun invoke(animeId: Long, episodeId: Long): Result {
+        val video = runCatching { videoRepository.getAnimeById(animeId) }
             .getOrElse { return Result.Error(Reason.VideoNotFound) }
         val episode = videoEpisodeRepository.getEpisodeById(episodeId)
             ?: return Result.Error(Reason.EpisodeNotFound)
 
-        if (episode.videoId != video.id) {
+        if (episode.animeId != video.id) {
             return Result.Error(Reason.EpisodeMismatch)
         }
 
@@ -64,8 +64,8 @@ class ResolveVideoStream(
 
     sealed interface Result {
         data class Success(
-            val video: VideoTitle,
-            val episode: VideoEpisode,
+            val video: AnimeTitle,
+            val episode: AnimeEpisode,
             val stream: VideoStream,
         ) : Result
 

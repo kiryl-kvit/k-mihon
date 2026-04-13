@@ -1,13 +1,13 @@
 package eu.kanade.domain.source.interactor
 
 import eu.kanade.domain.source.service.SourcePreferences
-import eu.kanade.tachiyomi.source.VideoCatalogueSource
-import eu.kanade.tachiyomi.source.VideoSource
+import eu.kanade.tachiyomi.source.AnimeCatalogueSource
+import eu.kanade.tachiyomi.source.AnimeSource
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.SEpisode
-import eu.kanade.tachiyomi.source.model.SVideo
+import eu.kanade.tachiyomi.source.model.SAnime
 import eu.kanade.tachiyomi.source.model.VideoStream
-import eu.kanade.tachiyomi.source.model.VideosPage
+import eu.kanade.tachiyomi.source.model.AnimesPage
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.flow.Flow
@@ -21,9 +21,9 @@ import org.junit.jupiter.api.Test
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.domain.source.model.Pin
-import tachiyomi.domain.source.service.VideoSourceManager
+import tachiyomi.domain.source.service.AnimeSourceManager
 
-class GetEnabledVideoSourcesTest {
+class GetEnabledAnimeSourcesTest {
 
     private val preferences = SourcePreferences(
         preferenceStore = InteractorTestPreferenceStore(),
@@ -32,16 +32,16 @@ class GetEnabledVideoSourcesTest {
             explicitNulls = false
         },
     )
-    private val videoSourceManager = FakeVideoSourceManager()
-    private val interactor = GetEnabledVideoSources(videoSourceManager, preferences)
+    private val videoSourceManager = FakeAnimeSourceManager()
+    private val interactor = GetEnabledAnimeSources(videoSourceManager, preferences)
 
     @Test
     fun `video pinned sources are independent from manga pinned sources`() = runTest {
         preferences.pinnedSources.set(setOf("1"))
-        preferences.pinnedVideoSources.set(setOf("2"))
+        preferences.pinnedAnimeSources.set(setOf("2"))
         videoSourceManager.sources.value = listOf(
-            FakeVideoCatalogueSource(id = 1, name = "Manga pin should not affect video", lang = "en"),
-            FakeVideoCatalogueSource(id = 2, name = "Video pinned", lang = "en"),
+            FakeAnimeCatalogueSource(id = 1, name = "Manga pin should not affect video", lang = "en"),
+            FakeAnimeCatalogueSource(id = 2, name = "Video pinned", lang = "en"),
         )
 
         val sources = interactor.subscribe().firstValue()
@@ -53,12 +53,12 @@ class GetEnabledVideoSourcesTest {
     @Test
     fun `video list respects disabled and last used video preferences`() = runTest {
         preferences.enabledLanguages.set(setOf("en"))
-        preferences.disabledVideoSources.set(setOf("2"))
-        preferences.lastUsedVideoSource.set(1)
+        preferences.disabledAnimeSources.set(setOf("2"))
+        preferences.lastUsedAnimeSource.set(1)
         videoSourceManager.sources.value = listOf(
-            FakeVideoCatalogueSource(id = 1, name = "Alpha", lang = "en"),
-            FakeVideoCatalogueSource(id = 2, name = "Beta", lang = "en"),
-            FakeVideoCatalogueSource(id = 3, name = "Gamma", lang = "es"),
+            FakeAnimeCatalogueSource(id = 1, name = "Alpha", lang = "en"),
+            FakeAnimeCatalogueSource(id = 2, name = "Beta", lang = "en"),
+            FakeAnimeCatalogueSource(id = 3, name = "Gamma", lang = "es"),
         )
 
         val sources = interactor.subscribe().firstValue()
@@ -70,35 +70,35 @@ class GetEnabledVideoSourcesTest {
 
 private suspend fun <T> Flow<T>.firstValue(): T = this.first()
 
-private class FakeVideoSourceManager : VideoSourceManager {
+private class FakeAnimeSourceManager : AnimeSourceManager {
     private val initialized = MutableStateFlow(true)
-    val sources = MutableStateFlow<List<VideoCatalogueSource>>(emptyList())
+    val sources = MutableStateFlow<List<AnimeCatalogueSource>>(emptyList())
 
     override val isInitialized: StateFlow<Boolean> = initialized.asStateFlow()
-    override val catalogueSources: Flow<List<VideoCatalogueSource>> = sources
+    override val catalogueSources: Flow<List<AnimeCatalogueSource>> = sources
 
-    override fun get(sourceKey: Long): VideoSource? = sources.value.firstOrNull { it.id == sourceKey }
+    override fun get(sourceKey: Long): AnimeSource? = sources.value.firstOrNull { it.id == sourceKey }
 
-    override fun getCatalogueSources(): List<VideoCatalogueSource> = sources.value
+    override fun getCatalogueSources(): List<AnimeCatalogueSource> = sources.value
 }
 
-private data class FakeVideoCatalogueSource(
+private data class FakeAnimeCatalogueSource(
     override val id: Long,
     override val name: String,
     override val lang: String,
     override val supportsLatest: Boolean = true,
-) : VideoCatalogueSource {
-    override suspend fun getPopularVideos(page: Int): VideosPage = error("Not used")
+) : AnimeCatalogueSource {
+    override suspend fun getPopularAnime(page: Int): AnimesPage = error("Not used")
 
-    override suspend fun getSearchVideos(page: Int, query: String, filters: FilterList): VideosPage = error("Not used")
+    override suspend fun getSearchAnime(page: Int, query: String, filters: FilterList): AnimesPage = error("Not used")
 
-    override suspend fun getLatestUpdates(page: Int): VideosPage = error("Not used")
+    override suspend fun getLatestUpdates(page: Int): AnimesPage = error("Not used")
 
     override fun getFilterList(): FilterList = FilterList()
 
-    override suspend fun getVideoDetails(video: SVideo): SVideo = error("Not used")
+    override suspend fun getAnimeDetails(anime: SAnime): SAnime = error("Not used")
 
-    override suspend fun getEpisodeList(video: SVideo): List<SEpisode> = error("Not used")
+    override suspend fun getEpisodeList(anime: SAnime): List<SEpisode> = error("Not used")
 
     override suspend fun getStreamList(episode: SEpisode): List<VideoStream> = error("Not used")
 }

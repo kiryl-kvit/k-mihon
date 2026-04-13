@@ -1,7 +1,7 @@
 package eu.kanade.tachiyomi.ui.video.player
 
-import tachiyomi.domain.video.model.VideoHistoryUpdate
-import tachiyomi.domain.video.model.VideoPlaybackState
+import tachiyomi.domain.anime.model.AnimeHistoryUpdate
+import tachiyomi.domain.anime.model.AnimePlaybackState
 import java.util.Date
 
 internal class VideoPlaybackSession(
@@ -25,7 +25,7 @@ internal class VideoPlaybackSession(
         savedPositionMs = safePositionMs
 
         return Snapshot(
-            playbackState = VideoPlaybackState(
+            playbackState = AnimePlaybackState(
                 episodeId = episodeId,
                 positionMs = safePositionMs,
                 durationMs = safeDurationMs,
@@ -33,7 +33,7 @@ internal class VideoPlaybackSession(
                 lastWatchedAt = timestamp,
             ),
             historyUpdate = watchedDelta.takeIf { it > 0L }?.let {
-                VideoHistoryUpdate(
+                AnimeHistoryUpdate(
                     episodeId = episodeId,
                     watchedAt = Date(timestamp),
                     sessionWatchedDuration = it,
@@ -43,8 +43,8 @@ internal class VideoPlaybackSession(
     }
 
     data class Snapshot(
-        val playbackState: VideoPlaybackState,
-        val historyUpdate: VideoHistoryUpdate?,
+        val playbackState: AnimePlaybackState,
+        val historyUpdate: AnimeHistoryUpdate?,
     )
 
     private companion object {

@@ -17,14 +17,14 @@ import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import tachiyomi.domain.video.model.VideoHistory
-import tachiyomi.domain.video.model.VideoHistoryWithRelations
-import tachiyomi.domain.video.model.VideoHistoryUpdate
-import tachiyomi.domain.video.model.VideoPlaybackState
-import tachiyomi.domain.video.model.VideoTitle
-import tachiyomi.domain.video.model.VideoEpisode
-import tachiyomi.domain.video.repository.VideoHistoryRepository
-import tachiyomi.domain.video.repository.VideoPlaybackStateRepository
+import tachiyomi.domain.anime.model.AnimeHistory
+import tachiyomi.domain.anime.model.AnimeHistoryWithRelations
+import tachiyomi.domain.anime.model.AnimeHistoryUpdate
+import tachiyomi.domain.anime.model.AnimePlaybackState
+import tachiyomi.domain.anime.model.AnimeTitle
+import tachiyomi.domain.anime.model.AnimeEpisode
+import tachiyomi.domain.anime.repository.AnimeHistoryRepository
+import tachiyomi.domain.anime.repository.AnimePlaybackStateRepository
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class VideoPlayerViewModelTest {
@@ -43,8 +43,8 @@ class VideoPlayerViewModelTest {
 
     @Test
     fun `init exposes resume position from saved playback state`() = runTest(dispatcher) {
-        val playbackRepository = FakeVideoPlaybackStateRepository(
-            existingState = VideoPlaybackState(
+        val playbackRepository = FakeAnimePlaybackStateRepository(
+            existingState = AnimePlaybackState(
                 episodeId = 2L,
                 positionMs = 12_345L,
                 durationMs = 99_999L,
@@ -52,16 +52,16 @@ class VideoPlayerViewModelTest {
                 lastWatchedAt = 500L,
             ),
         )
-        val historyRepository = FakeVideoHistoryRepository()
+        val historyRepository = FakeAnimeHistoryRepository()
         val viewModel = VideoPlayerViewModel(
             savedState = SavedStateHandle(),
-            resolveVideoStream = fakeResolver(videoId = 1L, episodeId = 2L),
+            resolveVideoStream = fakeResolver(animeId = 1L, episodeId = 2L),
             videoPlaybackStateRepository = playbackRepository,
             videoHistoryRepository = historyRepository,
             persistenceDispatcher = dispatcher,
         )
 
-        viewModel.init(videoId = 1L, episodeId = 2L)
+        viewModel.init(animeId = 1L, episodeId = 2L)
         advanceUntilIdle()
 
         val state = viewModel.state.value as VideoPlayerViewModel.State.Ready
@@ -74,17 +74,17 @@ class VideoPlayerViewModelTest {
 
     @Test
     fun `persist playback writes playback state and history delta`() = runTest(dispatcher) {
-        val playbackRepository = FakeVideoPlaybackStateRepository(existingState = null)
-        val historyRepository = FakeVideoHistoryRepository()
+        val playbackRepository = FakeAnimePlaybackStateRepository(existingState = null)
+        val historyRepository = FakeAnimeHistoryRepository()
         val viewModel = VideoPlayerViewModel(
             savedState = SavedStateHandle(),
-            resolveVideoStream = fakeResolver(videoId = 1L, episodeId = 2L),
+            resolveVideoStream = fakeResolver(animeId = 1L, episodeId = 2L),
             videoPlaybackStateRepository = playbackRepository,
             videoHistoryRepository = historyRepository,
             persistenceDispatcher = dispatcher,
         )
 
-        viewModel.init(videoId = 1L, episodeId = 2L)
+        viewModel.init(animeId = 1L, episodeId = 2L)
         advanceUntilIdle()
 
         viewModel.persistPlayback(positionMs = 15_000L, durationMs = 100_000L)
@@ -100,17 +100,17 @@ class VideoPlayerViewModelTest {
 
     @Test
     fun `reset playback baseline prevents duplicate history after seek`() = runTest(dispatcher) {
-        val playbackRepository = FakeVideoPlaybackStateRepository(existingState = null)
-        val historyRepository = FakeVideoHistoryRepository()
+        val playbackRepository = FakeAnimePlaybackStateRepository(existingState = null)
+        val historyRepository = FakeAnimeHistoryRepository()
         val viewModel = VideoPlayerViewModel(
             savedState = SavedStateHandle(),
-            resolveVideoStream = fakeResolver(videoId = 1L, episodeId = 2L),
+            resolveVideoStream = fakeResolver(animeId = 1L, episodeId = 2L),
             videoPlaybackStateRepository = playbackRepository,
             videoHistoryRepository = historyRepository,
             persistenceDispatcher = dispatcher,
         )
 
-        viewModel.init(videoId = 1L, episodeId = 2L)
+        viewModel.init(animeId = 1L, episodeId = 2L)
         advanceUntilIdle()
 
         viewModel.persistPlayback(positionMs = 30_000L, durationMs = 100_000L)
@@ -124,17 +124,17 @@ class VideoPlayerViewModelTest {
         historyRepository.upserts[1].sessionWatchedDuration shouldBe 2_000L
     }
 
-    private fun fakeResolver(videoId: Long, episodeId: Long): VideoStreamResolver {
-        val video = VideoTitle.create().copy(
-            id = videoId,
+    private fun fakeResolver(animeId: Long, episodeId: Long): VideoStreamResolver {
+        val video = AnimeTitle.create().copy(
+            id = animeId,
             source = 99L,
-            title = "Video $videoId",
+            title = "Video $animeId",
             initialized = true,
-            url = "/video/$videoId",
+            url = "/video/$animeId",
         )
-        val episode = VideoEpisode.create().copy(
+        val episode = AnimeEpisode.create().copy(
             id = episodeId,
-            videoId = videoId,
+            animeId = animeId,
             url = "/episode/$episodeId",
             name = "Episode $episodeId",
             episodeNumber = 1.0,
@@ -150,52 +150,52 @@ class VideoPlayerViewModelTest {
         }
     }
 
-    private class FakeVideoPlaybackStateRepository(
-        private val existingState: VideoPlaybackState?,
-    ) : VideoPlaybackStateRepository {
+    private class FakeAnimePlaybackStateRepository(
+        private val existingState: AnimePlaybackState?,
+    ) : AnimePlaybackStateRepository {
         val requestedEpisodeIds = mutableListOf<Long>()
-        val upserts = mutableListOf<VideoPlaybackState>()
+        val upserts = mutableListOf<AnimePlaybackState>()
 
-        override suspend fun getByEpisodeId(episodeId: Long): VideoPlaybackState? {
+        override suspend fun getByEpisodeId(episodeId: Long): AnimePlaybackState? {
             requestedEpisodeIds += episodeId
             return existingState?.takeIf { it.episodeId == episodeId }
         }
 
-        override fun getByEpisodeIdAsFlow(episodeId: Long): Flow<VideoPlaybackState?> = emptyFlow()
+        override fun getByEpisodeIdAsFlow(episodeId: Long): Flow<AnimePlaybackState?> = emptyFlow()
 
-        override fun getByVideoIdAsFlow(videoId: Long): Flow<List<VideoPlaybackState>> {
+        override fun getByAnimeIdAsFlow(animeId: Long): Flow<List<AnimePlaybackState>> {
             return flowOf(existingState?.let(::listOf) ?: emptyList())
         }
 
-        override suspend fun upsert(state: VideoPlaybackState) {
+        override suspend fun upsert(state: AnimePlaybackState) {
             error("Not used")
         }
 
-        override suspend fun upsertAndSyncEpisodeState(state: VideoPlaybackState) {
+        override suspend fun upsertAndSyncEpisodeState(state: AnimePlaybackState) {
             upserts += state
         }
     }
 
-    private class FakeVideoHistoryRepository : VideoHistoryRepository {
-        val upserts = mutableListOf<VideoHistoryUpdate>()
+    private class FakeAnimeHistoryRepository : AnimeHistoryRepository {
+        val upserts = mutableListOf<AnimeHistoryUpdate>()
 
-        override fun getHistory(query: String): Flow<List<VideoHistoryWithRelations>> = emptyFlow()
+        override fun getHistory(query: String): Flow<List<AnimeHistoryWithRelations>> = emptyFlow()
 
-        override suspend fun getLastHistory(): VideoHistoryWithRelations? = error("Not used")
+        override suspend fun getLastHistory(): AnimeHistoryWithRelations? = error("Not used")
 
-        override fun getLastHistoryAsFlow(): Flow<VideoHistoryWithRelations?> = emptyFlow()
+        override fun getLastHistoryAsFlow(): Flow<AnimeHistoryWithRelations?> = emptyFlow()
 
         override suspend fun getTotalWatchedDuration(): Long = error("Not used")
 
-        override suspend fun getHistoryByVideoId(videoId: Long): List<VideoHistory> = error("Not used")
+        override suspend fun getHistoryByAnimeId(animeId: Long): List<AnimeHistory> = error("Not used")
 
         override suspend fun resetHistory(historyId: Long) = error("Not used")
 
-        override suspend fun resetHistoryByVideoId(videoId: Long) = error("Not used")
+        override suspend fun resetHistoryByAnimeId(animeId: Long) = error("Not used")
 
         override suspend fun deleteAllHistory(): Boolean = error("Not used")
 
-        override suspend fun upsertHistory(historyUpdate: VideoHistoryUpdate) {
+        override suspend fun upsertHistory(historyUpdate: AnimeHistoryUpdate) {
             upserts += historyUpdate
         }
     }

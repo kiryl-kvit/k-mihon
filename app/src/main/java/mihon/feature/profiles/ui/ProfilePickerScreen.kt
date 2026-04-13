@@ -298,6 +298,6 @@ private val ProfileTileSize = 118.dp
 private fun ProfileType.label(): String {
     return when (this) {
         ProfileType.MANGA -> stringResource(MR.strings.profiles_type_manga)
-        ProfileType.VIDEO -> stringResource(MR.strings.profiles_type_video)
+        ProfileType.ANIME -> stringResource(MR.strings.profiles_type_anime)
     }
 }

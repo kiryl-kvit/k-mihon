@@ -51,17 +51,17 @@ ON C._id = MC.category_id
 WHERE MC.profile_id = :profileId
 AND MC.manga_id = :mangaId;
 
-getCategoriesByVideoId:
+getCategoriesByAnimeId:
 SELECT
 C._id AS id,
 C.name,
 C.sort AS `order`,
 C.flags
 FROM categories C
-JOIN videos_categories VC
+JOIN animes_categories VC
 ON C._id = VC.category_id
 WHERE VC.profile_id = :profileId
-AND VC.video_id = :videoId;
+AND VC.anime_id = :animeId;
 
 insert:
 INSERT INTO categories(profile_id, name, sort, flags)

@@ -1,6 +1,6 @@
 package eu.kanade.tachiyomi.ui.video.player
 
-import eu.kanade.tachiyomi.source.VideoSource
+import eu.kanade.tachiyomi.source.AnimeSource
 import eu.kanade.tachiyomi.source.model.VideoRequest
 import eu.kanade.tachiyomi.source.model.VideoStream
 import eu.kanade.tachiyomi.source.model.VideoStreamType
@@ -12,18 +12,18 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
-import tachiyomi.domain.source.service.VideoSourceManager
-import tachiyomi.domain.video.model.VideoEpisode
-import tachiyomi.domain.video.model.VideoTitle
-import tachiyomi.domain.video.repository.VideoEpisodeRepository
-import tachiyomi.domain.video.repository.VideoRepository
+import tachiyomi.domain.source.service.AnimeSourceManager
+import tachiyomi.domain.anime.model.AnimeEpisode
+import tachiyomi.domain.anime.model.AnimeTitle
+import tachiyomi.domain.anime.repository.AnimeEpisodeRepository
+import tachiyomi.domain.anime.repository.AnimeRepository
 
 class ResolveVideoStreamTest {
 
     @Test
     fun `returns first stream from resolved source`() = runTest {
         val video = videoTitle(id = 1L, sourceId = 99L)
-        val episode = videoEpisode(id = 2L, videoId = 1L)
+        val episode = videoEpisode(id = 2L, animeId = 1L)
         val firstStream = VideoStream(
             request = VideoRequest(url = "https://cdn.example.com/first.m3u8", headers = mapOf("Referer" to "https://example.com")),
             label = "Auto",
@@ -36,10 +36,10 @@ class ResolveVideoStreamTest {
         )
 
         val resolver = ResolveVideoStream(
-            videoRepository = FakeVideoRepository(video),
-            videoEpisodeRepository = FakeVideoEpisodeRepository(episode),
-            videoSourceManager = FakeVideoSourceManager(
-                source = FakeVideoSource(video.source) { listOf(firstStream, secondStream) },
+            videoRepository = FakeAnimeRepository(video),
+            videoEpisodeRepository = FakeAnimeEpisodeRepository(episode),
+            videoSourceManager = FakeAnimeSourceManager(
+                source = FakeAnimeSource(video.source) { listOf(firstStream, secondStream) },
             ),
         )
 
@@ -53,13 +53,13 @@ class ResolveVideoStreamTest {
     @Test
     fun `returns timeout when source manager does not initialize in time`() = runTest {
         val video = videoTitle(id = 1L, sourceId = 99L)
-        val episode = videoEpisode(id = 2L, videoId = 1L)
+        val episode = videoEpisode(id = 2L, animeId = 1L)
 
         val resolver = ResolveVideoStream(
-            videoRepository = FakeVideoRepository(video),
-            videoEpisodeRepository = FakeVideoEpisodeRepository(episode),
-            videoSourceManager = FakeVideoSourceManager(
-                source = FakeVideoSource(video.source) { emptyList() },
+            videoRepository = FakeAnimeRepository(video),
+            videoEpisodeRepository = FakeAnimeEpisodeRepository(episode),
+            videoSourceManager = FakeAnimeSourceManager(
+                source = FakeAnimeSource(video.source) { emptyList() },
                 initialized = false,
             ),
             sourceInitTimeoutMs = 1L,
@@ -73,13 +73,13 @@ class ResolveVideoStreamTest {
     @Test
     fun `returns timeout when stream fetch takes too long`() = runTest {
         val video = videoTitle(id = 1L, sourceId = 99L)
-        val episode = videoEpisode(id = 2L, videoId = 1L)
+        val episode = videoEpisode(id = 2L, animeId = 1L)
 
         val resolver = ResolveVideoStream(
-            videoRepository = FakeVideoRepository(video),
-            videoEpisodeRepository = FakeVideoEpisodeRepository(episode),
-            videoSourceManager = FakeVideoSourceManager(
-                source = FakeVideoSource(video.source) {
+            videoRepository = FakeAnimeRepository(video),
+            videoEpisodeRepository = FakeAnimeEpisodeRepository(episode),
+            videoSourceManager = FakeAnimeSourceManager(
+                source = FakeAnimeSource(video.source) {
                     delay(10)
                     emptyList()
                 },
@@ -95,12 +95,12 @@ class ResolveVideoStreamTest {
     @Test
     fun `returns source not found when manager has no matching source`() = runTest {
         val video = videoTitle(id = 1L, sourceId = 99L)
-        val episode = videoEpisode(id = 2L, videoId = 1L)
+        val episode = videoEpisode(id = 2L, animeId = 1L)
 
         val resolver = ResolveVideoStream(
-            videoRepository = FakeVideoRepository(video),
-            videoEpisodeRepository = FakeVideoEpisodeRepository(episode),
-            videoSourceManager = FakeVideoSourceManager(source = null),
+            videoRepository = FakeAnimeRepository(video),
+            videoEpisodeRepository = FakeAnimeEpisodeRepository(episode),
+            videoSourceManager = FakeAnimeSourceManager(source = null),
         )
 
         val result = resolver(video.id, episode.id)
@@ -111,13 +111,13 @@ class ResolveVideoStreamTest {
     @Test
     fun `returns no streams when source returns empty list`() = runTest {
         val video = videoTitle(id = 1L, sourceId = 99L)
-        val episode = videoEpisode(id = 2L, videoId = 1L)
+        val episode = videoEpisode(id = 2L, animeId = 1L)
 
         val resolver = ResolveVideoStream(
-            videoRepository = FakeVideoRepository(video),
-            videoEpisodeRepository = FakeVideoEpisodeRepository(episode),
-            videoSourceManager = FakeVideoSourceManager(
-                source = FakeVideoSource(video.source) { emptyList() },
+            videoRepository = FakeAnimeRepository(video),
+            videoEpisodeRepository = FakeAnimeEpisodeRepository(episode),
+            videoSourceManager = FakeAnimeSourceManager(
+                source = FakeAnimeSource(video.source) { emptyList() },
             ),
         )
 
@@ -129,13 +129,13 @@ class ResolveVideoStreamTest {
     @Test
     fun `returns mismatch when episode does not belong to video`() = runTest {
         val video = videoTitle(id = 1L, sourceId = 99L)
-        val episode = videoEpisode(id = 2L, videoId = 3L)
+        val episode = videoEpisode(id = 2L, animeId = 3L)
 
         val resolver = ResolveVideoStream(
-            videoRepository = FakeVideoRepository(video),
-            videoEpisodeRepository = FakeVideoEpisodeRepository(episode),
-            videoSourceManager = FakeVideoSourceManager(
-                source = FakeVideoSource(video.source) { emptyList() },
+            videoRepository = FakeAnimeRepository(video),
+            videoEpisodeRepository = FakeAnimeEpisodeRepository(episode),
+            videoSourceManager = FakeAnimeSourceManager(
+                source = FakeAnimeSource(video.source) { emptyList() },
             ),
         )
 
@@ -144,8 +144,8 @@ class ResolveVideoStreamTest {
         result shouldBe ResolveVideoStream.Result.Error(ResolveVideoStream.Reason.EpisodeMismatch)
     }
 
-    private fun videoTitle(id: Long, sourceId: Long): VideoTitle {
-        return VideoTitle.create().copy(
+    private fun videoTitle(id: Long, sourceId: Long): AnimeTitle {
+        return AnimeTitle.create().copy(
             id = id,
             source = sourceId,
             title = "Video $id",
@@ -154,10 +154,10 @@ class ResolveVideoStreamTest {
         )
     }
 
-    private fun videoEpisode(id: Long, videoId: Long): VideoEpisode {
-        return VideoEpisode.create().copy(
+    private fun videoEpisode(id: Long, animeId: Long): AnimeEpisode {
+        return AnimeEpisode.create().copy(
             id = id,
-            videoId = videoId,
+            animeId = animeId,
             url = "/episode/$id",
             name = "Episode $id",
             dateUpload = 1234L,
@@ -165,75 +165,75 @@ class ResolveVideoStreamTest {
         )
     }
 
-    private class FakeVideoRepository(
-        private val video: VideoTitle,
-    ) : VideoRepository {
-        override suspend fun getVideoById(id: Long): VideoTitle = video.takeIf { it.id == id } ?: error("Missing video")
+    private class FakeAnimeRepository(
+        private val video: AnimeTitle,
+    ) : AnimeRepository {
+        override suspend fun getAnimeById(id: Long): AnimeTitle = video.takeIf { it.id == id } ?: error("Missing video")
 
-        override suspend fun getVideoByIdAsFlow(id: Long) = error("Not used")
+        override suspend fun getAnimeByIdAsFlow(id: Long) = error("Not used")
 
-        override suspend fun getVideoByUrlAndSourceId(url: String, sourceId: Long): VideoTitle? = error("Not used")
+        override suspend fun getAnimeByUrlAndSourceId(url: String, sourceId: Long): AnimeTitle? = error("Not used")
 
-        override fun getVideoByUrlAndSourceIdAsFlow(url: String, sourceId: Long) = error("Not used")
+        override fun getAnimeByUrlAndSourceIdAsFlow(url: String, sourceId: Long) = error("Not used")
 
-        override suspend fun getFavorites(): List<VideoTitle> = error("Not used")
+        override suspend fun getFavorites(): List<AnimeTitle> = error("Not used")
 
-        override fun getFavoritesAsFlow(): Flow<List<VideoTitle>> = flowOf(emptyList())
+        override fun getFavoritesAsFlow(): Flow<List<AnimeTitle>> = flowOf(emptyList())
 
-        override suspend fun getAllVideosByProfile(profileId: Long): List<VideoTitle> = error("Not used")
+        override suspend fun getAllAnimeByProfile(profileId: Long): List<AnimeTitle> = error("Not used")
 
-        override suspend fun update(update: tachiyomi.domain.video.model.VideoTitleUpdate): Boolean = error("Not used")
+        override suspend fun update(update: tachiyomi.domain.anime.model.AnimeTitleUpdate): Boolean = error("Not used")
 
-        override suspend fun updateAll(videoUpdates: List<tachiyomi.domain.video.model.VideoTitleUpdate>): Boolean = error("Not used")
+        override suspend fun updateAll(videoUpdates: List<tachiyomi.domain.anime.model.AnimeTitleUpdate>): Boolean = error("Not used")
 
-        override suspend fun insertNetworkVideo(videos: List<VideoTitle>): List<VideoTitle> = error("Not used")
+        override suspend fun insertNetworkAnime(animes: List<AnimeTitle>): List<AnimeTitle> = error("Not used")
 
-        override suspend fun setVideoCategories(videoId: Long, categoryIds: List<Long>) = error("Not used")
+        override suspend fun setAnimeCategories(animeId: Long, categoryIds: List<Long>) = error("Not used")
     }
 
-    private class FakeVideoEpisodeRepository(
-        private val episode: VideoEpisode?,
-    ) : VideoEpisodeRepository {
-        override suspend fun addAll(episodes: List<VideoEpisode>): List<VideoEpisode> = error("Not used")
+    private class FakeAnimeEpisodeRepository(
+        private val episode: AnimeEpisode?,
+    ) : AnimeEpisodeRepository {
+        override suspend fun addAll(episodes: List<AnimeEpisode>): List<AnimeEpisode> = error("Not used")
 
-        override suspend fun update(episodeUpdate: tachiyomi.domain.video.model.VideoEpisodeUpdate) = error("Not used")
+        override suspend fun update(episodeUpdate: tachiyomi.domain.anime.model.AnimeEpisodeUpdate) = error("Not used")
 
-        override suspend fun updateAll(episodeUpdates: List<tachiyomi.domain.video.model.VideoEpisodeUpdate>) = error("Not used")
+        override suspend fun updateAll(episodeUpdates: List<tachiyomi.domain.anime.model.AnimeEpisodeUpdate>) = error("Not used")
 
         override suspend fun removeEpisodesWithIds(episodeIds: List<Long>) = error("Not used")
 
-        override suspend fun getEpisodesByVideoId(videoId: Long): List<VideoEpisode> = error("Not used")
+        override suspend fun getEpisodesByAnimeId(animeId: Long): List<AnimeEpisode> = error("Not used")
 
-        override fun getEpisodesByVideoIdAsFlow(videoId: Long) = error("Not used")
+        override fun getEpisodesByAnimeIdAsFlow(animeId: Long) = error("Not used")
 
-        override fun getEpisodesByVideoIdsAsFlow(videoIds: List<Long>) = error("Not used")
+        override fun getEpisodesByAnimeIdsAsFlow(videoIds: List<Long>) = error("Not used")
 
-        override suspend fun getEpisodeById(id: Long): VideoEpisode? = episode?.takeIf { it.id == id }
+        override suspend fun getEpisodeById(id: Long): AnimeEpisode? = episode?.takeIf { it.id == id }
 
-        override suspend fun getEpisodeByUrlAndVideoId(url: String, videoId: Long): VideoEpisode? = error("Not used")
+        override suspend fun getEpisodeByUrlAndAnimeId(url: String, animeId: Long): AnimeEpisode? = error("Not used")
     }
 
-    private class FakeVideoSourceManager(
-        private val source: VideoSource?,
+    private class FakeAnimeSourceManager(
+        private val source: AnimeSource?,
         initialized: Boolean = true,
-    ) : VideoSourceManager {
+    ) : AnimeSourceManager {
         override val isInitialized = MutableStateFlow(initialized)
-        override val catalogueSources = emptyFlow<List<eu.kanade.tachiyomi.source.VideoCatalogueSource>>()
+        override val catalogueSources = emptyFlow<List<eu.kanade.tachiyomi.source.AnimeCatalogueSource>>()
 
-        override fun get(sourceKey: Long): VideoSource? = source?.takeIf { it.id == sourceKey }
+        override fun get(sourceKey: Long): AnimeSource? = source?.takeIf { it.id == sourceKey }
 
-        override fun getCatalogueSources() = emptyList<eu.kanade.tachiyomi.source.VideoCatalogueSource>()
+        override fun getCatalogueSources() = emptyList<eu.kanade.tachiyomi.source.AnimeCatalogueSource>()
     }
 
-    private class FakeVideoSource(
+    private class FakeAnimeSource(
         override val id: Long,
         private val streams: suspend () -> List<VideoStream>,
-    ) : VideoSource {
+    ) : AnimeSource {
         override val name: String = "Fake"
 
-        override suspend fun getVideoDetails(video: eu.kanade.tachiyomi.source.model.SVideo) = error("Not used")
+        override suspend fun getAnimeDetails(anime: eu.kanade.tachiyomi.source.model.SAnime) = error("Not used")
 
-        override suspend fun getEpisodeList(video: eu.kanade.tachiyomi.source.model.SVideo) = error("Not used")
+        override suspend fun getEpisodeList(anime: eu.kanade.tachiyomi.source.model.SAnime) = error("Not used")
 
         override suspend fun getStreamList(episode: eu.kanade.tachiyomi.source.model.SEpisode): List<VideoStream> = streams()
     }

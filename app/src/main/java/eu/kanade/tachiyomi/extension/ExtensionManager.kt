@@ -75,20 +75,20 @@ class ExtensionManager(
 
     private val installedExtensionMapFlow = MutableStateFlow(emptyMap<String, Extension.Installed>())
     val installedExtensionsFlow = installedExtensionMapFlow.mapExtensions(scope)
-    val installedVideoExtensionsFlow = installedExtensionMapFlow
-        .map { it.values.filterIsInstance<Extension.InstalledVideo>() }
-        .stateIn(scope, WhileSubscribed(5_000), installedExtensionMapFlow.value.values.filterIsInstance<Extension.InstalledVideo>())
+    val installedAnimeExtensionsFlow = installedExtensionMapFlow
+        .map { it.values.filterIsInstance<Extension.InstalledAnime>() }
+        .stateIn(scope, WhileSubscribed(5_000), installedExtensionMapFlow.value.values.filterIsInstance<Extension.InstalledAnime>())
 
     private val availableExtensionMapFlow = MutableStateFlow(emptyMap<String, Extension.Available>())
     val availableExtensionsFlow = availableExtensionMapFlow.mapExtensions(scope)
-    val availableVideoExtensionsFlow = availableExtensionMapFlow
-        .map { it.values.filterIsInstance<Extension.AvailableVideo>() }
-        .stateIn(scope, WhileSubscribed(5_000), availableExtensionMapFlow.value.values.filterIsInstance<Extension.AvailableVideo>())
+    val availableAnimeExtensionsFlow = availableExtensionMapFlow
+        .map { it.values.filterIsInstance<Extension.AvailableAnime>() }
+        .stateIn(scope, WhileSubscribed(5_000), availableExtensionMapFlow.value.values.filterIsInstance<Extension.AvailableAnime>())
 
     private val untrustedExtensionMapFlow = MutableStateFlow(emptyMap<String, Extension.Untrusted>())
     val untrustedExtensionsFlow = untrustedExtensionMapFlow.mapExtensions(scope)
-    val untrustedVideoExtensionsFlow = untrustedExtensionMapFlow.mapExtensions(scope) {
-        it.filter { untrusted -> untrusted.type == eu.kanade.tachiyomi.extension.model.ExtensionType.VIDEO }
+    val untrustedAnimeExtensionsFlow = untrustedExtensionMapFlow.mapExtensions(scope) {
+        it.filter { untrusted -> untrusted.type == eu.kanade.tachiyomi.extension.model.ExtensionType.ANIME }
     }
 
     private val _isAutoUpdateInProgress = MutableStateFlow(false)
@@ -128,7 +128,7 @@ class ExtensionManager(
     }
 
     private var availableExtensionsSourcesData: Map<Long, StubSource> = emptyMap()
-    private var availableVideoExtensionSourceIds: Set<Long> = emptySet()
+    private var availableAnimeExtensionSourceIds: Set<Long> = emptySet()
 
     private fun setupAvailableExtensionsSourcesDataMap(extensions: List<Extension.Available>) {
         if (extensions.isEmpty()) return
@@ -136,27 +136,27 @@ class ExtensionManager(
             .filterIsInstance<Extension.AvailableManga>()
             .flatMap { ext -> ext.sources.map { it.toStubSource() } }
             .associateBy { it.id }
-        availableVideoExtensionSourceIds = extensions
-            .filterIsInstance<Extension.AvailableVideo>()
+        availableAnimeExtensionSourceIds = extensions
+            .filterIsInstance<Extension.AvailableAnime>()
             .flatMap { ext -> ext.sources.map { it.id } }
             .toSet()
     }
 
     fun getSourceData(id: Long) = availableExtensionsSourcesData[id]
 
-    fun hasAvailableVideoSource(id: Long): Boolean = id in availableVideoExtensionSourceIds
+    fun hasAvailableAnimeSource(id: Long): Boolean = id in availableAnimeExtensionSourceIds
 
-    fun getVideoExtensionPackage(sourceId: Long): String? {
+    fun getAnimeExtensionPackage(sourceId: Long): String? {
         return installedExtensionsFlow.value.find { extension ->
-            (extension as? Extension.InstalledVideo)?.sources?.any { it.id == sourceId } == true
+            (extension as? Extension.InstalledAnime)?.sources?.any { it.id == sourceId } == true
         }
             ?.pkgName
     }
 
-    fun getVideoExtensionPackageAsFlow(sourceId: Long): Flow<String?> {
+    fun getAnimeExtensionPackageAsFlow(sourceId: Long): Flow<String?> {
         return installedExtensionsFlow.map { extensions ->
             extensions.find { extension ->
-                (extension as? Extension.InstalledVideo)?.sources?.any { it.id == sourceId } == true
+                (extension as? Extension.InstalledAnime)?.sources?.any { it.id == sourceId } == true
             }
                 ?.pkgName
         }
@@ -373,9 +373,9 @@ class ExtensionManager(
                 key = SourcePreferences.MANGA_HIDDEN_SOURCES_KEY,
                 extension.sources.map { it.id.toString() }.toSet(),
             )
-        } else if (extension is Extension.InstalledVideo) {
+        } else if (extension is Extension.InstalledAnime) {
             initializeExtensionVisibility(
-                key = SourcePreferences.VIDEO_HIDDEN_SOURCES_KEY,
+                key = SourcePreferences.ANIME_HIDDEN_SOURCES_KEY,
                 sourceIds = extension.sources.map { it.id.toString() }.toSet(),
             )
         }
@@ -400,16 +400,16 @@ class ExtensionManager(
                 key = SourcePreferences.MANGA_HIDDEN_SOURCES_KEY,
                 extension.sources.map { it.id.toString() }.toSet() - existingSourceIds,
             )
-        } else if (extension is Extension.InstalledVideo) {
-            val existingVideoSourceIds = installedExtensionMapFlow.value[extension.pkgName]
-                ?.let { it as? Extension.InstalledVideo }
+        } else if (extension is Extension.InstalledAnime) {
+            val existingAnimeSourceIds = installedExtensionMapFlow.value[extension.pkgName]
+                ?.let { it as? Extension.InstalledAnime }
                 ?.sources
                 ?.map { it.id.toString() }
                 ?.toSet()
                 .orEmpty()
             initializeExtensionVisibility(
-                key = SourcePreferences.VIDEO_HIDDEN_SOURCES_KEY,
-                sourceIds = extension.sources.map { it.id.toString() }.toSet() - existingVideoSourceIds,
+                key = SourcePreferences.ANIME_HIDDEN_SOURCES_KEY,
+                sourceIds = extension.sources.map { it.id.toString() }.toSet() - existingAnimeSourceIds,
             )
         }
         installedExtensionMapFlow.value += extension.withObsolete(isObsolete = false)
@@ -554,21 +554,21 @@ class ExtensionManager(
     private fun Extension.Installed.withUpdate(hasUpdate: Boolean): Extension.Installed {
         return when (this) {
             is Extension.InstalledManga -> copy(hasUpdate = hasUpdate)
-            is Extension.InstalledVideo -> copy(hasUpdate = hasUpdate)
+            is Extension.InstalledAnime -> copy(hasUpdate = hasUpdate)
         }
     }
 
     private fun Extension.Installed.withObsolete(isObsolete: Boolean): Extension.Installed {
         return when (this) {
             is Extension.InstalledManga -> copy(isObsolete = isObsolete)
-            is Extension.InstalledVideo -> copy(isObsolete = isObsolete)
+            is Extension.InstalledAnime -> copy(isObsolete = isObsolete)
         }
     }
 
     private fun Extension.Installed.withRepoUrl(repoUrl: String?): Extension.Installed {
         return when (this) {
             is Extension.InstalledManga -> copy(repoUrl = repoUrl)
-            is Extension.InstalledVideo -> copy(repoUrl = repoUrl)
+            is Extension.InstalledAnime -> copy(repoUrl = repoUrl)
         }
     }
 

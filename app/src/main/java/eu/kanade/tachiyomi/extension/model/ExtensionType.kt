@@ -2,7 +2,7 @@ package eu.kanade.tachiyomi.extension.model
 
 enum class ExtensionType(val metadataValue: String) {
     MANGA("manga"),
-    VIDEO("video"),
+    ANIME("anime"),
     ;
 
     companion object {

@@ -4,7 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import tachiyomi.domain.source.service.SourceManager
-import tachiyomi.domain.source.service.VideoSourceManager
+import tachiyomi.domain.source.service.AnimeSourceManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -14,6 +14,6 @@ fun ifSourcesLoaded(): Boolean {
 }
 
 @Composable
-fun ifVideoSourcesLoaded(): Boolean {
-    return remember { Injekt.get<VideoSourceManager>().isInitialized }.collectAsState().value
+fun ifAnimeSourcesLoaded(): Boolean {
+    return remember { Injekt.get<AnimeSourceManager>().isInitialized }.collectAsState().value
 }

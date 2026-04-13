@@ -2,7 +2,7 @@ package eu.kanade.tachiyomi.extension.model
 
 import android.graphics.drawable.Drawable
 import eu.kanade.tachiyomi.source.Source
-import eu.kanade.tachiyomi.source.VideoSource
+import eu.kanade.tachiyomi.source.AnimeSource
 import tachiyomi.domain.source.model.StubSource
 
 sealed class Extension {
@@ -43,7 +43,7 @@ sealed class Extension {
         override val repoUrl: String? = null,
     ) : Installed()
 
-    data class InstalledVideo(
+    data class InstalledAnime(
         override val name: String,
         override val pkgName: String,
         override val versionName: String,
@@ -51,9 +51,9 @@ sealed class Extension {
         override val libVersion: Double,
         override val lang: String,
         override val isNsfw: Boolean,
-        override val type: ExtensionType = ExtensionType.VIDEO,
+        override val type: ExtensionType = ExtensionType.ANIME,
         override val pkgFactory: String?,
-        val sources: List<VideoSource>,
+        val sources: List<AnimeSource>,
         override val icon: Drawable?,
         override val hasUpdate: Boolean = false,
         override val isObsolete: Boolean = false,
@@ -105,7 +105,7 @@ sealed class Extension {
         }
     }
 
-    data class AvailableVideo(
+    data class AvailableAnime(
         override val name: String,
         override val pkgName: String,
         override val versionName: String,
@@ -113,7 +113,7 @@ sealed class Extension {
         override val libVersion: Double,
         override val lang: String,
         override val isNsfw: Boolean,
-        override val type: ExtensionType = ExtensionType.VIDEO,
+        override val type: ExtensionType = ExtensionType.ANIME,
         val sources: List<Source>,
         override val apkName: String,
         override val iconUrl: String,

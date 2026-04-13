@@ -474,7 +474,7 @@ private fun ExtensionItemActions(
                             }
                         }
                     }
-                    is Extension.InstalledVideo -> Unit
+                    is Extension.InstalledAnime -> Unit
                     is Extension.Untrusted -> {
                         IconButton(onClick = { onClickItemAction(extension) }) {
                             Icon(
@@ -502,7 +502,7 @@ private fun ExtensionItemActions(
                             )
                         }
                     }
-                    is Extension.AvailableVideo -> {
+                    is Extension.AvailableAnime -> {
                         IconButton(onClick = { onClickItemAction(extension) }) {
                             Icon(
                                 imageVector = Icons.Outlined.GetApp,

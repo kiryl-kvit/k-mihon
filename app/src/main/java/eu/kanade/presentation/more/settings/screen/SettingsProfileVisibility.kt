@@ -11,7 +11,7 @@ internal fun isSettingsScreenVisibleForProfileType(
 ): Boolean {
     return when (profileType) {
         ProfileType.MANGA -> true
-        ProfileType.VIDEO -> when (screen) {
+        ProfileType.ANIME -> when (screen) {
             SettingsAppearanceScreen,
             SettingsDataScreen,
             SettingsSecurityScreen,

@@ -75,20 +75,20 @@ class VideoPlayerActivity : BaseActivity() {
         }
         super.onCreate(savedInstanceState)
 
-        val videoId = intent.extras?.getLong(EXTRA_VIDEO_ID, INVALID_ID) ?: INVALID_ID
+        val animeId = intent.extras?.getLong(EXTRA_VIDEO_ID, INVALID_ID) ?: INVALID_ID
         val episodeId = intent.extras?.getLong(EXTRA_EPISODE_ID, INVALID_ID) ?: INVALID_ID
-        if (videoId == INVALID_ID || episodeId == INVALID_ID) {
+        if (animeId == INVALID_ID || episodeId == INVALID_ID) {
             finish()
             return
         }
-        viewModel.init(videoId, episodeId)
+        viewModel.init(animeId, episodeId)
 
         setComposeContent {
             val state by viewModel.state.collectAsState()
 
             VideoPlayerScaffold(
                 state = state,
-                videoId = videoId,
+                animeId = animeId,
                 episodeId = episodeId,
                 networkHelper = networkHelper,
             )
@@ -112,7 +112,7 @@ class VideoPlayerActivity : BaseActivity() {
     @Composable
     private fun VideoPlayerScaffold(
         state: VideoPlayerViewModel.State,
-        videoId: Long,
+        animeId: Long,
         episodeId: Long,
         networkHelper: NetworkHelper,
     ) {
@@ -142,7 +142,7 @@ class VideoPlayerActivity : BaseActivity() {
         ) { contentPadding ->
             VideoPlayerScreen(
                 state = state,
-                videoId = videoId,
+                animeId = animeId,
                 episodeId = episodeId,
                 networkHelper = networkHelper,
                 contentPadding = contentPadding,
@@ -153,7 +153,7 @@ class VideoPlayerActivity : BaseActivity() {
     @Composable
     private fun VideoPlayerScreen(
         state: VideoPlayerViewModel.State,
-        videoId: Long,
+        animeId: Long,
         episodeId: Long,
         networkHelper: NetworkHelper,
         contentPadding: androidx.compose.foundation.layout.PaddingValues,
@@ -173,7 +173,7 @@ class VideoPlayerActivity : BaseActivity() {
                         style = MaterialTheme.typography.headlineSmall,
                     )
                     Text(
-                        text = "Video ID: $videoId\nEpisode ID: $episodeId",
+                        text = "Video ID: $animeId\nEpisode ID: $episodeId",
                         modifier = Modifier.padding(top = 12.dp),
                         style = MaterialTheme.typography.bodyMedium,
                     )
@@ -320,9 +320,9 @@ class VideoPlayerActivity : BaseActivity() {
         try {
             startActivity(Intent.createChooser(intent, null))
         } catch (_: ActivityNotFoundException) {
-            toast(stringResource(MR.strings.video_source_compatibility_note))
+            toast(stringResource(MR.strings.anime_source_compatibility_note))
         } catch (e: Throwable) {
-            toast(e.message ?: stringResource(MR.strings.video_source_compatibility_note))
+            toast(e.message ?: stringResource(MR.strings.anime_source_compatibility_note))
         }
     }
 
@@ -332,10 +332,10 @@ class VideoPlayerActivity : BaseActivity() {
         private const val INVALID_ID = -1L
         private const val PROGRESS_SAVE_INTERVAL_MS = 10_000L
 
-        fun newIntent(context: Context, videoId: Long, episodeId: Long): Intent {
+        fun newIntent(context: Context, animeId: Long, episodeId: Long): Intent {
             return Intent(context, VideoPlayerActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                putExtra(EXTRA_VIDEO_ID, videoId)
+                putExtra(EXTRA_VIDEO_ID, animeId)
                 putExtra(EXTRA_EPISODE_ID, episodeId)
             }
         }

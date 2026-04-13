@@ -1,4 +1,4 @@
-package eu.kanade.tachiyomi.ui.video.updates
+package eu.kanade.tachiyomi.ui.anime.updates
 
 import android.app.Application
 import io.kotest.assertions.nondeterministic.eventually
@@ -16,12 +16,12 @@ import io.mockk.mockk
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import tachiyomi.domain.video.model.VideoUpdatesWithRelations
-import tachiyomi.domain.video.repository.VideoUpdatesRepository
+import tachiyomi.domain.anime.model.AnimeUpdatesWithRelations
+import tachiyomi.domain.anime.repository.AnimeUpdatesRepository
 import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class VideoUpdatesScreenModelTest {
+class AnimeUpdatesScreenModelTest {
 
     private val dispatcher = StandardTestDispatcher()
 
@@ -37,7 +37,7 @@ class VideoUpdatesScreenModelTest {
 
     @Test
     fun `groups updates by fetch date`() = runTest(dispatcher) {
-        val repository = FakeVideoUpdatesRepository(
+        val repository = FakeAnimeUpdatesRepository(
             listOf(
                 update(1L, 1_700_000_000_000L),
                 update(2L, 1_700_000_000_000L),
@@ -45,8 +45,8 @@ class VideoUpdatesScreenModelTest {
             ),
         )
 
-        val model = VideoUpdatesScreenModel(
-            videoUpdatesRepository = repository,
+        val model = AnimeUpdatesScreenModel(
+            animeUpdatesRepository = repository,
             application = mockk<Application>(relaxed = true),
         )
 
@@ -55,21 +55,21 @@ class VideoUpdatesScreenModelTest {
         eventually(2.seconds) {
             val list = model.state.value.list
             list.shouldHaveSize(5)
-            list[0]::class shouldBe VideoUpdatesUiModel.Header::class
-            list[1]::class shouldBe VideoUpdatesUiModel.Item::class
-            list[2]::class shouldBe VideoUpdatesUiModel.Item::class
-            list[3]::class shouldBe VideoUpdatesUiModel.Header::class
-            list[4]::class shouldBe VideoUpdatesUiModel.Item::class
+            list[0]::class shouldBe AnimeUpdatesUiModel.Header::class
+            list[1]::class shouldBe AnimeUpdatesUiModel.Item::class
+            list[2]::class shouldBe AnimeUpdatesUiModel.Item::class
+            list[3]::class shouldBe AnimeUpdatesUiModel.Header::class
+            list[4]::class shouldBe AnimeUpdatesUiModel.Item::class
         }
     }
 
-    private fun update(id: Long, dateFetch: Long): VideoUpdatesWithRelations {
-        return VideoUpdatesWithRelations(
+    private fun update(id: Long, dateFetch: Long): AnimeUpdatesWithRelations {
+        return AnimeUpdatesWithRelations(
             episodeId = id,
-            videoId = id,
+            animeId = id,
             episodeName = "Episode $id",
             episodeUrl = "/episode/$id",
-            videoTitle = "Video $id",
+            animeTitle = "Video $id",
             coverData = tachiyomi.domain.manga.model.MangaCover(
                 mangaId = id,
                 sourceId = 1L,
@@ -84,14 +84,14 @@ class VideoUpdatesScreenModelTest {
         )
     }
 
-    private class FakeVideoUpdatesRepository(
-        private val items: List<VideoUpdatesWithRelations>,
-    ) : VideoUpdatesRepository {
-        override suspend fun awaitWithWatched(watched: Boolean, after: Long, limit: Long): List<VideoUpdatesWithRelations> {
+    private class FakeAnimeUpdatesRepository(
+        private val items: List<AnimeUpdatesWithRelations>,
+    ) : AnimeUpdatesRepository {
+        override suspend fun awaitWithWatched(watched: Boolean, after: Long, limit: Long): List<AnimeUpdatesWithRelations> {
             return items
         }
 
-        override fun subscribeWithWatched(watched: Boolean, after: Long, limit: Long): Flow<List<VideoUpdatesWithRelations>> {
+        override fun subscribeWithWatched(watched: Boolean, after: Long, limit: Long): Flow<List<AnimeUpdatesWithRelations>> {
             return flowOf(items)
         }
     }

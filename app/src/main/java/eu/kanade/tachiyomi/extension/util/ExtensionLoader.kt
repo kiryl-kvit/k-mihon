@@ -14,9 +14,9 @@ import eu.kanade.tachiyomi.extension.model.LoadResult
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.SourceFactory
-import eu.kanade.tachiyomi.source.VideoCatalogueSource
-import eu.kanade.tachiyomi.source.VideoSource
-import eu.kanade.tachiyomi.source.VideoSourceFactory
+import eu.kanade.tachiyomi.source.AnimeCatalogueSource
+import eu.kanade.tachiyomi.source.AnimeSource
+import eu.kanade.tachiyomi.source.AnimeSourceFactory
 import eu.kanade.tachiyomi.util.lang.Hash
 import eu.kanade.tachiyomi.util.storage.copyAndSetReadOnlyTo
 import eu.kanade.tachiyomi.util.system.ChildFirstPathClassLoader
@@ -336,12 +336,12 @@ internal object ExtensionLoader {
                 )
             }
 
-            ExtensionType.VIDEO -> {
+            ExtensionType.ANIME -> {
                 val sources = sourceClasses.flatMap { sourceClass ->
                     try {
                         when (val obj = Class.forName(sourceClass, false, classLoader).getDeclaredConstructor().newInstance()) {
-                            is VideoSource -> listOf(obj)
-                            is VideoSourceFactory -> obj.createSources()
+                            is AnimeSource -> listOf(obj)
+                            is AnimeSourceFactory -> obj.createSources()
                             else -> throw Exception("Unknown video source class type: ${obj.javaClass}")
                         }
                     } catch (e: Throwable) {
@@ -350,7 +350,7 @@ internal object ExtensionLoader {
                     }
                 }
 
-                val langs = sources.filterIsInstance<VideoCatalogueSource>()
+                val langs = sources.filterIsInstance<AnimeCatalogueSource>()
                     .map { it.lang }
                     .toSet()
                 val lang = when (langs.size) {
@@ -359,7 +359,7 @@ internal object ExtensionLoader {
                     else -> "all"
                 }
 
-                Extension.InstalledVideo(
+                Extension.InstalledAnime(
                     name = extName,
                     pkgName = pkgName,
                     versionName = versionName,

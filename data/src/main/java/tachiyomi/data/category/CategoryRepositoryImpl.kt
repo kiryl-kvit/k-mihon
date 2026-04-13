@@ -48,16 +48,16 @@ class CategoryRepositoryImpl(
         }
     }
 
-    override suspend fun getCategoriesByVideoId(videoId: Long): List<Category> {
+    override suspend fun getCategoriesByAnimeId(animeId: Long): List<Category> {
         return handler.awaitList {
-            categoriesQueries.getCategoriesByVideoId(profileProvider.activeProfileId, videoId, ::mapCategory)
+            categoriesQueries.getCategoriesByAnimeId(profileProvider.activeProfileId, animeId, ::mapCategory)
         }
     }
 
-    override fun getCategoriesByVideoIdAsFlow(videoId: Long): Flow<List<Category>> {
+    override fun getCategoriesByAnimeIdAsFlow(animeId: Long): Flow<List<Category>> {
         return profileProvider.activeProfileIdFlow.flatMapLatest { profileId ->
             handler.subscribeToList {
-                categoriesQueries.getCategoriesByVideoId(profileId, videoId, ::mapCategory)
+                categoriesQueries.getCategoriesByAnimeId(profileId, animeId, ::mapCategory)
             }
         }
     }

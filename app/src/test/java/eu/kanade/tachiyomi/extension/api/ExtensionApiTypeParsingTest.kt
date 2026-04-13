@@ -22,7 +22,7 @@ class ExtensionApiTypeParsingTest {
     }
 
     @Test
-    fun `video repo type parses case insensitively`() {
-        extensionTypeFromRepoValue("ViDeO") shouldBe ExtensionType.VIDEO
+    fun `anime repo type parses case insensitively`() {
+        extensionTypeFromRepoValue("AnImE") shouldBe ExtensionType.ANIME
     }
 }
