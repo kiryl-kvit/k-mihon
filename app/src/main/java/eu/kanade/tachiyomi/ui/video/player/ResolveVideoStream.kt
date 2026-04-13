@@ -92,8 +92,8 @@ class ResolveVideoStream(
 
     private fun streamScore(stream: VideoStream): Int {
         val typeScore = when (stream.type) {
-            VideoStreamType.PROGRESSIVE -> 400
-            VideoStreamType.HLS -> 300
+            VideoStreamType.HLS -> 400
+            VideoStreamType.PROGRESSIVE -> 300
             VideoStreamType.DASH -> 200
             VideoStreamType.UNKNOWN -> 100
         }

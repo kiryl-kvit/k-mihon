@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -183,6 +184,7 @@ class VideoPlayerActivity : BaseActivity() {
             is VideoPlayerViewModel.State.Ready -> {
                 val context = LocalContext.current
                 var controlsVisible by remember(current.streamUrl) { mutableStateOf(false) }
+                var startupOverlayVisible by remember(current.streamUrl) { mutableStateOf(true) }
                 val currentPlayer = remember(current.streamUrl) {
                     buildVideoPlayer(
                         context = context,
@@ -200,19 +202,24 @@ class VideoPlayerActivity : BaseActivity() {
                                         viewModel.resetPlaybackBaseline(newPosition.positionMs)
                                     }
                                 }
+
+                                override fun onRenderedFirstFrame() {
+                                    startupOverlayVisible = false
+                                }
                             },
                         )
                         if (current.resumePositionMs > 0L) {
                             exoPlayer.seekTo(current.resumePositionMs)
                         }
-                        exoPlayer.playWhenReady = true
                     }
                 }
 
-                LaunchedEffect(context, current.streamUrl) {
+                LaunchedEffect(current.streamUrl) {
                     releasePlayer(persistState = false)
                     player = currentPlayer
                     startProgressSaves(currentPlayer)
+                    currentPlayer.playWhenReady = true
+                    currentPlayer.prepare()
                 }
 
                 Box(
@@ -226,6 +233,7 @@ class VideoPlayerActivity : BaseActivity() {
                             .background(Color.Black),
                         factory = { androidContext ->
                             PlayerView(androidContext).apply {
+                                player = currentPlayer
                                 useController = true
                                 controllerAutoShow = true
                                 setControllerVisibilityListener(PlayerControlView.VisibilityListener { visibility ->
@@ -240,9 +248,13 @@ class VideoPlayerActivity : BaseActivity() {
                             }
                         },
                         update = { playerView ->
-                            playerView.player = player
+                            playerView.player = currentPlayer
                         },
                     )
+
+                    if (startupOverlayVisible) {
+                        VideoPlayerStartupOverlay(modifier = Modifier.fillMaxSize())
+                    }
 
                     if (controlsVisible) {
                         VideoPlayerInfoOverlay(
@@ -271,6 +283,26 @@ class VideoPlayerActivity : BaseActivity() {
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
+            }
+        }
+    }
+
+    @Composable
+    private fun VideoPlayerStartupOverlay(modifier: Modifier = Modifier) {
+        Box(
+            modifier = modifier.background(Color.Black.copy(alpha = 0.84f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                CircularProgressIndicator(color = Color.White)
+                Text(
+                    text = "Starting playback...",
+                    modifier = Modifier.padding(top = 16.dp),
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodyLarge,
+                )
             }
         }
     }

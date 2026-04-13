@@ -30,8 +30,6 @@ internal fun buildVideoPlayer(
         .build()
         .apply {
             setMediaItem(stream.toMediaItem())
-            prepare()
-            playWhenReady = true
         }
 }
 

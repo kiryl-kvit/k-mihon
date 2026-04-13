@@ -58,6 +58,7 @@ class VideoPlayerViewModelTest {
             resolveVideoStream = fakeResolver(animeId = 1L, episodeId = 2L),
             videoPlaybackStateRepository = playbackRepository,
             videoHistoryRepository = historyRepository,
+            resolveDispatcher = dispatcher,
             persistenceDispatcher = dispatcher,
         )
 
@@ -81,6 +82,7 @@ class VideoPlayerViewModelTest {
             resolveVideoStream = fakeResolver(animeId = 1L, episodeId = 2L),
             videoPlaybackStateRepository = playbackRepository,
             videoHistoryRepository = historyRepository,
+            resolveDispatcher = dispatcher,
             persistenceDispatcher = dispatcher,
         )
 
@@ -107,6 +109,7 @@ class VideoPlayerViewModelTest {
             resolveVideoStream = fakeResolver(animeId = 1L, episodeId = 2L),
             videoPlaybackStateRepository = playbackRepository,
             videoHistoryRepository = historyRepository,
+            resolveDispatcher = dispatcher,
             persistenceDispatcher = dispatcher,
         )
 

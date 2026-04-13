@@ -21,7 +21,7 @@ import tachiyomi.domain.anime.repository.AnimeRepository
 class ResolveVideoStreamTest {
 
     @Test
-    fun `returns first stream from resolved source`() = runTest {
+    fun `prefers HLS stream from resolved source`() = runTest {
         val video = videoTitle(id = 1L, sourceId = 99L)
         val episode = videoEpisode(id = 2L, animeId = 1L)
         val firstStream = VideoStream(
@@ -47,7 +47,7 @@ class ResolveVideoStreamTest {
 
         (result as ResolveVideoStream.Result.Success).video shouldBe video
         result.episode shouldBe episode
-        result.stream shouldBe secondStream
+        result.stream shouldBe firstStream
     }
 
     @Test
