@@ -27,6 +27,7 @@ import tachiyomi.domain.anime.model.AnimePlaybackState
 import tachiyomi.domain.anime.model.AnimeTitle
 import tachiyomi.domain.anime.model.AnimeEpisode
 import tachiyomi.domain.anime.model.PlayerQualityMode
+import tachiyomi.domain.anime.repository.AnimeEpisodeRepository
 import tachiyomi.domain.anime.repository.AnimeHistoryRepository
 import tachiyomi.domain.anime.repository.AnimePlaybackPreferencesRepository
 import tachiyomi.domain.anime.repository.AnimePlaybackStateRepository
@@ -62,6 +63,13 @@ class VideoPlayerViewModelTest {
             savedState = SavedStateHandle(),
             resolveVideoStream = fakeResolver(animeId = 1L, episodeId = 2L),
             animePlaybackPreferencesRepository = FakeAnimePlaybackPreferencesRepository(),
+            animeEpisodeRepository = FakeAnimeEpisodeRepository(
+                episodes = listOf(
+                    videoEpisode(id = 1L, animeId = 1L, sourceOrder = 0L),
+                    videoEpisode(id = 2L, animeId = 1L, sourceOrder = 1L),
+                    videoEpisode(id = 3L, animeId = 1L, sourceOrder = 2L),
+                ),
+            ),
             videoPlaybackStateRepository = playbackRepository,
             videoHistoryRepository = historyRepository,
             resolveDispatcher = dispatcher,
@@ -73,6 +81,8 @@ class VideoPlayerViewModelTest {
 
         val state = viewModel.state.value as VideoPlayerViewModel.State.Ready
         state.episodeId shouldBe 2L
+        state.previousEpisodeId shouldBe 1L
+        state.nextEpisodeId shouldBe 3L
         state.resumePositionMs shouldBe 12_345L
         state.streamUrl shouldBe "https://cdn.example.com/video.m3u8"
         playbackRepository.requestedEpisodeIds shouldBe listOf(2L)
@@ -87,6 +97,7 @@ class VideoPlayerViewModelTest {
             savedState = SavedStateHandle(),
             resolveVideoStream = fakeResolver(animeId = 1L, episodeId = 2L),
             animePlaybackPreferencesRepository = FakeAnimePlaybackPreferencesRepository(),
+            animeEpisodeRepository = FakeAnimeEpisodeRepository(episodes = emptyList()),
             videoPlaybackStateRepository = playbackRepository,
             videoHistoryRepository = historyRepository,
             resolveDispatcher = dispatcher,
@@ -115,6 +126,7 @@ class VideoPlayerViewModelTest {
             savedState = SavedStateHandle(),
             resolveVideoStream = fakeResolver(animeId = 1L, episodeId = 2L),
             animePlaybackPreferencesRepository = FakeAnimePlaybackPreferencesRepository(),
+            animeEpisodeRepository = FakeAnimeEpisodeRepository(episodes = emptyList()),
             videoPlaybackStateRepository = playbackRepository,
             videoHistoryRepository = historyRepository,
             resolveDispatcher = dispatcher,
@@ -133,6 +145,51 @@ class VideoPlayerViewModelTest {
         historyRepository.upserts.size shouldBe 2
         historyRepository.upserts[0].sessionWatchedDuration shouldBe 30_000L
         historyRepository.upserts[1].sessionWatchedDuration shouldBe 2_000L
+    }
+
+    @Test
+    fun `play next episode resolves adjacent episode in source order`() = runTest(dispatcher) {
+        val playbackRepository = FakeAnimePlaybackStateRepository(existingState = null)
+        val historyRepository = FakeAnimeHistoryRepository()
+        val resolver = RecordingVideoStreamResolver()
+        val viewModel = VideoPlayerViewModel(
+            savedState = SavedStateHandle(),
+            resolveVideoStream = resolver,
+            animePlaybackPreferencesRepository = FakeAnimePlaybackPreferencesRepository(),
+            animeEpisodeRepository = FakeAnimeEpisodeRepository(
+                episodes = listOf(
+                    videoEpisode(id = 20L, animeId = 1L, sourceOrder = 2L),
+                    videoEpisode(id = 10L, animeId = 1L, sourceOrder = 1L),
+                    videoEpisode(id = 30L, animeId = 1L, sourceOrder = 3L),
+                ),
+            ),
+            videoPlaybackStateRepository = playbackRepository,
+            videoHistoryRepository = historyRepository,
+            resolveDispatcher = dispatcher,
+            persistenceDispatcher = dispatcher,
+        )
+
+        viewModel.init(animeId = 1L, episodeId = 10L)
+        advanceUntilIdle()
+        viewModel.playNextEpisode()
+        advanceUntilIdle()
+
+        resolver.requests shouldBe listOf(10L, 20L)
+        val state = viewModel.state.value as VideoPlayerViewModel.State.Ready
+        state.episodeId shouldBe 20L
+        state.previousEpisodeId shouldBe 10L
+        state.nextEpisodeId shouldBe 30L
+    }
+
+    private fun videoEpisode(id: Long, animeId: Long, sourceOrder: Long): AnimeEpisode {
+        return AnimeEpisode.create().copy(
+            id = id,
+            animeId = animeId,
+            url = "/episode/$id",
+            name = "Episode $id",
+            sourceOrder = sourceOrder,
+            episodeNumber = sourceOrder.toDouble(),
+        )
     }
 
     private fun fakeResolver(animeId: Long, episodeId: Long): VideoStreamResolver {
@@ -192,6 +249,34 @@ class VideoPlayerViewModelTest {
         override suspend fun upsert(preferences: AnimePlaybackPreferences) = Unit
     }
 
+    private class FakeAnimeEpisodeRepository(
+        private val episodes: List<AnimeEpisode>,
+    ) : AnimeEpisodeRepository {
+        override suspend fun addAll(episodes: List<AnimeEpisode>): List<AnimeEpisode> = error("Not used")
+
+        override suspend fun update(episodeUpdate: tachiyomi.domain.anime.model.AnimeEpisodeUpdate) = error("Not used")
+
+        override suspend fun updateAll(episodeUpdates: List<tachiyomi.domain.anime.model.AnimeEpisodeUpdate>) = error("Not used")
+
+        override suspend fun removeEpisodesWithIds(episodeIds: List<Long>) = error("Not used")
+
+        override suspend fun getEpisodesByAnimeId(animeId: Long): List<AnimeEpisode> {
+            return episodes.filter { it.animeId == animeId }
+        }
+
+        override fun getEpisodesByAnimeIdAsFlow(animeId: Long): Flow<List<AnimeEpisode>> {
+            return flowOf(episodes.filter { it.animeId == animeId })
+        }
+
+        override fun getEpisodesByAnimeIdsAsFlow(animeIds: List<Long>): Flow<List<AnimeEpisode>> = flowOf(episodes.filter { it.animeId in animeIds })
+
+        override suspend fun getEpisodeById(id: Long): AnimeEpisode? = episodes.firstOrNull { it.id == id }
+
+        override suspend fun getEpisodeByUrlAndAnimeId(url: String, animeId: Long): AnimeEpisode? {
+            return episodes.firstOrNull { it.url == url && it.animeId == animeId }
+        }
+    }
+
     private class FakeAnimePlaybackStateRepository(
         private val existingState: AnimePlaybackState?,
     ) : AnimePlaybackStateRepository {
@@ -239,6 +324,56 @@ class VideoPlayerViewModelTest {
 
         override suspend fun upsertHistory(historyUpdate: AnimeHistoryUpdate) {
             upserts += historyUpdate
+        }
+    }
+
+    private class RecordingVideoStreamResolver : VideoStreamResolver {
+        val requests = mutableListOf<Long>()
+
+        override suspend fun invoke(
+            animeId: Long,
+            episodeId: Long,
+            selection: VideoPlaybackSelection?,
+        ): ResolveVideoStream.Result {
+            requests += episodeId
+            val video = AnimeTitle.create().copy(
+                id = animeId,
+                source = 99L,
+                title = "Video $animeId",
+                initialized = true,
+                url = "/video/$animeId",
+            )
+            val episode = AnimeEpisode.create().copy(
+                id = episodeId,
+                animeId = animeId,
+                url = "/episode/$episodeId",
+                name = "Episode $episodeId",
+                episodeNumber = episodeId.toDouble(),
+            )
+            val stream = VideoStream(
+                request = VideoRequest(url = "https://cdn.example.com/$episodeId.m3u8"),
+                label = "Auto",
+                type = VideoStreamType.HLS,
+            )
+
+            return ResolveVideoStream.Result.Success(
+                video = video,
+                episode = episode,
+                playbackData = VideoPlaybackData(
+                    selection = selection ?: VideoPlaybackSelection(),
+                    streams = listOf(stream),
+                ),
+                stream = stream,
+                savedPreferences = AnimePlaybackPreferences(
+                    animeId = animeId,
+                    dubKey = null,
+                    streamKey = null,
+                    sourceQualityKey = null,
+                    playerQualityMode = PlayerQualityMode.AUTO,
+                    playerQualityHeight = null,
+                    updatedAt = 0L,
+                ),
+            )
         }
     }
 }

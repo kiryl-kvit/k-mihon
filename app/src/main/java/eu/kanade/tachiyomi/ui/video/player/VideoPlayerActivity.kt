@@ -5,6 +5,7 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.widget.ImageButton
 import android.view.View
 import android.os.Build
 import android.os.Bundle
@@ -18,7 +19,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -34,6 +34,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -54,6 +55,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.Player
+import androidx.media3.common.ForwardingPlayer
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerControlView
 import androidx.media3.ui.PlayerView
@@ -66,7 +68,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import tachiyomi.presentation.core.components.HeadingItem
 import tachiyomi.presentation.core.components.SettingsChipRow
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.i18n.MR
@@ -191,10 +192,10 @@ class VideoPlayerActivity : BaseActivity() {
             }
             is VideoPlayerViewModel.State.Ready -> {
                 val context = LocalContext.current
-                var controlsVisible by remember(current.streamUrl) { mutableStateOf(false) }
-                var startupOverlayVisible by remember(current.streamUrl) { mutableStateOf(true) }
-                var settingsVisible by remember(current.streamUrl) { mutableStateOf(false) }
-                val currentPlayer = remember(current.streamUrl) {
+                var controlsVisible by remember(current.episodeId, current.streamUrl) { mutableStateOf(false) }
+                var startupOverlayVisible by remember(current.episodeId, current.streamUrl) { mutableStateOf(true) }
+                var settingsVisible by remember(current.episodeId, current.streamUrl) { mutableStateOf(false) }
+                val currentPlayer = remember(current.episodeId, current.streamUrl) {
                     buildVideoPlayer(
                         context = context,
                         networkHelper = networkHelper,
@@ -226,8 +227,27 @@ class VideoPlayerActivity : BaseActivity() {
                         }
                     }
                 }
+                val controllerPlayer = remember(
+                    currentPlayer,
+                    current.previousEpisodeId,
+                    current.nextEpisodeId,
+                ) {
+                    EpisodeNavigationPlayer(
+                        player = currentPlayer,
+                        hasPreviousEpisode = current.previousEpisodeId != null,
+                        hasNextEpisode = current.nextEpisodeId != null,
+                        onPreviousEpisode = {
+                            flushPlaybackState()
+                            viewModel.playPreviousEpisode()
+                        },
+                        onNextEpisode = {
+                            flushPlaybackState()
+                            viewModel.playNextEpisode()
+                        },
+                    )
+                }
 
-                LaunchedEffect(current.streamUrl) {
+                LaunchedEffect(current.episodeId, current.streamUrl) {
                     releasePlayer(persistState = false)
                     player = currentPlayer
                     startProgressSaves(currentPlayer)
@@ -251,9 +271,11 @@ class VideoPlayerActivity : BaseActivity() {
                             .background(Color.Black),
                         factory = { androidContext ->
                             PlayerView(androidContext).apply {
-                                player = currentPlayer
+                                player = controllerPlayer
                                 useController = true
                                 controllerAutoShow = true
+                                setShowPreviousButton(current.previousEpisodeId != null)
+                                setShowNextButton(current.nextEpisodeId != null)
                                 setControllerVisibilityListener(PlayerControlView.VisibilityListener { visibility ->
                                     controlsVisible = visibility == View.VISIBLE
                                 })
@@ -263,10 +285,30 @@ class VideoPlayerActivity : BaseActivity() {
                                     ViewGroup.LayoutParams.MATCH_PARENT,
                                     ViewGroup.LayoutParams.MATCH_PARENT,
                                 )
+                                findViewById<View?>(androidx.media3.ui.R.id.exo_settings)?.visibility = View.GONE
+                                findViewById<ImageButton?>(androidx.media3.ui.R.id.exo_prev)?.apply {
+                                    isEnabled = current.previousEpisodeId != null
+                                    alpha = if (current.previousEpisodeId != null) 1f else 0.38f
+                                }
+                                findViewById<ImageButton?>(androidx.media3.ui.R.id.exo_next)?.apply {
+                                    isEnabled = current.nextEpisodeId != null
+                                    alpha = if (current.nextEpisodeId != null) 1f else 0.38f
+                                }
                             }
                         },
                         update = { playerView ->
-                            playerView.player = currentPlayer
+                            playerView.player = controllerPlayer
+                            playerView.setShowPreviousButton(current.previousEpisodeId != null)
+                            playerView.setShowNextButton(current.nextEpisodeId != null)
+                            playerView.findViewById<View?>(androidx.media3.ui.R.id.exo_settings)?.visibility = View.GONE
+                            playerView.findViewById<ImageButton?>(androidx.media3.ui.R.id.exo_prev)?.apply {
+                                isEnabled = current.previousEpisodeId != null
+                                alpha = if (current.previousEpisodeId != null) 1f else 0.38f
+                            }
+                            playerView.findViewById<ImageButton?>(androidx.media3.ui.R.id.exo_next)?.apply {
+                                isEnabled = current.nextEpisodeId != null
+                                alpha = if (current.nextEpisodeId != null) 1f else 0.38f
+                            }
                         },
                     )
 
@@ -461,16 +503,19 @@ class VideoPlayerActivity : BaseActivity() {
         onSelectSourceQuality: (String?) -> Unit,
         onSelectAdaptiveQuality: (VideoAdaptiveQualityPreference) -> Unit,
     ) {
-        ModalBottomSheet(onDismissRequest = onDismissRequest) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = onDismissRequest,
+            sheetState = sheetState,
+        ) {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 520.dp),
+                    .fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 24.dp),
             ) {
                 if (playback.playbackData.dubs.isNotEmpty()) {
                     item {
-                        HeadingItem(MR.strings.anime_playback_dub)
                         PlaybackOptionRow(
                             options = playback.playbackData.dubs,
                             titleRes = MR.strings.anime_playback_dub,
@@ -482,7 +527,6 @@ class VideoPlayerActivity : BaseActivity() {
 
                 if (playback.streamOptions.size > 1) {
                     item {
-                        HeadingItem(MR.strings.anime_playback_stream)
                         PlaybackOptionRow(
                             options = playback.streamOptions,
                             titleRes = MR.strings.anime_playback_stream,
@@ -494,7 +538,6 @@ class VideoPlayerActivity : BaseActivity() {
 
                 if (playback.playbackData.sourceQualities.isNotEmpty()) {
                     item {
-                        HeadingItem(MR.strings.anime_playback_source_quality)
                         PlaybackOptionRow(
                             options = playback.playbackData.sourceQualities,
                             titleRes = MR.strings.anime_playback_source_quality,
@@ -504,9 +547,8 @@ class VideoPlayerActivity : BaseActivity() {
                     }
                 }
 
-                if (playback.adaptiveQualities.size > 1) {
+                if (playback.showsAdaptiveQualitySelector) {
                     item {
-                        HeadingItem(MR.strings.anime_playback_quality)
                         SettingsChipRow(MR.strings.anime_playback_quality) {
                             playback.adaptiveQualities.forEach { option ->
                                 FilterChip(
@@ -590,5 +632,77 @@ private fun eu.kanade.tachiyomi.source.model.VideoStreamType.toExternalMimeType(
         eu.kanade.tachiyomi.source.model.VideoStreamType.DASH -> "application/dash+xml"
         eu.kanade.tachiyomi.source.model.VideoStreamType.PROGRESSIVE -> "video/*"
         eu.kanade.tachiyomi.source.model.VideoStreamType.UNKNOWN -> "video/*"
+    }
+}
+
+private class EpisodeNavigationPlayer(
+    player: Player,
+    private val hasPreviousEpisode: Boolean,
+    private val hasNextEpisode: Boolean,
+    private val onPreviousEpisode: () -> Unit,
+    private val onNextEpisode: () -> Unit,
+) : ForwardingPlayer(player) {
+    override fun getAvailableCommands(): Player.Commands {
+        return super.getAvailableCommands()
+            .buildUpon()
+            .addIf(Player.COMMAND_SEEK_TO_PREVIOUS, hasPreviousEpisode)
+            .addIf(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM, hasPreviousEpisode)
+            .addIf(Player.COMMAND_SEEK_TO_NEXT, hasNextEpisode)
+            .addIf(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM, hasNextEpisode)
+            .removeIf(Player.COMMAND_SEEK_TO_PREVIOUS, !hasPreviousEpisode)
+            .removeIf(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM, !hasPreviousEpisode)
+            .removeIf(Player.COMMAND_SEEK_TO_NEXT, !hasNextEpisode)
+            .removeIf(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM, !hasNextEpisode)
+            .build()
+    }
+
+    override fun isCommandAvailable(command: Int): Boolean {
+        return when (command) {
+            Player.COMMAND_SEEK_TO_PREVIOUS,
+            Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
+            Player.COMMAND_SEEK_TO_PREVIOUS_WINDOW,
+            -> hasPreviousEpisode
+            Player.COMMAND_SEEK_TO_NEXT,
+            Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
+            Player.COMMAND_SEEK_TO_NEXT_WINDOW,
+            -> hasNextEpisode
+            else -> super.isCommandAvailable(command)
+        }
+    }
+
+    override fun hasPreviousMediaItem(): Boolean = hasPreviousEpisode
+
+    override fun hasNextMediaItem(): Boolean = hasNextEpisode
+
+    override fun seekToPreviousMediaItem() {
+        if (hasPreviousEpisode) {
+            onPreviousEpisode()
+        } else {
+            super.seekToPreviousMediaItem()
+        }
+    }
+
+    override fun seekToPrevious() {
+        if (hasPreviousEpisode) {
+            onPreviousEpisode()
+        } else {
+            super.seekToPrevious()
+        }
+    }
+
+    override fun seekToNextMediaItem() {
+        if (hasNextEpisode) {
+            onNextEpisode()
+        } else {
+            super.seekToNextMediaItem()
+        }
+    }
+
+    override fun seekToNext() {
+        if (hasNextEpisode) {
+            onNextEpisode()
+        } else {
+            super.seekToNext()
+        }
     }
 }

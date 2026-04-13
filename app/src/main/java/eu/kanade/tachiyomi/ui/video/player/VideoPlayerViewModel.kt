@@ -16,8 +16,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import tachiyomi.domain.anime.model.AnimeEpisode
 import tachiyomi.domain.anime.model.AnimePlaybackPreferences
 import tachiyomi.domain.anime.model.PlayerQualityMode
+import tachiyomi.domain.anime.repository.AnimeEpisodeRepository
 import tachiyomi.domain.anime.repository.AnimeHistoryRepository
 import tachiyomi.domain.anime.repository.AnimePlaybackPreferencesRepository
 import tachiyomi.domain.anime.repository.AnimePlaybackStateRepository
@@ -28,6 +30,7 @@ class VideoPlayerViewModel @JvmOverloads constructor(
     private val savedState: SavedStateHandle,
     private val resolveVideoStream: VideoStreamResolver = Injekt.get<ResolveVideoStream>(),
     private val animePlaybackPreferencesRepository: AnimePlaybackPreferencesRepository = Injekt.get(),
+    private val animeEpisodeRepository: AnimeEpisodeRepository = Injekt.get(),
     private val videoPlaybackStateRepository: AnimePlaybackStateRepository = Injekt.get(),
     private val videoHistoryRepository: AnimeHistoryRepository = Injekt.get(),
     private val resolveDispatcher: CoroutineDispatcher = Dispatchers.IO,
@@ -145,6 +148,22 @@ class VideoPlayerViewModel @JvmOverloads constructor(
         mutableState.value = current.copy(resumePositionMs = positionMs.coerceAtLeast(0L))
     }
 
+    fun playPreviousEpisode() {
+        val current = mutableState.value as? State.Ready ?: return
+        val previousEpisodeId = current.previousEpisodeId ?: return
+        viewModelScope.launch {
+            playEpisode(previousEpisodeId)
+        }
+    }
+
+    fun playNextEpisode() {
+        val current = mutableState.value as? State.Ready ?: return
+        val nextEpisodeId = current.nextEpisodeId ?: return
+        viewModelScope.launch {
+            playEpisode(nextEpisodeId)
+        }
+    }
+
     private suspend fun resolvePlayback(
         selection: VideoPlaybackSelection? = null,
         preservePositionMs: Long? = null,
@@ -156,10 +175,13 @@ class VideoPlayerViewModel @JvmOverloads constructor(
                 val resumePositionMs = preservePositionMs
                     ?: videoPlaybackStateRepository.getByEpisodeId(result.episode.id)?.positionMs
                     ?: 0L
+                val navigation = resolveEpisodeNavigation(result.video.id, result.episode.id)
                 val playback = buildPlaybackUiState(result.playbackData, result.stream, result.savedPreferences)
                 State.Ready(
                     animeId = result.video.id,
                     episodeId = result.episode.id,
+                    previousEpisodeId = navigation.previousEpisodeId,
+                    nextEpisodeId = navigation.nextEpisodeId,
                     videoTitle = result.video.displayTitle,
                     episodeName = result.episode.name,
                     streamLabel = playback.currentStreamLabel,
@@ -179,6 +201,26 @@ class VideoPlayerViewModel @JvmOverloads constructor(
             session.restore(current.resumePositionMs)
             playbackSession = session
         }
+    }
+
+    private suspend fun resolveEpisodeNavigation(animeId: Long, episodeId: Long): EpisodeNavigation {
+        val sortedEpisodes = animeEpisodeRepository.getEpisodesByAnimeId(animeId)
+            .sortedBy(AnimeEpisode::sourceOrder)
+        val currentIndex = sortedEpisodes.indexOfFirst { it.id == episodeId }
+        if (currentIndex == -1) return EpisodeNavigation()
+
+        return EpisodeNavigation(
+            previousEpisodeId = sortedEpisodes.getOrNull(currentIndex - 1)?.id,
+            nextEpisodeId = sortedEpisodes.getOrNull(currentIndex + 1)?.id,
+        )
+    }
+
+    private suspend fun playEpisode(targetEpisodeId: Long) {
+        mutableState.value as? State.Ready ?: return
+        savedState[EPISODE_ID_KEY] = targetEpisodeId
+        episodeId = targetEpisodeId
+        playbackSession = null
+        resolvePlayback(initial = true)
     }
 
     private fun buildPlaybackUiState(
@@ -238,6 +280,8 @@ class VideoPlayerViewModel @JvmOverloads constructor(
         data class Ready(
             val animeId: Long,
             val episodeId: Long,
+            val previousEpisodeId: Long?,
+            val nextEpisodeId: Long?,
             val videoTitle: String,
             val episodeName: String,
             val streamLabel: String,
@@ -272,3 +316,8 @@ class VideoPlayerViewModel @JvmOverloads constructor(
         private const val INVALID_ID = -1L
     }
 }
+
+private data class EpisodeNavigation(
+    val previousEpisodeId: Long? = null,
+    val nextEpisodeId: Long? = null,
+)

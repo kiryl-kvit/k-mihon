@@ -14,7 +14,10 @@ data class VideoPlaybackUiState(
     val playbackData: VideoPlaybackData,
     val adaptiveQualities: List<VideoAdaptiveQualityOption> = emptyList(),
     val currentAdaptiveQuality: VideoAdaptiveQualityPreference = VideoAdaptiveQualityPreference.Auto,
-)
+) {
+    val showsAdaptiveQualitySelector: Boolean
+        get() = playbackData.sourceQualities.isEmpty() && adaptiveQualities.size > 1
+}
 
 sealed interface VideoAdaptiveQualityPreference {
     data object Auto : VideoAdaptiveQualityPreference
