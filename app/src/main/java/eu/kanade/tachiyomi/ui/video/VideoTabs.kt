@@ -11,11 +11,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import cafe.adriel.voyager.navigator.tab.TabOptions
@@ -24,6 +27,8 @@ import eu.kanade.presentation.components.TabbedScreen
 import eu.kanade.presentation.util.Tab
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.ui.main.MainActivity
+import eu.kanade.tachiyomi.ui.video.browse.extension.VideoExtensionsScreenModel
+import eu.kanade.tachiyomi.ui.video.browse.extension.videoExtensionsTab
 import eu.kanade.tachiyomi.ui.video.browse.videoSourcesTab
 import kotlinx.collections.immutable.persistentListOf
 import tachiyomi.i18n.MR
@@ -86,8 +91,11 @@ data object VideoBrowseTab : Tab {
     @Composable
     override fun Content() {
         val context = LocalContext.current
+        val extensionsScreenModel = rememberScreenModel { VideoExtensionsScreenModel() }
+        val extensionsState by extensionsScreenModel.state.collectAsState()
         val tabs = persistentListOf(
             videoSourcesTab(),
+            videoExtensionsTab(extensionsScreenModel),
         )
         val state = rememberPagerState { tabs.size }
 
@@ -95,6 +103,8 @@ data object VideoBrowseTab : Tab {
             titleRes = MR.strings.browse,
             tabs = tabs,
             state = state,
+            searchQuery = extensionsState.searchQuery,
+            onChangeSearchQuery = extensionsScreenModel::search,
         )
 
         LaunchedEffect(Unit) {

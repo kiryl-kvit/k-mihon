@@ -532,6 +532,30 @@ Checklist:
 - [x] Document extension/runtime compatibility assumptions and rollout limits
 - [x] Complete video-shell polish and targeted screen-model coverage
 
+## Phase 8: Private Extensions and First Real Source
+
+Goal: move from app-only video work to a private separate extensions repo and one real source that can exercise the feature end to end.
+
+Detailed plan: `docs/VIDEO-PHASE-8-PRIVATE-EXTENSIONS-AND-REZKA.md`
+
+Scope:
+
+- create a private extensions repo at `~/projects/k-mihon-extensions`
+- use a development-only local dependency on the sibling `k-mihon` checkout, with `source-api` as the intended API surface
+- document clearly that the local dependency model must be refactored after the video extension API reaches a stable state
+- build the first private video extension package against `https://rezka.ag/`
+- expose all four Rezka sections from the start via `VideoSourceFactory`
+- start with manual APK sideload validation; keep private repo/index automation secondary
+
+Checklist:
+
+- [ ] Create the private `k-mihon-extensions` repo
+- [ ] Build the temporary local development dependency on the sibling app checkout
+- [ ] Document the post-stabilization SDK refactor requirement
+- [ ] Build the private Rezka extension package with four section-specific sources
+- [ ] Validate manual sideload install and end-to-end app flows against real Rezka content
+- [ ] Decide whether private repo/index automation is worth adding after the direct APK path works
+
 ## Key Technical Decisions
 
 These were finalized in Phase 0 and should guide Phase 1+ work.
@@ -657,6 +681,8 @@ Phase 6 is functionally complete and delivered real video history, updates, and 
 
 Current note: Phase 7 is complete at the current scope and delivered resolver hardening, documented compatibility limits, video-shell polish, and targeted screen-model coverage.
 
+Next planned slice: `Phase 8`, which starts the private extensions track with a separate repo and the first real source, `rezka.ag`. See `docs/VIDEO-PHASE-8-PRIVATE-EXTENSIONS-AND-REZKA.md`.
+
 Video updates badges remain intentionally disabled, and background/manual video sync remains out of scope until real supporting pipelines exist.
 
 Follow-on work, if any, should be planned as a new phase or backlog slice rather than treated as unfinished Phase 7 work.
@@ -690,7 +716,8 @@ The safest execution order is:
 4. Built-in player vertical slice
 5. Video profile UI shell
 6. History/updates/settings adaptation
-7. Hardening and extension rollout
+7. Hardening and polish
+8. Private extensions and first real source
 
 ## Tracking
 
@@ -702,6 +729,7 @@ When implementation starts, add phase-specific files such as:
 - `docs/VIDEO-PHASE-3-DATA.md`
 - `docs/VIDEO-PHASE-4-PLAYER.md`
 - `docs/VIDEO-PHASE-5-UI.md`
+- `docs/VIDEO-PHASE-8-PRIVATE-EXTENSIONS-AND-REZKA.md`
 
 Each phase file should contain:
 
@@ -714,14 +742,18 @@ Each phase file should contain:
 
 ## First Implementation Milestone
 
-The first milestone should be a narrow but real vertical slice:
+The original first vertical slice is now complete.
 
-- create a `video` profile
-- install/load one video source type
-- browse one video title
-- open one episode
+The next practical milestone is the first private real-source validation slice:
+
+- create `~/projects/k-mihon-extensions`
+- build one private video extension APK against `rezka.ag`
+- install/load the extension manually on the emulator
+- expose the four Rezka sections through `VideoSourceFactory`
+- browse one real title
+- open one playable episode entry
 - play it in-app
 - persist resume position
-- mark it complete when finished
+- validate history/library/continue-watching state
 
-If this works cleanly, the rest of the plan can build outward without forcing video concepts into manga-only architecture.
+If this works cleanly, the rest of the private extensions plan can build outward without forcing video concepts into manga-only architecture.
