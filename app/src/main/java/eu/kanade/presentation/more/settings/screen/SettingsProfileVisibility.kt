@@ -16,6 +16,7 @@ internal fun isSettingsScreenVisibleForProfileType(
             SettingsDataScreen,
             SettingsSecurityScreen,
             SettingsAdvancedScreen,
+            CustomSettingsScreen,
             AboutScreen,
             -> true
             else -> false

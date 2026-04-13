@@ -9,26 +9,26 @@ import tachiyomi.domain.profile.model.ProfileType
 class SettingsProfileVisibilityTest {
 
     @Test
-    fun `video profiles hide manga-specific settings screens`() {
+    fun `anime profiles hide manga-specific settings screens`() {
         isSettingsScreenVisibleForProfileType(SettingsLibraryScreen, ProfileType.ANIME) shouldBe false
         isSettingsScreenVisibleForProfileType(SettingsReaderScreen, ProfileType.ANIME) shouldBe false
         isSettingsScreenVisibleForProfileType(SettingsDownloadScreen, ProfileType.ANIME) shouldBe false
         isSettingsScreenVisibleForProfileType(SettingsTrackingScreen, ProfileType.ANIME) shouldBe false
         isSettingsScreenVisibleForProfileType(SettingsBrowseScreen, ProfileType.ANIME) shouldBe false
-        isSettingsScreenVisibleForProfileType(CustomSettingsScreen, ProfileType.ANIME) shouldBe false
     }
 
     @Test
-    fun `video profiles keep neutral settings screens`() {
+    fun `anime profiles keep neutral settings screens`() {
         isSettingsScreenVisibleForProfileType(SettingsAppearanceScreen, ProfileType.ANIME) shouldBe true
         isSettingsScreenVisibleForProfileType(SettingsDataScreen, ProfileType.ANIME) shouldBe true
         isSettingsScreenVisibleForProfileType(SettingsSecurityScreen, ProfileType.ANIME) shouldBe true
         isSettingsScreenVisibleForProfileType(SettingsAdvancedScreen, ProfileType.ANIME) shouldBe true
+        isSettingsScreenVisibleForProfileType(CustomSettingsScreen, ProfileType.ANIME) shouldBe true
         isSettingsScreenVisibleForProfileType(AboutScreen, ProfileType.ANIME) shouldBe true
     }
 
     @Test
-    fun `video profile disallowed direct destination falls back to neutral start screen`() {
+    fun `anime profile disallowed direct destination falls back to neutral start screen`() {
         resolveSettingsStartScreen(
             destination = SettingsScreen.Destination.Tracking,
             profileType = ProfileType.ANIME,
@@ -43,7 +43,7 @@ class SettingsProfileVisibilityTest {
     }
 
     @Test
-    fun `video profile allowed direct destination stays intact`() {
+    fun `anime profile allowed direct destination stays intact`() {
         resolveSettingsStartScreen(
             destination = SettingsScreen.Destination.DataAndStorage,
             profileType = ProfileType.ANIME,
