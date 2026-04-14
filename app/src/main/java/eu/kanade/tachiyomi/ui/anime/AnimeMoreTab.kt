@@ -23,6 +23,7 @@ import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.util.Tab
 import eu.kanade.presentation.anime.more.AnimeMoreScreen
 import eu.kanade.tachiyomi.R
+import eu.kanade.tachiyomi.ui.category.CategoryScreen
 import eu.kanade.tachiyomi.ui.setting.SettingsScreen
 import mihon.feature.profiles.core.ProfileManager
 import mihon.feature.profiles.ui.ProfilePickerScreen
@@ -64,6 +65,7 @@ data object AnimeMoreTab : Tab {
         AnimeMoreScreen(
             incognitoMode = screenModel.incognitoMode,
             onIncognitoModeChange = { screenModel.incognitoMode = it },
+            onClickCategories = { navigator.push(CategoryScreen()) },
             onClickDataAndStorage = { navigator.push(SettingsScreen(SettingsScreen.Destination.DataAndStorage)) },
             onClickProfiles = {
                 scope.launch {

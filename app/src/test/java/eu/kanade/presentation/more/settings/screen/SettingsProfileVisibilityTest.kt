@@ -14,12 +14,12 @@ class SettingsProfileVisibilityTest {
         isSettingsScreenVisibleForProfileType(SettingsReaderScreen, ProfileType.ANIME) shouldBe false
         isSettingsScreenVisibleForProfileType(SettingsDownloadScreen, ProfileType.ANIME) shouldBe false
         isSettingsScreenVisibleForProfileType(SettingsTrackingScreen, ProfileType.ANIME) shouldBe false
-        isSettingsScreenVisibleForProfileType(SettingsBrowseScreen, ProfileType.ANIME) shouldBe false
     }
 
     @Test
-    fun `anime profiles keep neutral settings screens`() {
+    fun `anime profiles keep neutral and shared settings screens`() {
         isSettingsScreenVisibleForProfileType(SettingsAppearanceScreen, ProfileType.ANIME) shouldBe true
+        isSettingsScreenVisibleForProfileType(SettingsBrowseScreen, ProfileType.ANIME) shouldBe true
         isSettingsScreenVisibleForProfileType(SettingsDataScreen, ProfileType.ANIME) shouldBe true
         isSettingsScreenVisibleForProfileType(SettingsSecurityScreen, ProfileType.ANIME) shouldBe true
         isSettingsScreenVisibleForProfileType(SettingsAdvancedScreen, ProfileType.ANIME) shouldBe true

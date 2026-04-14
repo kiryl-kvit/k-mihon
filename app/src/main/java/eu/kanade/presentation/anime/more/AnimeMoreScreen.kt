@@ -3,6 +3,7 @@ package eu.kanade.presentation.anime.more
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
+import androidx.compose.material.icons.automirrored.outlined.Label
 import androidx.compose.material.icons.filled.VolunteerActivism
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Info
@@ -34,6 +35,7 @@ import uy.kohesive.injekt.api.get
 fun AnimeMoreScreen(
     incognitoMode: Boolean,
     onIncognitoModeChange: (Boolean) -> Unit,
+    onClickCategories: () -> Unit,
     onClickDataAndStorage: () -> Unit,
     onClickProfiles: () -> Unit,
     onClickSettings: () -> Unit,
@@ -65,6 +67,13 @@ fun AnimeMoreScreen(
 
             item {
                 TextPreferenceWidget(
+                    title = stringResource(MR.strings.categories),
+                    icon = Icons.AutoMirrored.Outlined.Label,
+                    onPreferenceClick = onClickCategories,
+                )
+            }
+            item {
+                TextPreferenceWidget(
                     title = stringResource(MR.strings.label_data_storage),
                     icon = Icons.Outlined.Storage,
                     onPreferenceClick = onClickDataAndStorage,
@@ -83,7 +92,7 @@ fun AnimeMoreScreen(
             if (profiles.size > 1) {
                 item {
                     TextPreferenceWidget(
-                        title = stringResource(MR.strings.anime_profiles),
+                        title = stringResource(MR.strings.profiles_switch_summary),
                         icon = Icons.Outlined.AccountCircle,
                         onPreferenceClick = onClickProfiles,
                     )
