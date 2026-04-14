@@ -500,6 +500,7 @@ private fun AnimeLibraryList(
                     { onOpenEpisode(item.animeId, episodeId) }
                 },
                 continueReadingProgress = item.progressFraction.takeIf { item.hasInProgress },
+                continueReadingContentDescription = MR.strings.action_resume_watching,
             )
         }
     }
@@ -557,6 +558,7 @@ private fun AnimeLibraryComfortableGrid(
                     { onOpenEpisode(item.animeId, episodeId) }
                 },
                 continueReadingProgress = item.progressFraction.takeIf { item.hasInProgress },
+                continueReadingContentDescription = MR.strings.action_resume_watching,
             )
         }
     }
@@ -615,6 +617,7 @@ private fun AnimeLibraryCompactGrid(
                     { onOpenEpisode(item.animeId, episodeId) }
                 },
                 continueReadingProgress = item.progressFraction.takeIf { item.hasInProgress },
+                continueReadingContentDescription = MR.strings.action_resume_watching,
             )
         }
     }
@@ -678,7 +681,7 @@ private fun AnimeLibrarySettingsDialog(
                     0 -> {
                         item {
                             TriStateItem(
-                                label = stringResource(MR.strings.action_filter_unread),
+                                label = stringResource(MR.strings.action_filter_unwatched),
                                 state = filterUnwatched,
                                 onClick = { screenModel.toggleFilter(LibraryPreferences::animeFilterUnwatched) },
                             )
@@ -779,7 +782,7 @@ private fun AnimeLibrarySettingsDialog(
                         }
                         item {
                             CheckboxItem(
-                                label = stringResource(MR.strings.action_display_unread_badge),
+                                label = stringResource(MR.strings.action_display_unwatched_badge),
                                 checked = showUnwatchedBadge,
                                 onClick = { screenModel.setShowUnwatchedBadge(!showUnwatchedBadge) },
                             )
@@ -793,7 +796,7 @@ private fun AnimeLibrarySettingsDialog(
                         }
                         item {
                             CheckboxItem(
-                                label = stringResource(MR.strings.action_display_show_continue_reading_button),
+                                label = stringResource(MR.strings.action_display_show_continue_watching_button),
                                 checked = showContinueWatchingButton,
                                 onClick = { screenModel.setShowContinueWatchingButton(!showContinueWatchingButton) },
                             )

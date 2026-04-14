@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.icerock.moko.resources.StringResource
 import eu.kanade.presentation.manga.components.MangaCover
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.BadgeGroup
@@ -78,6 +79,7 @@ fun MangaCompactGridItem(
     title: String? = null,
     onClickContinueReading: (() -> Unit)? = null,
     continueReadingProgress: Float? = null,
+    continueReadingContentDescription: StringResource = MR.strings.action_resume,
     coverAlpha: Float = 1f,
     coverBadgeStart: @Composable (RowScope.() -> Unit)? = null,
     coverBadgeEnd: @Composable (RowScope.() -> Unit)? = null,
@@ -104,6 +106,7 @@ fun MangaCompactGridItem(
                         title = title,
                         onClickContinueReading = onClickContinueReading,
                         continueReadingProgress = continueReadingProgress,
+                        continueReadingContentDescription = continueReadingContentDescription,
                     )
                 } else if (onClickContinueReading != null) {
                     ContinueReadingButton(
@@ -111,6 +114,7 @@ fun MangaCompactGridItem(
                         iconSize = ContinueReadingButtonIconSizeLarge,
                         onClick = onClickContinueReading,
                         progress = continueReadingProgress,
+                        contentDescription = continueReadingContentDescription,
                         modifier = Modifier
                             .padding(ContinueReadingButtonGridPadding)
                             .align(Alignment.BottomEnd),
@@ -129,6 +133,7 @@ private fun BoxScope.CoverTextOverlay(
     title: String,
     onClickContinueReading: (() -> Unit)? = null,
     continueReadingProgress: Float? = null,
+    continueReadingContentDescription: StringResource = MR.strings.action_resume,
 ) {
     Box(
         modifier = Modifier
@@ -167,6 +172,7 @@ private fun BoxScope.CoverTextOverlay(
                 iconSize = ContinueReadingButtonIconSizeSmall,
                 onClick = onClickContinueReading,
                 progress = continueReadingProgress,
+                contentDescription = continueReadingContentDescription,
                 modifier = Modifier.padding(
                     end = ContinueReadingButtonGridPadding,
                     bottom = ContinueReadingButtonGridPadding,
@@ -192,6 +198,7 @@ fun MangaComfortableGridItem(
     coverBadgeEnd: (@Composable RowScope.() -> Unit)? = null,
     onClickContinueReading: (() -> Unit)? = null,
     continueReadingProgress: Float? = null,
+    continueReadingContentDescription: StringResource = MR.strings.action_resume,
 ) {
     GridItemSelectable(
         isSelected = isSelected,
@@ -217,6 +224,7 @@ fun MangaComfortableGridItem(
                             iconSize = ContinueReadingButtonIconSizeLarge,
                             onClick = onClickContinueReading,
                             progress = continueReadingProgress,
+                            contentDescription = continueReadingContentDescription,
                             modifier = Modifier
                                 .padding(ContinueReadingButtonGridPadding)
                                 .align(Alignment.BottomEnd),
@@ -347,6 +355,7 @@ fun MangaListItem(
     coverAlpha: Float = 1f,
     onClickContinueReading: (() -> Unit)? = null,
     continueReadingProgress: Float? = null,
+    continueReadingContentDescription: StringResource = MR.strings.action_resume,
 ) {
     Row(
         modifier = Modifier
@@ -381,6 +390,7 @@ fun MangaListItem(
                 iconSize = ContinueReadingButtonIconSizeSmall,
                 onClick = onClickContinueReading,
                 progress = continueReadingProgress,
+                contentDescription = continueReadingContentDescription,
                 modifier = Modifier.padding(start = ContinueReadingButtonListSpacing),
             )
         }
@@ -393,6 +403,7 @@ private fun ContinueReadingButton(
     iconSize: Dp,
     onClick: () -> Unit,
     progress: Float? = null,
+    contentDescription: StringResource = MR.strings.action_resume,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier) {
@@ -415,7 +426,7 @@ private fun ContinueReadingButton(
         ) {
             Icon(
                 imageVector = Icons.Filled.PlayArrow,
-                contentDescription = stringResource(MR.strings.action_resume),
+                contentDescription = stringResource(contentDescription),
                 modifier = Modifier.size(iconSize),
             )
         }
