@@ -10,7 +10,6 @@ class SettingsProfileVisibilityTest {
 
     @Test
     fun `anime profiles hide manga-specific settings screens`() {
-        isSettingsScreenVisibleForProfileType(SettingsLibraryScreen, ProfileType.ANIME) shouldBe false
         isSettingsScreenVisibleForProfileType(SettingsReaderScreen, ProfileType.ANIME) shouldBe false
         isSettingsScreenVisibleForProfileType(SettingsDownloadScreen, ProfileType.ANIME) shouldBe false
         isSettingsScreenVisibleForProfileType(SettingsTrackingScreen, ProfileType.ANIME) shouldBe false
@@ -19,6 +18,7 @@ class SettingsProfileVisibilityTest {
     @Test
     fun `anime profiles keep neutral and shared settings screens`() {
         isSettingsScreenVisibleForProfileType(SettingsAppearanceScreen, ProfileType.ANIME) shouldBe true
+        isSettingsScreenVisibleForProfileType(SettingsLibraryScreen, ProfileType.ANIME) shouldBe true
         isSettingsScreenVisibleForProfileType(SettingsBrowseScreen, ProfileType.ANIME) shouldBe true
         isSettingsScreenVisibleForProfileType(SettingsDataScreen, ProfileType.ANIME) shouldBe true
         isSettingsScreenVisibleForProfileType(SettingsSecurityScreen, ProfileType.ANIME) shouldBe true

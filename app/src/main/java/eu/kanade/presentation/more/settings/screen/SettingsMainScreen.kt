@@ -88,7 +88,7 @@ object SettingsMainScreen : Screen() {
         val activeProfile by profileManager.activeProfile.collectAsState()
         val activeProfileType = activeProfile?.type ?: ProfileType.MANGA
         val items = remember(activeProfileType) {
-            allItems.filter { isSettingsScreenVisibleForProfileType(it.screen, activeProfileType) }
+            allItems(activeProfileType).filter { isSettingsScreenVisibleForProfileType(it.screen, activeProfileType) }
         }
         val containerColor = if (twoPane) getPalerSurface() else MaterialTheme.colorScheme.surface
         val topBarState = rememberTopAppBarState()
@@ -186,7 +186,7 @@ object SettingsMainScreen : Screen() {
         val screen: VoyagerScreen,
     )
 
-    private val allItems = listOf(
+    private fun allItems(profileType: ProfileType) = listOf(
         Item(
             titleRes = MR.strings.pref_category_appearance,
             subtitleRes = MR.strings.pref_appearance_summary,
@@ -195,7 +195,15 @@ object SettingsMainScreen : Screen() {
         ),
         Item(
             titleRes = MR.strings.pref_category_library,
-            subtitleRes = MR.strings.pref_library_summary,
+            formatSubtitle = {
+                stringResource(
+                    if (profileType == ProfileType.ANIME) {
+                        MR.strings.pref_library_summary_anime
+                    } else {
+                        MR.strings.pref_library_summary
+                    },
+                )
+            },
             icon = Icons.Outlined.CollectionsBookmark,
             screen = SettingsLibraryScreen,
         ),

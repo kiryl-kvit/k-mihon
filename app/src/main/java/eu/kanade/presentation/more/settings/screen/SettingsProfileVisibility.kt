@@ -13,6 +13,7 @@ internal fun isSettingsScreenVisibleForProfileType(
         ProfileType.MANGA -> true
         ProfileType.ANIME -> when (screen) {
             SettingsAppearanceScreen,
+            SettingsLibraryScreen,
             SettingsBrowseScreen,
             SettingsDataScreen,
             SettingsSecurityScreen,
