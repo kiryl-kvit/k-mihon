@@ -27,7 +27,7 @@ kotlin {
 }
 
 dependencies {
-    implementation(projects.sourceApi)
+    implementation(projects.extensionsLib)
     implementation(projects.domain)
     implementation(projects.core.common)
 

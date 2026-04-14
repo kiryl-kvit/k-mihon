@@ -3,8 +3,6 @@ import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 plugins {
     alias(mihonx.plugins.kotlin.multiplatform)
     alias(mihonx.plugins.spotless)
-
-    alias(libs.plugins.kotlin.serialization)
 }
 
 kotlin {
@@ -16,24 +14,12 @@ kotlin {
         }
     }
 
-    @OptIn(ExperimentalKotlinGradlePluginApi::class)
-    @Suppress("UnstableApiUsage")
-    dependencies {
-        api(libs.kotlinx.serialization.json)
-        api(libs.injekt)
-        api(libs.rxJava)
-        api(libs.jsoup)
-
-        implementation(platform(libs.androidx.compose.bom))
-        implementation(libs.androidx.compose.runtime)
-    }
-
     sourceSets {
+        commonMain {
+            kotlin.setSrcDirs(emptyList<String>())
+        }
         androidMain {
-            dependencies {
-                implementation(projects.core.common)
-                api(libs.androidx.preference)
-            }
+            kotlin.setSrcDirs(emptyList<String>())
         }
     }
 
@@ -41,4 +27,8 @@ kotlin {
     compilerOptions {
         freeCompilerArgs.add("-Xexpect-actual-classes")
     }
+}
+
+dependencies {
+    api(projects.extensionsLib)
 }

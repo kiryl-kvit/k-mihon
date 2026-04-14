@@ -12,7 +12,7 @@ import okhttp3.logging.HttpLoggingInterceptor
 import java.io.File
 import java.util.concurrent.TimeUnit
 
-class NetworkHelper(
+actual class NetworkHelper(
     private val context: Context,
     private val preferences: NetworkPreferences,
 ) {
@@ -20,6 +20,7 @@ class NetworkHelper(
     val cookieJar = AndroidCookieJar()
 
     private val clientBuilder: OkHttpClient.Builder = run {
+        val dohProvider: Int = preferences.dohProvider.get()
         val builder = OkHttpClient.Builder()
             .cookieJar(cookieJar)
             .connectTimeout(30, TimeUnit.SECONDS)
@@ -36,14 +37,14 @@ class NetworkHelper(
             .addNetworkInterceptor(IgnoreGzipInterceptor())
             .addNetworkInterceptor(BrotliInterceptor)
 
-        if (preferences.verboseLogging.get()) {
+        if (preferences.verboseLogging.get() == true) {
             val httpLoggingInterceptor = HttpLoggingInterceptor().apply {
                 level = HttpLoggingInterceptor.Level.HEADERS
             }
             builder.addNetworkInterceptor(httpLoggingInterceptor)
         }
 
-        when (preferences.dohProvider.get()) {
+        when (dohProvider) {
             PREF_DOH_CLOUDFLARE -> builder.dohCloudflare()
             PREF_DOH_GOOGLE -> builder.dohGoogle()
             PREF_DOH_ADGUARD -> builder.dohAdGuard()
@@ -62,7 +63,7 @@ class NetworkHelper(
 
     val nonCloudflareClient = clientBuilder.build()
 
-    val client = clientBuilder
+    actual val client = clientBuilder
         .addInterceptor(
             CloudflareInterceptor(context, cookieJar, ::defaultUserAgentProvider),
         )
@@ -73,7 +74,9 @@ class NetworkHelper(
      */
     @Deprecated("The regular client handles Cloudflare by default")
     @Suppress("UNUSED")
-    val cloudflareClient: OkHttpClient = client
+    actual val cloudflareClient: OkHttpClient = client
 
-    fun defaultUserAgentProvider() = preferences.defaultUserAgent.get().trim()
+    actual fun defaultUserAgentProvider(): String {
+        return preferences.defaultUserAgent.get().toString().trim()
+    }
 }

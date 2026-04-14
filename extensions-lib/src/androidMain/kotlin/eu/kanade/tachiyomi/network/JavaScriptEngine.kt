@@ -2,7 +2,8 @@ package eu.kanade.tachiyomi.network
 
 import android.content.Context
 import app.cash.quickjs.QuickJs
-import tachiyomi.core.common.util.lang.withIOContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Util for evaluating JavaScript in sources.
@@ -18,7 +19,7 @@ class JavaScriptEngine(context: Context) {
      * @param script JavaScript to execute.
      * @return Result of JavaScript code as a primitive type.
      */
-    suspend fun <T> evaluate(script: String): T = withIOContext {
+    suspend fun <T> evaluate(script: String): T = withContext(Dispatchers.IO) {
         QuickJs.create().use {
             it.evaluate(script) as T
         }

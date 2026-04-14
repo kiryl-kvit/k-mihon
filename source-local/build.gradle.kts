@@ -13,7 +13,7 @@ kotlin {
     @OptIn(ExperimentalKotlinGradlePluginApi::class)
     @Suppress("UnstableApiUsage")
     dependencies {
-        implementation(projects.sourceApi)
+        implementation(projects.extensionsLib)
         api(projects.i18n)
 
         implementation(libs.unifile)

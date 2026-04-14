@@ -16,7 +16,7 @@ kotlin {
 }
 
 dependencies {
-    implementation(projects.sourceApi)
+    implementation(projects.extensionsLib)
     implementation(projects.core.common)
 
     implementation(libs.bundles.kotlinx.coroutines)

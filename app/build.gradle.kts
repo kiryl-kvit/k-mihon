@@ -178,7 +178,7 @@ dependencies {
     implementation(projects.core.archive)
     implementation(projects.core.common)
     implementation(projects.coreMetadata)
-    implementation(projects.sourceApi)
+    implementation(projects.extensionsLib)
     implementation(projects.sourceLocal)
     implementation(projects.data)
     implementation(projects.domain)
