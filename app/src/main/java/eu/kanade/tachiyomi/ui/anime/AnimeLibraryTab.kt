@@ -373,12 +373,15 @@ private fun AnimeLibraryContent(
 ) {
     SharedLibraryContent(
         pages = state.pages,
+        searchQuery = state.searchQuery,
         selection = state.selection,
         contentPadding = contentPadding,
         currentPage = state.coercedActivePageIndex,
+        hasActiveFilters = state.hasActiveFilters,
         showPageTabs = state.showCategoryTabs,
         onChangeCurrentPage = onChangeCurrentPage,
         onRefresh = onRefresh,
+        onGlobalSearchClicked = onGlobalSearchClicked,
         getItemCountForPage = state::getItemCountForPage,
         getItemCountForPrimaryTab = state::getItemCountForPrimaryTab,
     ) { _, _, libraryPage ->

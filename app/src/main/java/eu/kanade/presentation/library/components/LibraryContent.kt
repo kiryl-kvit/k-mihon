@@ -30,12 +30,15 @@ import kotlin.time.Duration.Companion.seconds
 @Composable
 fun SharedLibraryContent(
     pages: List<LibraryPage>,
+    searchQuery: String?,
     selection: Set<Long>,
     contentPadding: PaddingValues,
     currentPage: Int,
+    hasActiveFilters: Boolean,
     showPageTabs: Boolean,
     onChangeCurrentPage: (Int) -> Unit,
     onRefresh: () -> Boolean,
+    onGlobalSearchClicked: () -> Unit,
     getItemCountForPage: (LibraryPage) -> Int?,
     getItemCountForPrimaryTab: (LibraryPageTab) -> Int?,
     pageContent: @Composable (pagerState: PagerState, page: Int, libraryPage: LibraryPage?) -> Unit,
@@ -124,6 +127,15 @@ fun SharedLibraryContent(
                 }
             },
         ) {
+            if (pages.isEmpty()) {
+                LibraryPageEmptyScreen(
+                    searchQuery = searchQuery,
+                    hasActiveFilters = hasActiveFilters,
+                    contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
+                    onGlobalSearchClicked = onGlobalSearchClicked,
+                )
+                return@PullRefresh
+            }
             pageContent(pagerState, pagerState.currentPage, pages.getOrNull(pagerState.currentPage))
         }
 
@@ -157,12 +169,15 @@ fun LibraryContent(
 ) {
     SharedLibraryContent(
         pages = pages,
+        searchQuery = searchQuery,
         selection = selection,
         contentPadding = contentPadding,
         currentPage = currentPage,
+        hasActiveFilters = hasActiveFilters,
         showPageTabs = showPageTabs,
         onChangeCurrentPage = onChangeCurrentPage,
         onRefresh = onRefresh,
+        onGlobalSearchClicked = onGlobalSearchClicked,
         getItemCountForPage = getItemCountForPage,
         getItemCountForPrimaryTab = getItemCountForPrimaryTab,
     ) { pagerState, _, _ ->
