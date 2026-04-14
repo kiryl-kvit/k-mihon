@@ -20,6 +20,7 @@ import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.components.SearchToolbar
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toPersistentList
 import tachiyomi.domain.library.model.LibraryGroupType
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.Pill
@@ -36,8 +37,8 @@ fun LibraryToolbar(
     onClickSelectAll: () -> Unit,
     onClickInvertSelection: () -> Unit,
     onClickFilter: () -> Unit,
-    onClickRefresh: () -> Unit,
-    onClickGlobalUpdate: () -> Unit,
+    onClickRefresh: (() -> Unit)?,
+    onClickGlobalUpdate: (() -> Unit)?,
     onClickOpenRandomManga: () -> Unit,
     searchQuery: String?,
     onSearchQueryChange: (String?) -> Unit,
@@ -71,8 +72,8 @@ private fun LibraryRegularToolbar(
     searchQuery: String?,
     onSearchQueryChange: (String?) -> Unit,
     onClickFilter: () -> Unit,
-    onClickRefresh: () -> Unit,
-    onClickGlobalUpdate: () -> Unit,
+    onClickRefresh: (() -> Unit)?,
+    onClickGlobalUpdate: (() -> Unit)?,
     onClickOpenRandomManga: () -> Unit,
     scrollBehavior: TopAppBarScrollBehavior?,
 ) {
@@ -107,26 +108,38 @@ private fun LibraryRegularToolbar(
         actions = {
             val filterTint = if (hasFilters) MaterialTheme.colorScheme.active else LocalContentColor.current
             AppBarActions(
-                persistentListOf(
-                    AppBar.Action(
-                        title = stringResource(MR.strings.action_filter),
-                        icon = Icons.Outlined.FilterList,
-                        iconTint = filterTint,
-                        onClick = onClickFilter,
-                    ),
-                    AppBar.OverflowAction(
-                        title = stringResource(MR.strings.action_update_library),
-                        onClick = onClickGlobalUpdate,
-                    ),
-                    AppBar.OverflowAction(
-                        title = updateCurrentGroupTitle,
-                        onClick = onClickRefresh,
-                    ),
-                    AppBar.OverflowAction(
-                        title = stringResource(MR.strings.action_open_random_manga),
-                        onClick = onClickOpenRandomManga,
-                    ),
-                ),
+                buildList<AppBar.AppBarAction> {
+                    add(
+                        AppBar.Action(
+                            title = stringResource(MR.strings.action_filter),
+                            icon = Icons.Outlined.FilterList,
+                            iconTint = filterTint,
+                            onClick = onClickFilter,
+                        ),
+                    )
+                    onClickGlobalUpdate?.let {
+                        add(
+                            AppBar.OverflowAction(
+                                title = stringResource(MR.strings.action_update_library),
+                                onClick = it,
+                            ),
+                        )
+                    }
+                    onClickRefresh?.let {
+                        add(
+                            AppBar.OverflowAction(
+                                title = updateCurrentGroupTitle,
+                                onClick = it,
+                            ),
+                        )
+                    }
+                    add(
+                        AppBar.OverflowAction(
+                            title = stringResource(MR.strings.action_open_random_manga),
+                            onClick = onClickOpenRandomManga,
+                        ),
+                    )
+                }.toPersistentList(),
             )
         },
         scrollBehavior = scrollBehavior,

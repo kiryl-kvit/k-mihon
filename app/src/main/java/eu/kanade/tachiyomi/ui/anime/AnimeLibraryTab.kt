@@ -7,24 +7,21 @@ import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.animation.graphics.vector.AnimatedImageVector
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.calculateEndPadding
-import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.FilterList
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -32,9 +29,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
@@ -44,35 +43,55 @@ import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import cafe.adriel.voyager.navigator.tab.TabOptions
 import eu.kanade.core.preference.PreferenceMutableState
 import eu.kanade.core.util.ifAnimeSourcesLoaded
-import eu.kanade.presentation.components.AppBar
-import eu.kanade.presentation.components.AppBarActions
-import eu.kanade.presentation.components.SearchToolbar
+import eu.kanade.presentation.category.components.ChangeCategoryDialog
+import eu.kanade.presentation.components.TabbedDialog
+import eu.kanade.presentation.components.TabbedDialogPaddings
 import eu.kanade.presentation.library.components.GlobalSearchItem
+import eu.kanade.presentation.library.components.LanguageBadge
 import eu.kanade.presentation.library.components.LazyLibraryGrid
-import eu.kanade.presentation.library.components.LibraryTabs
+import eu.kanade.presentation.library.components.LibraryPageEmptyScreen
+import eu.kanade.presentation.library.components.SharedLibraryContent
+import eu.kanade.presentation.library.components.LibraryToolbar
 import eu.kanade.presentation.library.components.MangaComfortableGridItem
 import eu.kanade.presentation.library.components.MangaCompactGridItem
 import eu.kanade.presentation.library.components.MangaListItem
+import eu.kanade.presentation.more.onboarding.GETTING_STARTED_URL
+import eu.kanade.presentation.manga.components.LibraryBottomActionMenu
 import eu.kanade.presentation.util.Tab
 import eu.kanade.tachiyomi.R
+import eu.kanade.tachiyomi.data.library.AnimeLibraryUpdateJob
+import eu.kanade.tachiyomi.ui.library.LibraryPage
 import eu.kanade.tachiyomi.ui.anime.browse.globalsearch.AnimeGlobalSearchScreen
+import eu.kanade.tachiyomi.ui.category.CategoryScreen
+import eu.kanade.tachiyomi.ui.home.HomeScreen
 import eu.kanade.tachiyomi.ui.main.MainActivity
 import eu.kanade.tachiyomi.ui.video.player.VideoPlayerActivity
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import dev.icerock.moko.resources.StringResource
+import tachiyomi.core.common.i18n.stringResource as contextStringResource
 import tachiyomi.domain.library.model.LibraryDisplayMode
 import tachiyomi.domain.library.model.LibraryGroupType
+import tachiyomi.domain.library.model.LibrarySort
+import tachiyomi.domain.library.model.effectiveLibrarySort
+import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.Badge
+import tachiyomi.presentation.core.components.BaseSortItem
 import tachiyomi.presentation.core.components.CheckboxItem
+import tachiyomi.presentation.core.components.HeadingItem
 import tachiyomi.presentation.core.components.RadioItem
 import tachiyomi.presentation.core.components.ScrollbarLazyColumn
 import tachiyomi.presentation.core.components.SettingsChipRow
+import tachiyomi.presentation.core.components.SliderItem
+import tachiyomi.presentation.core.components.SortItem
+import tachiyomi.presentation.core.components.TriStateItem
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.screens.EmptyScreen
+import tachiyomi.presentation.core.screens.EmptyScreenAction
 import tachiyomi.presentation.core.screens.LoadingScreen
 import tachiyomi.presentation.core.util.plus
 
@@ -103,21 +122,91 @@ data object AnimeLibraryTab : Tab {
 
         val context = LocalContext.current
         val navigator = LocalNavigator.currentOrThrow
+        val haptic = LocalHapticFeedback.current
         val screenModel = rememberScreenModel { AnimeLibraryScreenModel() }
         val state by screenModel.state.collectAsState()
+        val scope = rememberCoroutineScope()
         val snackbarHostState = remember { SnackbarHostState() }
+
+        fun showRefreshMessage(started: Boolean, messageRes: StringResource) {
+            scope.launch {
+                val msgRes = when {
+                    !started -> MR.strings.update_already_running
+                    else -> messageRes
+                }
+                snackbarHostState.showSnackbar(context.contextStringResource(msgRes))
+            }
+        }
+
+        val onClickRefresh: (AnimeLibraryScreenModel.State) -> Boolean = { state ->
+            val activePage = state.activePage
+            val started = AnimeLibraryUpdateJob.startNow(
+                context = context,
+                category = activePage?.category,
+                sourceId = activePage?.sourceId,
+            )
+            val messageRes = when {
+                activePage?.sourceId != null && activePage.category != null -> MR.strings.updating_group
+                activePage?.sourceId != null -> MR.strings.updating_extension
+                activePage?.category != null -> MR.strings.updating_category
+                else -> MR.strings.updating_library
+            }
+            showRefreshMessage(started, messageRes)
+            started
+        }
+
+        val onClickGlobalUpdate: () -> Boolean = {
+            val started = AnimeLibraryUpdateJob.startNow(context)
+            showRefreshMessage(started, MR.strings.updating_library)
+            started
+        }
 
         Scaffold(
             topBar = { scrollBehavior ->
-                AnimeLibraryToolbar(
-                    title = state.getToolbarTitle(
-                        defaultTitle = stringResource(MR.strings.label_library),
-                        defaultCategoryTitle = stringResource(MR.strings.label_default),
-                    ),
+                val title = state.getToolbarTitle(
+                    defaultTitle = stringResource(MR.strings.label_library),
+                    defaultCategoryTitle = stringResource(MR.strings.label_default),
+                )
+                LibraryToolbar(
+                    hasActiveFilters = state.hasActiveFilters,
+                    selectedCount = state.selection.size,
+                    title = title,
+                    currentGroupType = state.groupType,
+                    onClickUnselectAll = screenModel::clearSelection,
+                    onClickSelectAll = screenModel::selectAll,
+                    onClickInvertSelection = screenModel::invertSelection,
+                    onClickFilter = screenModel::showSettingsDialog,
+                    onClickRefresh = { onClickRefresh(state) },
+                    onClickGlobalUpdate = { onClickGlobalUpdate() },
+                    onClickOpenRandomManga = {
+                        scope.launch {
+                            val randomItem = screenModel.getRandomLibraryItemForCurrentPage()
+                            if (randomItem != null) {
+                                navigator.push(AnimeScreen(randomItem.animeId))
+                            } else {
+                                snackbarHostState.showSnackbar(
+                                    context.contextStringResource(MR.strings.information_no_entries_found),
+                                )
+                            }
+                        }
+                    },
                     searchQuery = state.searchQuery,
                     onSearchQueryChange = screenModel::search,
-                    onClickFilter = screenModel::showSettingsDialog,
                     scrollBehavior = scrollBehavior.takeIf { !state.showCategoryTabs },
+                )
+            },
+            bottomBar = {
+                LibraryBottomActionMenu(
+                    visible = state.selectionMode,
+                    onMergeClicked = null,
+                    onChangeCategoryClicked = screenModel::openChangeCategoryDialog,
+                    onMarkAsReadClicked = { screenModel.markWatchedSelection(true) },
+                    onMarkAsUnreadClicked = { screenModel.markWatchedSelection(false) },
+                    onDownloadClicked = null,
+                    onDeleteClicked = screenModel::openRemoveAnimeDialog,
+                    onMigrateClicked = null,
+                    markAsReadLabel = MR.strings.action_mark_as_watched,
+                    markAsUnreadLabel = MR.strings.action_mark_as_unwatched,
                 )
             },
             snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
@@ -129,14 +218,30 @@ data object AnimeLibraryTab : Tab {
                     message = errorMessage,
                     modifier = Modifier.padding(contentPadding),
                 )
-                state.searchQuery.isNullOrEmpty() && state.isLibraryEmpty -> EmptyScreen(
-                    stringRes = MR.strings.information_empty_library,
-                    modifier = Modifier.padding(contentPadding),
-                )
+                state.searchQuery.isNullOrEmpty() && !state.hasActiveFilters && state.isLibraryEmpty -> {
+                    val handler = LocalUriHandler.current
+                    EmptyScreen(
+                        stringRes = MR.strings.information_empty_library,
+                        modifier = Modifier.padding(contentPadding),
+                        actions = kotlinx.collections.immutable.persistentListOf(
+                            EmptyScreenAction(
+                                stringRes = MR.strings.getting_started_guide,
+                                icon = Icons.AutoMirrored.Outlined.HelpOutline,
+                                onClick = { handler.openUri(GETTING_STARTED_URL) },
+                            ),
+                        ),
+                    )
+                }
                 else -> AnimeLibraryContent(
                     state = state,
                     contentPadding = contentPadding,
                     onChangeCurrentPage = screenModel::updateActivePageIndex,
+                    onRefresh = { onClickRefresh(state) },
+                    onToggleSelection = screenModel::toggleSelection,
+                    onToggleRangeSelection = { page, item ->
+                        screenModel.toggleRangeSelection(page, item)
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    },
                     getDisplayMode = screenModel::getDisplayMode,
                     getColumnsForOrientation = screenModel::getColumnsForOrientation,
                     onOpenAnime = { navigator.push(AnimeScreen(it)) },
@@ -156,18 +261,49 @@ data object AnimeLibraryTab : Tab {
             }
         }
 
-        if (state.dialog == AnimeLibraryScreenModel.Dialog.SettingsSheet) {
-            AnimeLibrarySettingsDialog(
-                screenModel = screenModel,
-                onDismissRequest = screenModel::closeDialog,
-            )
+        when (val dialog = state.dialog) {
+            AnimeLibraryScreenModel.Dialog.SettingsSheet -> {
+                AnimeLibrarySettingsDialog(
+                    screenModel = screenModel,
+                    onDismissRequest = screenModel::closeDialog,
+                )
+            }
+            is AnimeLibraryScreenModel.Dialog.ChangeCategory -> {
+                ChangeCategoryDialog(
+                    initialSelection = dialog.initialSelection,
+                    onDismissRequest = screenModel::closeDialog,
+                    onEditCategories = {
+                        screenModel.clearSelection()
+                        navigator.push(CategoryScreen())
+                    },
+                    onConfirm = { include, exclude ->
+                        screenModel.clearSelection()
+                        screenModel.setAnimeCategories(dialog.animeIds, include, exclude)
+                    },
+                )
+            }
+            is AnimeLibraryScreenModel.Dialog.RemoveAnime -> {
+                RemoveAnimeDialog(
+                    onDismissRequest = screenModel::closeDialog,
+                    onConfirm = {
+                        screenModel.clearSelection()
+                        screenModel.removeAnime(dialog.animeIds)
+                    },
+                )
+            }
+            null -> Unit
         }
 
-        BackHandler(enabled = state.searchQuery != null || state.dialog != null) {
+        BackHandler(enabled = state.selectionMode || state.searchQuery != null || state.dialog != null) {
             when {
                 state.dialog != null -> screenModel.closeDialog()
+                state.selectionMode -> screenModel.clearSelection()
                 state.searchQuery != null -> screenModel.search(null)
             }
+        }
+
+        LaunchedEffect(state.selectionMode, state.dialog) {
+            HomeScreen.showBottomNav(!state.selectionMode && state.dialog == null)
         }
 
         LaunchedEffect(state.isLoading) {
@@ -191,43 +327,33 @@ data object AnimeLibraryTab : Tab {
 }
 
 @Composable
-private fun AnimeLibraryToolbar(
-    title: eu.kanade.presentation.library.components.LibraryToolbarTitle,
-    searchQuery: String?,
-    onSearchQueryChange: (String?) -> Unit,
-    onClickFilter: () -> Unit,
-    scrollBehavior: androidx.compose.material3.TopAppBarScrollBehavior?,
+private fun RemoveAnimeDialog(
+    onDismissRequest: () -> Unit,
+    onConfirm: () -> Unit,
 ) {
-    SearchToolbar(
-        titleContent = {
-            androidx.compose.foundation.layout.Row {
-                Text(
-                    text = title.text,
-                    maxLines = 1,
-                    modifier = Modifier.weight(1f, false),
-                )
-                title.numberOfManga?.let {
-                    Badge(
-                        text = "$it",
-                        modifier = Modifier.padding(start = 8.dp),
-                    )
-                }
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text(text = stringResource(MR.strings.action_cancel))
             }
         },
-        searchQuery = searchQuery,
-        onChangeSearchQuery = onSearchQueryChange,
-        actions = {
-            AppBarActions(
-                persistentListOf(
-                    AppBar.Action(
-                        title = stringResource(MR.strings.action_filter),
-                        icon = Icons.Outlined.FilterList,
-                        onClick = onClickFilter,
-                    ),
-                ),
-            )
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onDismissRequest()
+                    onConfirm()
+                },
+            ) {
+                Text(text = stringResource(MR.strings.action_remove))
+            }
         },
-        scrollBehavior = scrollBehavior,
+        title = {
+            Text(text = stringResource(MR.strings.action_remove))
+        },
+        text = {
+            Text(text = stringResource(MR.strings.remove_from_library))
+        },
     )
 }
 
@@ -236,142 +362,102 @@ private fun AnimeLibraryContent(
     state: AnimeLibraryScreenModel.State,
     contentPadding: PaddingValues,
     onChangeCurrentPage: (Int) -> Unit,
+    onRefresh: () -> Boolean,
+    onToggleSelection: (LibraryPage, AnimeLibraryScreenModel.AnimeLibraryItem) -> Unit,
+    onToggleRangeSelection: (LibraryPage, AnimeLibraryScreenModel.AnimeLibraryItem) -> Unit,
     getDisplayMode: () -> PreferenceMutableState<LibraryDisplayMode>,
     getColumnsForOrientation: (Boolean) -> PreferenceMutableState<Int>,
     onOpenAnime: (Long) -> Unit,
     onOpenEpisode: (Long, Long) -> Unit,
     onGlobalSearchClicked: () -> Unit,
 ) {
-    val layoutDirection = LocalLayoutDirection.current
-    val pagerState = rememberPagerState(state.coercedActivePageIndex) { state.pages.size.coerceAtLeast(1) }
-    val scope = rememberCoroutineScope()
-
-    Column(
-        modifier = Modifier.padding(
-            top = contentPadding.calculateTopPadding(),
-            start = contentPadding.calculateStartPadding(layoutDirection),
-            end = contentPadding.calculateEndPadding(layoutDirection),
-        ),
-    ) {
-        val activePage = state.pages.getOrNull(pagerState.currentPage)
-        val primaryTabs = remember(state.pages) {
-            state.pages.map { it.primaryTab }.distinctBy { it.id }
-        }
-        val secondaryTabs = remember(state.pages, activePage?.primaryTab?.id) {
-            activePage?.primaryTab?.id
-                ?.let { primaryTabId ->
-                    state.pages.filter { it.primaryTab.id == primaryTabId }
-                        .mapNotNull { it.secondaryTab }
-                        .distinctBy { it.id }
-                }
-                .orEmpty()
+    SharedLibraryContent(
+        pages = state.pages,
+        selection = state.selection,
+        contentPadding = contentPadding,
+        currentPage = state.coercedActivePageIndex,
+        showPageTabs = state.showCategoryTabs,
+        onChangeCurrentPage = onChangeCurrentPage,
+        onRefresh = onRefresh,
+        getItemCountForPage = state::getItemCountForPage,
+        getItemCountForPrimaryTab = state::getItemCountForPrimaryTab,
+    ) { _, _, libraryPage ->
+        val items = libraryPage?.let(state::getItemsForPage).orEmpty()
+        if (libraryPage == null || items.isEmpty()) {
+            LibraryPageEmptyScreen(
+                searchQuery = state.searchQuery,
+                hasActiveFilters = state.hasActiveFilters,
+                contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
+                onGlobalSearchClicked = onGlobalSearchClicked,
+            )
+            return@SharedLibraryContent
         }
 
-        if (state.showCategoryTabs && state.pages.isNotEmpty()) {
-            if (primaryTabs.size > 1 || secondaryTabs.isNotEmpty()) {
-                LibraryTabs(
-                    tabs = primaryTabs,
-                    selectedTabId = activePage?.primaryTab?.id,
-                    getItemCountForTab = state::getItemCountForPrimaryTab,
-                    onTabItemClick = { selectedTab ->
-                        val targetPageIndex = state.pages.indexOfFirst { it.primaryTab.id == selectedTab.id }
-                        if (targetPageIndex >= 0) {
-                            scope.launch { pagerState.animateScrollToPage(targetPageIndex) }
-                        }
-                    },
-                )
-            }
-
-            if (secondaryTabs.isNotEmpty()) {
-                LibraryTabs(
-                    tabs = secondaryTabs,
-                    selectedTabId = activePage?.secondaryTab?.id,
-                    getItemCountForTab = { tab ->
-                        state.pages.firstOrNull {
-                            it.primaryTab.id == activePage?.primaryTab?.id && it.secondaryTab?.id == tab.id
-                        }?.let(state::getItemCountForPage)
-                    },
-                    onTabItemClick = { selectedTab ->
-                        val targetPageIndex = state.pages.indexOfFirst {
-                            it.primaryTab.id == activePage?.primaryTab?.id && it.secondaryTab?.id == selectedTab.id
-                        }
-                        if (targetPageIndex >= 0) {
-                            scope.launch { pagerState.animateScrollToPage(targetPageIndex) }
-                        }
-                    },
-                )
-            }
+        val displayMode by getDisplayMode()
+        val columns by if (displayMode != LibraryDisplayMode.List) {
+            val configuration = LocalConfiguration.current
+            val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+            remember(isLandscape) { getColumnsForOrientation(isLandscape) }
+        } else {
+            remember { androidx.compose.runtime.mutableIntStateOf(0) }
         }
 
-        HorizontalPager(
-            modifier = Modifier.fillMaxSize(),
-            state = pagerState,
-        ) { page ->
-            val libraryPage = state.pages.getOrNull(page)
-            val items = libraryPage?.let(state::getItemsForPage).orEmpty()
-            if (libraryPage == null || items.isEmpty()) {
-                AnimeLibraryPagerEmptyScreen(
-                    searchQuery = state.searchQuery,
-                    contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
-                    onGlobalSearchClicked = onGlobalSearchClicked,
-                )
-                return@HorizontalPager
-            }
-
-            val displayMode by getDisplayMode()
-                val columns by if (displayMode != LibraryDisplayMode.List) {
-                    val configuration = LocalConfiguration.current
-                    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-                    remember(isLandscape) { getColumnsForOrientation(isLandscape) }
-                } else {
-                    remember { androidx.compose.runtime.mutableIntStateOf(0) }
-                }
-
-            when (displayMode) {
-                LibraryDisplayMode.List -> AnimeLibraryList(
-                    items = items,
-                    contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
-                    searchQuery = state.searchQuery,
-                    onGlobalSearchClicked = onGlobalSearchClicked,
-                    onOpenAnime = onOpenAnime,
-                    onOpenEpisode = onOpenEpisode,
-                )
-                LibraryDisplayMode.ComfortableGrid -> AnimeLibraryComfortableGrid(
-                    items = items,
-                    columns = columns,
-                    contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
-                    searchQuery = state.searchQuery,
-                    onGlobalSearchClicked = onGlobalSearchClicked,
-                    onOpenAnime = onOpenAnime,
-                    onOpenEpisode = onOpenEpisode,
-                )
-                LibraryDisplayMode.CompactGrid,
-                LibraryDisplayMode.CoverOnlyGrid,
-                -> AnimeLibraryCompactGrid(
-                    items = items,
-                    showTitle = displayMode == LibraryDisplayMode.CompactGrid,
-                    columns = columns,
-                    contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
-                    searchQuery = state.searchQuery,
-                    onGlobalSearchClicked = onGlobalSearchClicked,
-                    onOpenAnime = onOpenAnime,
-                    onOpenEpisode = onOpenEpisode,
-                )
-            }
-        }
-
-        LaunchedEffect(pagerState.currentPage) {
-            onChangeCurrentPage(pagerState.currentPage)
+        when (displayMode) {
+            LibraryDisplayMode.List -> AnimeLibraryList(
+                page = libraryPage,
+                items = items,
+                selection = state.selection,
+                contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
+                searchQuery = state.searchQuery,
+                onGlobalSearchClicked = onGlobalSearchClicked,
+                onToggleSelection = onToggleSelection,
+                onToggleRangeSelection = onToggleRangeSelection,
+                onOpenAnime = onOpenAnime,
+                onOpenEpisode = onOpenEpisode,
+            )
+            LibraryDisplayMode.ComfortableGrid -> AnimeLibraryComfortableGrid(
+                page = libraryPage,
+                items = items,
+                selection = state.selection,
+                columns = columns,
+                contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
+                searchQuery = state.searchQuery,
+                onGlobalSearchClicked = onGlobalSearchClicked,
+                onToggleSelection = onToggleSelection,
+                onToggleRangeSelection = onToggleRangeSelection,
+                onOpenAnime = onOpenAnime,
+                onOpenEpisode = onOpenEpisode,
+            )
+            LibraryDisplayMode.CompactGrid,
+            LibraryDisplayMode.CoverOnlyGrid,
+            -> AnimeLibraryCompactGrid(
+                page = libraryPage,
+                items = items,
+                selection = state.selection,
+                showTitle = displayMode == LibraryDisplayMode.CompactGrid,
+                columns = columns,
+                contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
+                searchQuery = state.searchQuery,
+                onGlobalSearchClicked = onGlobalSearchClicked,
+                onToggleSelection = onToggleSelection,
+                onToggleRangeSelection = onToggleRangeSelection,
+                onOpenAnime = onOpenAnime,
+                onOpenEpisode = onOpenEpisode,
+            )
         }
     }
 }
 
 @Composable
 private fun AnimeLibraryList(
+    page: LibraryPage,
     items: List<AnimeLibraryScreenModel.AnimeLibraryItem>,
+    selection: Set<Long>,
     contentPadding: PaddingValues,
     searchQuery: String?,
     onGlobalSearchClicked: () -> Unit,
+    onToggleSelection: (LibraryPage, AnimeLibraryScreenModel.AnimeLibraryItem) -> Unit,
+    onToggleRangeSelection: (LibraryPage, AnimeLibraryScreenModel.AnimeLibraryItem) -> Unit,
     onOpenAnime: (Long) -> Unit,
     onOpenEpisode: (Long, Long) -> Unit,
 ) {
@@ -394,15 +480,26 @@ private fun AnimeLibraryList(
                 title = item.title,
                 coverData = item.coverData,
                 badge = {
-                    if (item.unwatchedCount > 0) {
-                        Badge(text = item.unwatchedCount.toString())
+                    if (item.unwatchedBadgeCount > 0) {
+                        Badge(text = item.unwatchedBadgeCount.toString())
+                    }
+                    LanguageBadge(isLocal = false, sourceLanguage = item.sourceLanguage)
+                },
+                isSelected = item.animeId in selection,
+                onLongClick = { onToggleRangeSelection(page, item) },
+                onClick = {
+                    if (selection.isNotEmpty()) {
+                        onToggleSelection(page, item)
+                    } else {
+                        onOpenAnime(item.animeId)
                     }
                 },
-                onLongClick = { onOpenAnime(item.animeId) },
-                onClick = { onOpenAnime(item.animeId) },
-                onClickContinueReading = item.primaryEpisodeId?.let { episodeId ->
+                onClickContinueReading = item.primaryEpisodeId?.takeIf {
+                    item.showContinueWatching && item.unwatchedBadgeCount > 0
+                }?.let { episodeId ->
                     { onOpenEpisode(item.animeId, episodeId) }
                 },
+                continueReadingProgress = item.progressFraction.takeIf { item.hasInProgress },
             )
         }
     }
@@ -410,11 +507,15 @@ private fun AnimeLibraryList(
 
 @Composable
 private fun AnimeLibraryComfortableGrid(
+    page: LibraryPage,
     items: List<AnimeLibraryScreenModel.AnimeLibraryItem>,
+    selection: Set<Long>,
     columns: Int,
     contentPadding: PaddingValues,
     searchQuery: String?,
     onGlobalSearchClicked: () -> Unit,
+    onToggleSelection: (LibraryPage, AnimeLibraryScreenModel.AnimeLibraryItem) -> Unit,
+    onToggleRangeSelection: (LibraryPage, AnimeLibraryScreenModel.AnimeLibraryItem) -> Unit,
     onOpenAnime: (Long) -> Unit,
     onOpenEpisode: (Long, Long) -> Unit,
 ) {
@@ -434,17 +535,28 @@ private fun AnimeLibraryComfortableGrid(
                 title = item.title,
                 coverData = item.coverData,
                 coverBadgeStart = {
-                    if (item.unwatchedCount > 0) {
-                        Badge(text = item.unwatchedCount.toString())
+                    if (item.unwatchedBadgeCount > 0) {
+                        Badge(text = item.unwatchedBadgeCount.toString())
                     }
                 },
                 coverBadgeEnd = {
+                    LanguageBadge(isLocal = false, sourceLanguage = item.sourceLanguage)
                 },
-                onLongClick = { onOpenAnime(item.animeId) },
-                onClick = { onOpenAnime(item.animeId) },
-                onClickContinueReading = item.primaryEpisodeId?.let { episodeId ->
+                isSelected = item.animeId in selection,
+                onLongClick = { onToggleRangeSelection(page, item) },
+                onClick = {
+                    if (selection.isNotEmpty()) {
+                        onToggleSelection(page, item)
+                    } else {
+                        onOpenAnime(item.animeId)
+                    }
+                },
+                onClickContinueReading = item.primaryEpisodeId?.takeIf {
+                    item.showContinueWatching && item.unwatchedBadgeCount > 0
+                }?.let { episodeId ->
                     { onOpenEpisode(item.animeId, episodeId) }
                 },
+                continueReadingProgress = item.progressFraction.takeIf { item.hasInProgress },
             )
         }
     }
@@ -452,12 +564,16 @@ private fun AnimeLibraryComfortableGrid(
 
 @Composable
 private fun AnimeLibraryCompactGrid(
+    page: LibraryPage,
     items: List<AnimeLibraryScreenModel.AnimeLibraryItem>,
+    selection: Set<Long>,
     showTitle: Boolean,
     columns: Int,
     contentPadding: PaddingValues,
     searchQuery: String?,
     onGlobalSearchClicked: () -> Unit,
+    onToggleSelection: (LibraryPage, AnimeLibraryScreenModel.AnimeLibraryItem) -> Unit,
+    onToggleRangeSelection: (LibraryPage, AnimeLibraryScreenModel.AnimeLibraryItem) -> Unit,
     onOpenAnime: (Long) -> Unit,
     onOpenEpisode: (Long, Long) -> Unit,
 ) {
@@ -477,44 +593,28 @@ private fun AnimeLibraryCompactGrid(
                 title = item.title.takeIf { showTitle },
                 coverData = item.coverData,
                 coverBadgeStart = {
-                    if (item.unwatchedCount > 0) {
-                        Badge(text = item.unwatchedCount.toString())
+                    if (item.unwatchedBadgeCount > 0) {
+                        Badge(text = item.unwatchedBadgeCount.toString())
                     }
                 },
                 coverBadgeEnd = {
+                    LanguageBadge(isLocal = false, sourceLanguage = item.sourceLanguage)
                 },
-                onLongClick = { onOpenAnime(item.animeId) },
-                onClick = { onOpenAnime(item.animeId) },
-                onClickContinueReading = item.primaryEpisodeId?.let { episodeId ->
+                isSelected = item.animeId in selection,
+                onLongClick = { onToggleRangeSelection(page, item) },
+                onClick = {
+                    if (selection.isNotEmpty()) {
+                        onToggleSelection(page, item)
+                    } else {
+                        onOpenAnime(item.animeId)
+                    }
+                },
+                onClickContinueReading = item.primaryEpisodeId?.takeIf {
+                    item.showContinueWatching && item.unwatchedBadgeCount > 0
+                }?.let { episodeId ->
                     { onOpenEpisode(item.animeId, episodeId) }
                 },
-            )
-        }
-    }
-}
-
-@Composable
-private fun AnimeLibraryPagerEmptyScreen(
-    searchQuery: String?,
-    contentPadding: PaddingValues,
-    onGlobalSearchClicked: () -> Unit,
-) {
-    ScrollbarLazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = contentPadding + PaddingValues(8.dp),
-    ) {
-        item {
-            if (!searchQuery.isNullOrEmpty()) {
-                GlobalSearchItem(
-                    searchQuery = searchQuery,
-                    onClick = onGlobalSearchClicked,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        }
-        item {
-            EmptyScreen(
-                stringRes = if (!searchQuery.isNullOrEmpty()) MR.strings.no_results_found else MR.strings.information_no_manga_group,
+                continueReadingProgress = item.progressFraction.takeIf { item.hasInProgress },
             )
         }
     }
@@ -527,85 +627,221 @@ private fun AnimeLibrarySettingsDialog(
 ) {
     val displayMode by screenModel.getDisplayMode()
     val state by screenModel.state.collectAsState()
+    val configuration = LocalConfiguration.current
     val groupType = state.groupType
+    val activeSortCategory = state.activeSortCategory
     val showCategoryTabs = state.showCategoryTabs
     val showItemCount = state.showItemCount
+    val showContinueWatchingButton = state.showContinueWatchingButton
+    val filterUnwatched by screenModel.getFilterUnwatched()
+    val filterStarted by screenModel.getFilterStarted()
+    val showUnwatchedBadge by screenModel.getShowUnwatchedBadge()
+    val showLanguageBadge by screenModel.getShowLanguageBadge()
+    val columns by remember(configuration.orientation, displayMode) {
+        if (displayMode != LibraryDisplayMode.List) {
+            screenModel.getColumnsForOrientation(configuration.orientation == Configuration.ORIENTATION_LANDSCAPE)
+        } else {
+            androidx.compose.runtime.mutableIntStateOf(0)
+        }
+    }
+    val globalSort by screenModel.getSortMode()
+    val currentSort = activeSortCategory.effectiveLibrarySort(globalSort)
+    val sortingMode = currentSort.type
+    val sortDescending = !currentSort.isAscending
+    val sortOptions = listOf<Pair<dev.icerock.moko.resources.StringResource, LibrarySort.Type>>(
+        MR.strings.action_sort_alpha to LibrarySort.Type.Alphabetical,
+        MR.strings.action_sort_last_anime_update to LibrarySort.Type.LastUpdate,
+        MR.strings.action_sort_unwatched_count to LibrarySort.Type.UnreadCount,
+        MR.strings.action_sort_date_added to LibrarySort.Type.DateAdded,
+        MR.strings.action_sort_random to LibrarySort.Type.Random,
+    )
 
-    ModalBottomSheet(onDismissRequest = onDismissRequest) {
-        ScrollbarLazyColumn(
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(bottom = 24.dp),
+    TabbedDialog(
+        onDismissRequest = onDismissRequest,
+        tabTitles = persistentListOf(
+            stringResource(MR.strings.action_filter),
+            stringResource(MR.strings.action_sort),
+            stringResource(MR.strings.action_display),
+            stringResource(MR.strings.action_group),
+        ),
+    ) { page ->
+        Column(
+            modifier = Modifier
+                .padding(vertical = TabbedDialogPaddings.Vertical)
+                .fillMaxWidth(),
         ) {
-            item {
-                SettingsChipRow(MR.strings.action_display_mode) {
-                    listOf(
-                        MR.strings.action_display_grid to LibraryDisplayMode.CompactGrid,
-                        MR.strings.action_display_comfortable_grid to LibraryDisplayMode.ComfortableGrid,
-                        MR.strings.action_display_cover_only_grid to LibraryDisplayMode.CoverOnlyGrid,
-                        MR.strings.action_display_list to LibraryDisplayMode.List,
-                    ).forEach { (titleRes, mode) ->
-                        FilterChip(
-                            selected = displayMode == mode,
-                            onClick = { screenModel.getDisplayMode().value = mode },
-                            label = { Text(stringResource(titleRes)) },
-                        )
+            ScrollbarLazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(bottom = 24.dp),
+            ) {
+                when (page) {
+                    0 -> {
+                        item {
+                            TriStateItem(
+                                label = stringResource(MR.strings.action_filter_unread),
+                                state = filterUnwatched,
+                                onClick = { screenModel.toggleFilter(LibraryPreferences::animeFilterUnwatched) },
+                            )
+                        }
+                        item {
+                            TriStateItem(
+                                label = stringResource(MR.strings.label_started),
+                                state = filterStarted,
+                                onClick = { screenModel.toggleFilter(LibraryPreferences::animeFilterStarted) },
+                            )
+                        }
+                    }
+
+                    1 -> {
+                        items(sortOptions) { (titleRes, mode) ->
+                            if (mode == LibrarySort.Type.Random) {
+                                BaseSortItem(
+                                    label = stringResource(titleRes),
+                                    icon = Icons.Default.Refresh.takeIf { sortingMode == LibrarySort.Type.Random },
+                                    onClick = {
+                                        screenModel.setSort(
+                                            category = activeSortCategory,
+                                            mode = mode,
+                                            direction = LibrarySort.Direction.Ascending,
+                                        )
+                                    },
+                                )
+                            } else {
+                                SortItem(
+                                    label = stringResource(titleRes),
+                                    sortDescending = sortDescending.takeIf { sortingMode == mode },
+                                    onClick = {
+                                        val isTogglingDirection = sortingMode == mode
+                                        val direction = when {
+                                            isTogglingDirection -> if (sortDescending) {
+                                                LibrarySort.Direction.Ascending
+                                            } else {
+                                                LibrarySort.Direction.Descending
+                                            }
+                                            else -> if (sortDescending) {
+                                                LibrarySort.Direction.Descending
+                                            } else {
+                                                LibrarySort.Direction.Ascending
+                                            }
+                                        }
+                                        screenModel.setSort(
+                                            category = activeSortCategory,
+                                            mode = mode,
+                                            direction = direction,
+                                        )
+                                    },
+                                )
+                            }
+                        }
+                    }
+
+                    2 -> {
+                        item {
+                            SettingsChipRow(MR.strings.action_display_mode) {
+                                listOf(
+                                    MR.strings.action_display_grid to LibraryDisplayMode.CompactGrid,
+                                    MR.strings.action_display_comfortable_grid to LibraryDisplayMode.ComfortableGrid,
+                                    MR.strings.action_display_cover_only_grid to LibraryDisplayMode.CoverOnlyGrid,
+                                    MR.strings.action_display_list to LibraryDisplayMode.List,
+                                ).forEach { (titleRes, mode) ->
+                                    FilterChip(
+                                        selected = displayMode == mode,
+                                        onClick = { screenModel.getDisplayMode().value = mode },
+                                        label = { Text(stringResource(titleRes)) },
+                                    )
+                                }
+                            }
+                        }
+
+                        if (displayMode != LibraryDisplayMode.List) {
+                            item {
+                                SliderItem(
+                                    value = columns,
+                                    valueRange = 0..10,
+                                    label = stringResource(MR.strings.pref_library_columns),
+                                    valueString = if (columns > 0) {
+                                        columns.toString()
+                                    } else {
+                                        stringResource(MR.strings.label_auto)
+                                    },
+                                    onChange = {
+                                        screenModel
+                                            .getColumnsForOrientation(configuration.orientation == Configuration.ORIENTATION_LANDSCAPE)
+                                            .value = it
+                                    },
+                                    pillColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                )
+                            }
+                        }
+
+                        item {
+                            HeadingItem(MR.strings.overlay_header)
+                        }
+                        item {
+                            CheckboxItem(
+                                label = stringResource(MR.strings.action_display_unread_badge),
+                                checked = showUnwatchedBadge,
+                                onClick = { screenModel.setShowUnwatchedBadge(!showUnwatchedBadge) },
+                            )
+                        }
+                        item {
+                            CheckboxItem(
+                                label = stringResource(MR.strings.action_display_language_badge),
+                                checked = showLanguageBadge,
+                                onClick = { screenModel.setShowLanguageBadge(!showLanguageBadge) },
+                            )
+                        }
+                        item {
+                            CheckboxItem(
+                                label = stringResource(MR.strings.action_display_show_continue_reading_button),
+                                checked = showContinueWatchingButton,
+                                onClick = { screenModel.setShowContinueWatchingButton(!showContinueWatchingButton) },
+                            )
+                        }
+                        item {
+                            HeadingItem(MR.strings.tabs_header)
+                        }
+                        item {
+                            CheckboxItem(
+                                label = stringResource(
+                                    when (groupType) {
+                                        LibraryGroupType.Category -> MR.strings.action_display_show_tabs
+                                        LibraryGroupType.Extension -> MR.strings.action_display_show_extension_tabs
+                                        LibraryGroupType.ExtensionCategory,
+                                        LibraryGroupType.CategoryExtension,
+                                        -> MR.strings.action_display_show_group_tabs
+                                    },
+                                ),
+                                checked = showCategoryTabs,
+                                onClick = { screenModel.setShowCategoryTabs(!showCategoryTabs) },
+                            )
+                        }
+                        item {
+                            CheckboxItem(
+                                label = stringResource(MR.strings.action_display_show_number_of_items),
+                                checked = showItemCount,
+                                onClick = { screenModel.setShowItemCount(!showItemCount) },
+                            )
+                        }
+                    }
+
+                    3 -> {
+                        items(
+                            listOf(
+                                MR.strings.action_group_category to LibraryGroupType.Category,
+                                MR.strings.action_group_extension to LibraryGroupType.Extension,
+                                MR.strings.action_group_extension_category to LibraryGroupType.ExtensionCategory,
+                                MR.strings.action_group_category_extension to LibraryGroupType.CategoryExtension,
+                            ),
+                        ) { (titleRes, mode) ->
+                            RadioItem(
+                                label = stringResource(titleRes),
+                                selected = groupType == mode,
+                                onClick = { screenModel.setGroup(mode) },
+                            )
+                        }
                     }
                 }
-            }
-
-            item {
-                Text(
-                    text = stringResource(MR.strings.tabs_header),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                )
-            }
-
-            item {
-                CheckboxItem(
-                    label = stringResource(
-                        when (groupType) {
-                            LibraryGroupType.Category -> MR.strings.action_display_show_tabs
-                            LibraryGroupType.Extension -> MR.strings.action_display_show_extension_tabs
-                            LibraryGroupType.ExtensionCategory,
-                            LibraryGroupType.CategoryExtension,
-                            -> MR.strings.action_display_show_group_tabs
-                        },
-                    ),
-                    checked = showCategoryTabs,
-                    onClick = { screenModel.setShowCategoryTabs(!showCategoryTabs) },
-                )
-            }
-
-            item {
-                CheckboxItem(
-                    label = stringResource(MR.strings.action_display_show_number_of_items),
-                    checked = showItemCount,
-                    onClick = { screenModel.setShowItemCount(!showItemCount) },
-                )
-            }
-
-            item {
-                Text(
-                    text = stringResource(MR.strings.action_group_category),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                )
-            }
-
-            items(
-                listOf(
-                    MR.strings.action_group_category to LibraryGroupType.Category,
-                    MR.strings.action_group_extension to LibraryGroupType.Extension,
-                    MR.strings.action_group_extension_category to LibraryGroupType.ExtensionCategory,
-                    MR.strings.action_group_category_extension to LibraryGroupType.CategoryExtension,
-                ),
-            ) { (titleRes, mode) ->
-                RadioItem(
-                    label = stringResource(titleRes),
-                    selected = groupType == mode,
-                    onClick = { screenModel.setGroup(mode) },
-                )
             }
         }
     }

@@ -10,6 +10,7 @@ import eu.kanade.tachiyomi.source.model.VideoPlaybackSelection
 import eu.kanade.tachiyomi.source.model.AnimesPage
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -79,15 +80,25 @@ class SyncAnimeWithSourceTest {
             animeRepository = videoRepository,
             animeEpisodeRepository = episodeRepository,
             animeSourceManager = FakeAnimeSourceManager(source),
-        )(localVideo)
+            now = { 10_000L },
+        )(localVideo) shouldBe SyncAnimeWithSource.SyncResult(
+            insertedEpisodes = 1,
+            updatedEpisodes = 1,
+            removedEpisodes = 0,
+            hasMetadataChanges = true,
+        )
 
-        videoRepository.updates.single() shouldBe AnimeTitleUpdate(
+        videoRepository.updates shouldContain AnimeTitleUpdate(
             id = localVideo.id,
             title = "New title",
             description = "New description",
             genre = listOf("Action", "Drama"),
             thumbnailUrl = "https://cdn.example.com/video.jpg",
             initialized = true,
+        )
+        videoRepository.updates.last() shouldBe AnimeTitleUpdate(
+            id = localVideo.id,
+            lastUpdate = 10_000L,
         )
 
         episodeRepository.updates.single() shouldBe AnimeEpisodeUpdate(
@@ -113,6 +124,7 @@ class SyncAnimeWithSourceTest {
             source = 99L,
             url = "/animes/1",
             title = "Video",
+            initialized = true,
         )
         val staleEpisode1 = AnimeEpisode.create().copy(
             id = 10L,
@@ -169,12 +181,24 @@ class SyncAnimeWithSourceTest {
         val episodeRepository = FakeAnimeEpisodeRepository(
             listOf(staleEpisode1, duplicateEpisode1, staleEpisode2, duplicateEpisode2),
         )
+        val videoRepository = FakeAnimeRepository(localVideo)
 
         SyncAnimeWithSource(
-            animeRepository = FakeAnimeRepository(localVideo),
+            animeRepository = videoRepository,
             animeEpisodeRepository = episodeRepository,
             animeSourceManager = FakeAnimeSourceManager(source),
-        )(localVideo)
+            now = { 20_000L },
+        )(localVideo) shouldBe SyncAnimeWithSource.SyncResult(
+            insertedEpisodes = 0,
+            updatedEpisodes = 2,
+            removedEpisodes = 2,
+            hasMetadataChanges = false,
+        )
+
+        videoRepository.updates.single() shouldBe AnimeTitleUpdate(
+            id = localVideo.id,
+            lastUpdate = 20_000L,
+        )
 
         episodeRepository.inserts shouldBe emptyList()
         episodeRepository.updates shouldContainExactly listOf(

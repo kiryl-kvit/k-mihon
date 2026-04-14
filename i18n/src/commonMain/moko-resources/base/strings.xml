@@ -66,7 +66,9 @@
     <string name="action_sort_total">Total chapters</string>
     <string name="action_sort_last_read">Last read</string>
     <string name="action_sort_last_manga_update">Last update check</string>
+    <string name="action_sort_last_anime_update">Last update check</string>
     <string name="action_sort_unread_count">Unread count</string>
+    <string name="action_sort_unwatched_count">Unwatched count</string>
     <string name="action_sort_next_updated">Next expected update</string>
     <string name="action_sort_latest_chapter">Latest chapter</string>
     <string name="action_sort_chapter_fetch_date">Chapter fetch date</string>
@@ -81,6 +83,8 @@
     <string name="action_select_inverse">Select inverse</string>
     <string name="action_mark_as_read">Mark as read</string>
     <string name="action_mark_as_unread">Mark as unread</string>
+    <string name="action_mark_as_watched">Mark as watched</string>
+    <string name="action_mark_as_unwatched">Mark as unwatched</string>
     <string name="action_mark_previous_as_read">Mark previous as read</string>
     <string name="action_download">Download</string>
     <string name="action_bookmark">Bookmark chapter</string>

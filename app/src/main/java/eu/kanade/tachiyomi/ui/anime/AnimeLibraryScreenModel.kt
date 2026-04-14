@@ -11,6 +11,8 @@ import eu.kanade.presentation.components.SEARCH_DEBOUNCE_MILLIS
 import eu.kanade.tachiyomi.ui.library.LibraryPage
 import eu.kanade.tachiyomi.ui.library.LibraryPageTab
 import eu.kanade.tachiyomi.ui.library.displayTitle
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
@@ -25,15 +27,26 @@ import kotlinx.coroutines.flow.update
 import logcat.LogPriority
 import mihon.feature.profiles.core.ProfileAwareStore
 import tachiyomi.core.common.i18n.stringResource
+import tachiyomi.core.common.preference.CheckboxState
+import tachiyomi.core.common.preference.Preference
+import tachiyomi.core.common.preference.TriState
+import tachiyomi.core.common.preference.getAndSet
+import tachiyomi.core.common.preference.mapAsCheckboxState
 import tachiyomi.core.common.util.lang.compareToWithCollator
 import tachiyomi.core.common.util.lang.launchIO
+import tachiyomi.core.common.util.lang.launchNonCancellable
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
+import tachiyomi.domain.category.interactor.GetAnimeCategories
 import tachiyomi.domain.category.interactor.GetCategories
+import tachiyomi.domain.category.interactor.SetAnimeCategories
+import tachiyomi.domain.category.interactor.SetSortModeForCategory
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.anime.model.AnimeEpisode
+import tachiyomi.domain.anime.model.AnimeEpisodeUpdate
 import tachiyomi.domain.anime.model.AnimePlaybackState
 import tachiyomi.domain.anime.model.AnimeTitle
+import tachiyomi.domain.anime.model.AnimeTitleUpdate
 import tachiyomi.domain.anime.repository.AnimeEpisodeRepository
 import tachiyomi.domain.anime.repository.AnimeHistoryRepository
 import tachiyomi.domain.anime.repository.AnimePlaybackStateRepository
@@ -43,6 +56,7 @@ import tachiyomi.domain.library.model.LibraryGroupType
 import tachiyomi.domain.library.model.LibrarySort
 import tachiyomi.domain.library.model.effectiveLibrarySort
 import tachiyomi.domain.library.service.LibraryPreferences
+import tachiyomi.domain.manga.model.applyFilter
 import tachiyomi.domain.source.service.AnimeSourceManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -53,9 +67,12 @@ class AnimeLibraryScreenModel(
     private val animePlaybackStateRepository: AnimePlaybackStateRepository = Injekt.get(),
     private val animeHistoryRepository: AnimeHistoryRepository = Injekt.get(),
     private val animeSourceManager: AnimeSourceManager = Injekt.get(),
+    private val getAnimeCategories: GetAnimeCategories = Injekt.get(),
     private val getCategories: GetCategories = Injekt.get(),
+    private val setAnimeCategories: SetAnimeCategories = Injekt.get(),
     private val categoryRepository: tachiyomi.domain.category.repository.CategoryRepository = Injekt.get(),
     private val libraryPreferences: LibraryPreferences = Injekt.get(),
+    private val setSortModeForCategory: SetSortModeForCategory = Injekt.get(),
     private val profileStore: ProfileAwareStore = Injekt.get(),
     private val application: Application = Injekt.get(),
 ) : StateScreenModel<AnimeLibraryScreenModel.State>(State()) {
@@ -73,8 +90,10 @@ class AnimeLibraryScreenModel(
                         activePageIndex = libraryPreferences.lastUsedCategory.get(),
                         dialog = null,
                         searchQuery = null,
+                        selection = setOf(),
                     )
                 }
+                lastSelectionPageId = null
             }
             .launchIn(screenModelScope)
 
@@ -88,16 +107,37 @@ class AnimeLibraryScreenModel(
                 libraryPreferences.randomSortSeed.changes(),
                 libraryPreferences.categoryTabs.changes(),
                 libraryPreferences.categoryNumberOfItems.changes(),
+                libraryPreferences.unreadBadge.changes(),
+                libraryPreferences.languageBadge.changes(),
+                libraryPreferences.showContinueReadingButton.changes(),
+                libraryPreferences.animeFilterUnwatched.changes(),
+                libraryPreferences.animeFilterStarted.changes(),
             ) { values ->
+                val favorites = values[1] as List<AnimeTitle>
                 LibrarySnapshot(
                     searchQuery = values[0] as String?,
-                    favorites = values[1] as List<AnimeTitle>,
+                    favorites = favorites,
                     categories = values[2] as List<Category>,
                     groupType = values[3] as LibraryGroupType,
                     sortMode = values[4] as LibrarySort,
                     randomSortSeed = values[5] as Int,
                     showCategoryTabs = values[6] as Boolean,
                     showItemCount = values[7] as Boolean,
+                    showUnwatchedBadge = values[8] as Boolean,
+                    showLanguageBadge = values[9] as Boolean,
+                    showContinueWatchingButton = values[10] as Boolean,
+                    sourceNamesBySourceId = favorites
+                        .map(AnimeTitle::source)
+                        .distinct()
+                        .associateWith { sourceId ->
+                            animeSourceManager.get(sourceId)?.name
+                                ?: application.stringResource(
+                                    tachiyomi.i18n.MR.strings.source_not_installed,
+                                    sourceId.toString(),
+                                )
+                        },
+                    filterUnwatched = values[11] as TriState,
+                    filterStarted = values[12] as TriState,
                 )
             }
                 .distinctUntilChanged()
@@ -109,6 +149,7 @@ class AnimeLibraryScreenModel(
     }
 
     private suspend fun buildState(snapshot: LibrarySnapshot): State {
+        val previousState = mutableState.value
         return try {
             val favorites = snapshot.filteredFavorites()
             val animeIds = favorites.map(AnimeTitle::id)
@@ -123,14 +164,17 @@ class AnimeLibraryScreenModel(
             val categoryIdsByAnimeId = categoryRepository.getAnimeCategoryIds(animeIds)
 
             val animeItems = buildAnimeItems(
+                snapshot = snapshot,
                 favorites = favorites,
                 episodes = episodes,
                 playbackStates = playbackStates,
                 categoryIdsByAnimeId = categoryIdsByAnimeId,
             )
+            val filteredItems = animeItems.applyFilters(snapshot)
             val pages = buildPages(
-                items = animeItems,
+                items = filteredItems,
                 categories = snapshot.categories,
+                showSystemCategory = animeItems.any { it.isUncategorized },
                 groupType = snapshot.groupType,
                 globalSort = snapshot.sortMode,
                 randomSortSeed = snapshot.randomSortSeed,
@@ -141,10 +185,16 @@ class AnimeLibraryScreenModel(
                 searchQuery = snapshot.searchQuery,
                 showCategoryTabs = snapshot.showCategoryTabs,
                 showItemCount = snapshot.showItemCount,
+                showContinueWatchingButton = snapshot.showContinueWatchingButton,
+                dialog = previousState.dialog,
                 groupType = snapshot.groupType,
-                libraryItems = animeItems,
+                categories = snapshot.categories,
+                allLibraryItems = animeItems,
+                libraryItems = filteredItems,
                 pages = pages,
-                activePageIndex = mutableState.value.activePageIndex,
+                activePageIndex = previousState.activePageIndex,
+                selection = previousState.selection.intersect(filteredItems.map(AnimeLibraryItem::animeId).toSet()),
+                hasActiveFilters = snapshot.hasActiveFilters,
             )
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e)
@@ -154,13 +204,29 @@ class AnimeLibraryScreenModel(
                 searchQuery = snapshot.searchQuery,
                 showCategoryTabs = snapshot.showCategoryTabs,
                 showItemCount = snapshot.showItemCount,
+                showContinueWatchingButton = snapshot.showContinueWatchingButton,
+                dialog = previousState.dialog,
                 groupType = snapshot.groupType,
-                activePageIndex = mutableState.value.activePageIndex,
+                categories = snapshot.categories,
+                activePageIndex = previousState.activePageIndex,
+                selection = previousState.selection,
+                hasActiveFilters = snapshot.hasActiveFilters,
             )
         }
     }
 
+    private fun List<AnimeLibraryItem>.applyFilters(snapshot: LibrarySnapshot): List<AnimeLibraryItem> {
+        val filterUnwatched = snapshot.filterUnwatched
+        val filterStarted = snapshot.filterStarted
+
+        return filter { item ->
+            applyFilter(filterUnwatched) { item.hasUnwatched } &&
+                applyFilter(filterStarted) { item.hasStarted }
+        }
+    }
+
     private fun buildAnimeItems(
+        snapshot: LibrarySnapshot,
         favorites: List<AnimeTitle>,
         episodes: List<AnimeEpisode>,
         playbackStates: List<AnimePlaybackState>,
@@ -172,11 +238,13 @@ class AnimeLibraryScreenModel(
         return favorites.map { anime ->
             val animeEpisodes = episodesByAnimeId[anime.id].orEmpty()
             val unwatchedCount = animeEpisodes.count { !it.completed }
+            val hasUnwatched = animeEpisodes.any { !it.completed }
             val inProgressPlayback = animeEpisodes
                 .asSequence()
                 .mapNotNull { episode -> playbackStateByEpisodeId[episode.id] }
                 .filter { !it.completed && it.positionMs > 0L && it.durationMs > 0L }
                 .maxByOrNull(AnimePlaybackState::lastWatchedAt)
+            val hasStarted = inProgressPlayback != null || animeEpisodes.any { it.watched || it.completed }
             val primaryEpisode = inProgressPlayback
                 ?.let { playbackState -> animeEpisodes.firstOrNull { it.id == playbackState.episodeId } }
                 ?: animeEpisodes.firstOrNull { !it.completed }
@@ -189,14 +257,18 @@ class AnimeLibraryScreenModel(
                 coverData = anime.toMangaCover(),
                 sourceId = anime.source,
                 sourceName = source?.name ?: application.stringResource(tachiyomi.i18n.MR.strings.source_not_installed, anime.source.toString()),
-                sourceLanguage = source?.lang.orEmpty(),
+                sourceLanguage = if (snapshot.showLanguageBadge) source?.lang.orEmpty() else "",
                 primaryEpisodeId = primaryEpisode?.id,
+                hasUnwatched = hasUnwatched,
                 unwatchedCount = unwatchedCount.toLong(),
+                unwatchedBadgeCount = if (snapshot.showUnwatchedBadge) unwatchedCount.toLong() else 0L,
+                hasStarted = hasStarted,
                 hasInProgress = inProgressPlayback != null,
                 progressFraction = inProgressPlayback?.progressFraction(),
                 favoriteModifiedAt = anime.favoriteModifiedAt ?: anime.dateAdded,
                 dateAdded = anime.dateAdded,
                 lastUpdate = anime.lastUpdate,
+                showContinueWatching = snapshot.showContinueWatchingButton,
                 categoryIds = categoryIdsByAnimeId[anime.id].orEmpty(),
             )
         }
@@ -205,11 +277,13 @@ class AnimeLibraryScreenModel(
     private fun buildPages(
         items: List<AnimeLibraryItem>,
         categories: List<Category>,
+        showSystemCategory: Boolean,
         groupType: LibraryGroupType,
         globalSort: LibrarySort,
         randomSortSeed: Int,
     ): List<LibraryPage> {
-        val categoryTabs = categories.associate { category ->
+        val visibleCategories = categories.filter { showSystemCategory || !it.isSystemCategory }
+        val categoryTabs = visibleCategories.associate { category ->
             category.id to LibraryPageTab(
                 id = "category:${category.id}",
                 title = category.name,
@@ -236,12 +310,12 @@ class AnimeLibraryScreenModel(
 
         val pages = when (groupType) {
             LibraryGroupType.Category -> {
-                categories.map { category ->
+                visibleCategories.map { category ->
                     LibraryPage(
                         id = "category:${category.id}",
                         primaryTab = categoryTabs.getValue(category.id),
                         category = category,
-                        itemIds = items.filter { category.id in it.effectiveCategoryIds }.map(AnimeLibraryItem::animeId),
+                        itemIds = items.filter { it.matchesCategory(category.id) }.map(AnimeLibraryItem::animeId),
                     )
                 }
             }
@@ -257,51 +331,73 @@ class AnimeLibraryScreenModel(
             }
             LibraryGroupType.ExtensionCategory -> {
                 sourceTabs.flatMap { (sourceId, sourceTab) ->
-                    categories.map { category ->
-                        LibraryPage(
-                            id = "${sourceTab.id}:${category.id}",
-                            primaryTab = sourceTab,
-                            secondaryTab = categoryTabs.getValue(category.id),
-                            category = category,
-                            sourceId = sourceId,
-                            itemIds = items.filter { it.sourceId == sourceId && category.id in it.effectiveCategoryIds }
-                                .map(AnimeLibraryItem::animeId),
-                        )
+                    visibleCategories.mapNotNull { category ->
+                        val itemIds = items.filter { it.sourceId == sourceId && it.matchesCategory(category.id) }
+                            .map(AnimeLibraryItem::animeId)
+                        itemIds.takeIf { it.isNotEmpty() }?.let {
+                            LibraryPage(
+                                id = "${sourceTab.id}:${category.id}",
+                                primaryTab = sourceTab,
+                                secondaryTab = categoryTabs.getValue(category.id),
+                                category = category,
+                                sourceId = sourceId,
+                                itemIds = itemIds,
+                            )
+                        }
                     }
                 }
             }
             LibraryGroupType.CategoryExtension -> {
-                categories.flatMap { category ->
-                    sourceTabs.map { (sourceId, sourceTab) ->
-                        LibraryPage(
-                            id = "category:${category.id}:$sourceId",
-                            primaryTab = categoryTabs.getValue(category.id),
-                            secondaryTab = sourceTab,
-                            category = category,
-                            sourceId = sourceId,
-                            itemIds = items.filter { category.id in it.effectiveCategoryIds && it.sourceId == sourceId }
-                                .map(AnimeLibraryItem::animeId),
+                visibleCategories.flatMap { category ->
+                    val categoryItems = items.filter { it.matchesCategory(category.id) }
+                    if (categoryItems.isEmpty()) {
+                        listOf(
+                            LibraryPage(
+                                id = "category:${category.id}",
+                                primaryTab = categoryTabs.getValue(category.id),
+                                category = category,
+                            ),
                         )
+                    } else {
+                        val categorySourceIds = categoryItems.map(AnimeLibraryItem::sourceId)
+                            .distinct()
+                            .sortedWith { sourceId1, sourceId2 ->
+                                sourceNames.getValue(sourceId1)
+                                    .compareToWithCollator(sourceNames.getValue(sourceId2))
+                                    .takeIf { it != 0 }
+                                    ?: sourceId1.compareTo(sourceId2)
+                            }
+                        categorySourceIds.map { sourceId ->
+                            LibraryPage(
+                                id = "category:${category.id}:source:$sourceId",
+                                primaryTab = categoryTabs.getValue(category.id),
+                                secondaryTab = sourceTabs.getValue(sourceId),
+                                category = category,
+                                sourceId = sourceId,
+                                itemIds = categoryItems.filter { it.sourceId == sourceId }.map(AnimeLibraryItem::animeId),
+                            )
+                        }
                     }
                 }
             }
         }
 
-        return pages
-            .map { page ->
-                page.copy(itemIds = sortItemsForPage(page, items, globalSort, randomSortSeed).map(AnimeLibraryItem::animeId))
-            }
-            .filter { page -> page.itemIds.isNotEmpty() }
+        return pages.map { page ->
+            page.copy(itemIds = sortItemsForPage(page, items, groupType, globalSort, randomSortSeed).map(AnimeLibraryItem::animeId))
+        }
     }
 
     private fun sortItemsForPage(
         page: LibraryPage,
         items: List<AnimeLibraryItem>,
+        groupType: LibraryGroupType,
         globalSort: LibrarySort,
         randomSortSeed: Int,
     ): List<AnimeLibraryItem> {
         val pageItems = items.filter { it.animeId in page.itemIds }
-        val sort = page.category.effectiveLibrarySort(globalSort)
+        val sort = page.category
+            ?.takeIf { groupType == LibraryGroupType.Category }
+            .effectiveLibrarySort(globalSort)
 
         val comparator = when (sort.type) {
             LibrarySort.Type.Alphabetical -> compareBy<AnimeLibraryItem> { it.title.lowercase() }
@@ -326,6 +422,177 @@ class AnimeLibraryScreenModel(
         mutableState.update { it.copy(searchQuery = query) }
     }
 
+    private var lastSelectionPageId: String? = null
+
+    fun clearSelection() {
+        lastSelectionPageId = null
+        mutableState.update { it.copy(selection = setOf()) }
+    }
+
+    fun toggleSelection(page: LibraryPage, item: AnimeLibraryItem) {
+        mutableState.update { state ->
+            val newSelection = state.selection.toMutableSet().apply {
+                if (!remove(item.animeId)) add(item.animeId)
+            }
+            lastSelectionPageId = page.id.takeIf { newSelection.isNotEmpty() }
+            state.copy(selection = newSelection)
+        }
+    }
+
+    fun toggleRangeSelection(page: LibraryPage, item: AnimeLibraryItem) {
+        mutableState.update { state ->
+            val newSelection = state.selection.toMutableSet().apply {
+                val lastSelected = lastOrNull()
+                if (lastSelectionPageId != page.id) {
+                    add(item.animeId)
+                    return@apply
+                }
+
+                val items = state.getItemsForPageId(page.id).map(AnimeLibraryItem::animeId)
+                val lastItemIndex = items.indexOf(lastSelected)
+                val currentItemIndex = items.indexOf(item.animeId)
+
+                val selectionRange = when {
+                    lastItemIndex < currentItemIndex -> lastItemIndex..currentItemIndex
+                    currentItemIndex < lastItemIndex -> currentItemIndex..lastItemIndex
+                    else -> return@apply
+                }
+                selectionRange.mapNotNull { items.getOrNull(it) }.let(::addAll)
+            }
+            lastSelectionPageId = page.id
+            state.copy(selection = newSelection)
+        }
+    }
+
+    fun selectAll() {
+        lastSelectionPageId = null
+        mutableState.update { state ->
+            val newSelection = state.selection.toMutableSet().apply {
+                state.getItemsForPageId(state.activePage?.id)
+                    .map(AnimeLibraryItem::animeId)
+                    .let(::addAll)
+            }
+            state.copy(selection = newSelection)
+        }
+    }
+
+    fun openChangeCategoryDialog() {
+        screenModelScope.launchIO {
+            val animeIds = state.value.selection.toList()
+            if (animeIds.isEmpty()) return@launchIO
+
+            val selectedItems = state.value.selectedLibraryAnime
+            val categories = state.value.availableCategories
+
+            val common = getCommonCategories(selectedItems)
+            val mixed = getMixedCategories(selectedItems)
+            val preselected = categories
+                .map {
+                    when (it.id) {
+                        in common -> CheckboxState.State.Checked(it)
+                        in mixed -> CheckboxState.TriState.Exclude(it)
+                        else -> CheckboxState.State.None(it)
+                    }
+                }
+                .toImmutableList()
+
+            mutableState.update {
+                it.copy(dialog = Dialog.ChangeCategory(animeIds = animeIds, initialSelection = preselected))
+            }
+        }
+    }
+
+    fun openRemoveAnimeDialog() {
+        val animeIds = state.value.selection.toList()
+        if (animeIds.isEmpty()) return
+
+        mutableState.update {
+            it.copy(dialog = Dialog.RemoveAnime(animeIds))
+        }
+    }
+
+    fun setAnimeCategories(animeIds: List<Long>, addCategories: List<Long>, removeCategories: List<Long>) {
+        screenModelScope.launchIO {
+            animeIds.forEach { animeId ->
+                val categoryIds = getAnimeCategories.await(animeId)
+                    .map(Category::id)
+                    .subtract(removeCategories.toSet())
+                    .plus(addCategories)
+                    .toList()
+
+                setAnimeCategories.await(animeId, categoryIds)
+            }
+        }
+    }
+
+    fun removeAnime(animeIds: List<Long>) {
+        screenModelScope.launchIO {
+            animeIds.distinct().forEach { animeId ->
+                animeRepository.update(
+                    AnimeTitleUpdate(
+                        id = animeId,
+                        favorite = false,
+                        dateAdded = 0L,
+                    ),
+                )
+            }
+        }
+    }
+
+    fun markWatchedSelection(watched: Boolean) {
+        val selectedAnime = state.value.selectedLibraryAnime
+        if (selectedAnime.isEmpty()) return
+
+        screenModelScope.launchNonCancellable {
+            val episodeUpdates = selectedAnime.flatMap { animeItem ->
+                animeEpisodeRepository.getEpisodesByAnimeId(animeItem.animeId)
+                    .filter { episode ->
+                        when (watched) {
+                            true -> !episode.completed || !episode.watched
+                            false -> episode.completed || episode.watched
+                        }
+                    }
+                    .map { episode ->
+                        AnimeEpisodeUpdate(
+                            id = episode.id,
+                            watched = watched,
+                            completed = watched,
+                        )
+                    }
+            }
+            if (episodeUpdates.isNotEmpty()) {
+                animeEpisodeRepository.updateAll(episodeUpdates)
+            }
+
+            selectedAnime.forEach { animeItem ->
+                animePlaybackStateRepository.getByAnimeIdAsFlow(animeItem.animeId)
+                    .first()
+                    .forEach { playbackState ->
+                        animePlaybackStateRepository.upsert(
+                            playbackState.copy(
+                                positionMs = if (watched) playbackState.positionMs else 0L,
+                                completed = watched,
+                            ),
+                        )
+                    }
+            }
+        }
+        clearSelection()
+    }
+
+    fun invertSelection() {
+        lastSelectionPageId = null
+        mutableState.update { state ->
+            val newSelection = state.selection.toMutableSet().apply {
+                val itemIds = state.getItemsForPageId(state.activePage?.id).map(AnimeLibraryItem::animeId)
+                val (toRemove, toAdd) = itemIds.partition { it in this }
+                removeAll(toRemove)
+                addAll(toAdd)
+            }
+            state.copy(selection = newSelection)
+        }
+    }
+
     fun updateActivePageIndex(index: Int) {
         mutableState.update { state -> state.copy(activePageIndex = index) }
         val newIndex = state.value.coercedActivePageIndex
@@ -337,9 +604,34 @@ class AnimeLibraryScreenModel(
         return libraryPreferences.displayMode.asState(screenModelScope)
     }
 
+    fun getSortMode(): PreferenceMutableState<LibrarySort> {
+        return libraryPreferences.sortingMode.asState(screenModelScope)
+    }
+
     fun getColumnsForOrientation(isLandscape: Boolean): PreferenceMutableState<Int> {
         return (if (isLandscape) libraryPreferences.landscapeColumns else libraryPreferences.portraitColumns)
             .asState(screenModelScope)
+    }
+
+    fun getFilterUnwatched(): PreferenceMutableState<TriState> {
+        return libraryPreferences.animeFilterUnwatched.asState(screenModelScope)
+    }
+
+    fun getFilterStarted(): PreferenceMutableState<TriState> {
+        return libraryPreferences.animeFilterStarted.asState(screenModelScope)
+    }
+
+    fun getShowUnwatchedBadge(): PreferenceMutableState<Boolean> {
+        return libraryPreferences.unreadBadge.asState(screenModelScope)
+    }
+
+    fun getShowLanguageBadge(): PreferenceMutableState<Boolean> {
+        return libraryPreferences.languageBadge.asState(screenModelScope)
+    }
+
+    fun getRandomLibraryItemForCurrentPage(): AnimeLibraryItem? {
+        val currentState = state.value
+        return currentState.getItemsForPageId(currentState.activePage?.id).randomOrNull()
     }
 
     fun showSettingsDialog() {
@@ -354,12 +646,37 @@ class AnimeLibraryScreenModel(
         libraryPreferences.groupType.set(type)
     }
 
+    fun setSort(category: Category?, mode: LibrarySort.Type, direction: LibrarySort.Direction) {
+        screenModelScope.launchIO {
+            val targetCategory = category
+                ?.takeIf { !it.isSystemCategory }
+                ?.takeIf { libraryPreferences.groupType.get() == LibraryGroupType.Category }
+            setSortModeForCategory.await(targetCategory, mode, direction)
+        }
+    }
+
     fun setShowCategoryTabs(enabled: Boolean) {
         libraryPreferences.categoryTabs.set(enabled)
     }
 
     fun setShowItemCount(enabled: Boolean) {
         libraryPreferences.categoryNumberOfItems.set(enabled)
+    }
+
+    fun setShowUnwatchedBadge(enabled: Boolean) {
+        libraryPreferences.unreadBadge.set(enabled)
+    }
+
+    fun setShowLanguageBadge(enabled: Boolean) {
+        libraryPreferences.languageBadge.set(enabled)
+    }
+
+    fun setShowContinueWatchingButton(enabled: Boolean) {
+        libraryPreferences.showContinueReadingButton.set(enabled)
+    }
+
+    fun toggleFilter(preference: (LibraryPreferences) -> Preference<TriState>) {
+        preference(libraryPreferences).getAndSet { it.next() }
     }
 
     @Immutable
@@ -371,20 +688,43 @@ class AnimeLibraryScreenModel(
         val sourceName: String,
         val sourceLanguage: String,
         val primaryEpisodeId: Long?,
+        val hasUnwatched: Boolean,
         val unwatchedCount: Long,
+        val unwatchedBadgeCount: Long,
+        val hasStarted: Boolean,
         val hasInProgress: Boolean,
         val progressFraction: Float?,
         val favoriteModifiedAt: Long,
         val dateAdded: Long,
         val lastUpdate: Long,
+        val showContinueWatching: Boolean,
         val categoryIds: List<Long>,
     ) {
+        val isUncategorized: Boolean
+            get() = categoryIds.isEmpty()
+
         val effectiveCategoryIds: List<Long>
             get() = categoryIds.ifEmpty { listOf(Category.UNCATEGORIZED_ID) }
+
+        fun matchesCategory(categoryId: Long): Boolean {
+            return when {
+                categoryId == Category.UNCATEGORIZED_ID -> isUncategorized
+                else -> categoryId in categoryIds
+            }
+        }
     }
 
     sealed interface Dialog {
         data object SettingsSheet : Dialog
+
+        data class ChangeCategory(
+            val animeIds: List<Long>,
+            val initialSelection: ImmutableList<CheckboxState<Category>>,
+        ) : Dialog
+
+        data class RemoveAnime(
+            val animeIds: List<Long>,
+        ) : Dialog
     }
 
     @Immutable
@@ -394,22 +734,40 @@ class AnimeLibraryScreenModel(
         val searchQuery: String? = null,
         val showCategoryTabs: Boolean = false,
         val showItemCount: Boolean = false,
+        val showContinueWatchingButton: Boolean = false,
         val dialog: Dialog? = null,
         val groupType: LibraryGroupType = LibraryGroupType.Category,
+        val categories: List<Category> = emptyList(),
+        val allLibraryItems: List<AnimeLibraryItem> = emptyList(),
         val libraryItems: List<AnimeLibraryItem> = emptyList(),
         val pages: List<LibraryPage> = emptyList(),
         val activePageIndex: Int = 0,
+        val selection: Set<Long> = emptySet(),
+        val hasActiveFilters: Boolean = false,
     ) {
         val coercedActivePageIndex = activePageIndex.coerceIn(0, pages.lastIndex.coerceAtLeast(0))
 
         val activePage: LibraryPage?
             get() = pages.getOrNull(coercedActivePageIndex)
 
-        val isLibraryEmpty: Boolean
-            get() = libraryItems.isEmpty()
+        val activeSortCategory: Category?
+            get() = activePage?.category
+                ?.takeIf { groupType == LibraryGroupType.Category }
 
-        val hasActiveFilters: Boolean
-            get() = false
+        val selectionMode: Boolean
+            get() = selection.isNotEmpty()
+
+        val selectedLibraryAnime: List<AnimeLibraryItem>
+            get() = allLibraryItems.filter { it.animeId in selection }
+
+        val availableCategories: List<Category>
+            get() = categories.asSequence()
+                .filterNot(Category::isSystemCategory)
+                .sortedBy(Category::order)
+                .toList()
+
+        val isLibraryEmpty: Boolean
+            get() = allLibraryItems.isEmpty()
 
         fun getItemsForPage(page: LibraryPage): List<AnimeLibraryItem> {
             return page.itemIds.mapNotNull { animeId -> libraryItems.firstOrNull { it.animeId == animeId } }
@@ -445,6 +803,22 @@ class AnimeLibraryScreenModel(
         }
     }
 
+    private fun getCommonCategories(items: List<AnimeLibraryItem>): Set<Long> {
+        return items.map(AnimeLibraryItem::effectiveCategoryIds)
+            .reduceOrNull { set1, set2 -> set1.intersect(set2.toSet()).toList() }
+            .orEmpty()
+            .filterNot { it == Category.UNCATEGORIZED_ID }
+            .toSet()
+    }
+
+    private fun getMixedCategories(items: List<AnimeLibraryItem>): Set<Long> {
+        if (items.isEmpty()) return emptySet()
+        val common = getCommonCategories(items)
+        return items.flatMap(AnimeLibraryItem::effectiveCategoryIds)
+            .filterNot { it == Category.UNCATEGORIZED_ID || it in common }
+            .toSet()
+    }
+
     private data class LibrarySnapshot(
         val searchQuery: String?,
         val favorites: List<AnimeTitle>,
@@ -454,14 +828,47 @@ class AnimeLibraryScreenModel(
         val randomSortSeed: Int,
         val showCategoryTabs: Boolean,
         val showItemCount: Boolean,
+        val showUnwatchedBadge: Boolean,
+        val showLanguageBadge: Boolean,
+        val showContinueWatchingButton: Boolean,
+        val sourceNamesBySourceId: Map<Long, String>,
+        val filterUnwatched: TriState,
+        val filterStarted: TriState,
     ) {
+        val hasActiveFilters: Boolean
+            get() = filterUnwatched != TriState.DISABLED || filterStarted != TriState.DISABLED
+
         fun filteredFavorites(): List<AnimeTitle> {
             val query = searchQuery?.trim()?.takeIf { it.isNotEmpty() } ?: return favorites
-            return favorites.filter { anime ->
-                anime.displayTitle.contains(query, ignoreCase = true) ||
-                    anime.title.contains(query, ignoreCase = true) ||
-                    anime.description?.contains(query, ignoreCase = true) == true ||
-                    anime.genre?.any { genre -> genre.contains(query, ignoreCase = true) } == true
+            return favorites.filter { anime -> anime.matches(query) }
+        }
+
+        private fun AnimeTitle.matches(constraint: String): Boolean {
+            if (constraint.startsWith("id:", true)) {
+                return id == constraint.substringAfter("id:").toLongOrNull()
+            } else if (constraint.startsWith("src:", true)) {
+                return source == constraint.substringAfter("src:").toLongOrNull()
+            }
+
+            return displayTitle.contains(constraint, ignoreCase = true) ||
+                title.contains(constraint, ignoreCase = true) ||
+                (description?.contains(constraint, ignoreCase = true) ?: false) ||
+                constraint.split(",").map { it.trim() }.all { subconstraint ->
+                    checkNegatableConstraint(subconstraint) {
+                        sourceNamesBySourceId[source]?.contains(it, ignoreCase = true) == true ||
+                            (genre?.any { genreEntry -> genreEntry.equals(it, ignoreCase = true) } ?: false)
+                    }
+                }
+        }
+
+        private fun checkNegatableConstraint(
+            constraint: String,
+            predicate: (String) -> Boolean,
+        ): Boolean {
+            return if (constraint.startsWith("-")) {
+                !predicate(constraint.substringAfter("-").trimStart())
+            } else {
+                predicate(constraint)
             }
         }
     }

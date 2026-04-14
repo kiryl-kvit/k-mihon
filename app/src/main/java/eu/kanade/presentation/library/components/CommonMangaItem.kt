@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -76,6 +77,7 @@ fun MangaCompactGridItem(
     isSelected: Boolean = false,
     title: String? = null,
     onClickContinueReading: (() -> Unit)? = null,
+    continueReadingProgress: Float? = null,
     coverAlpha: Float = 1f,
     coverBadgeStart: @Composable (RowScope.() -> Unit)? = null,
     coverBadgeEnd: @Composable (RowScope.() -> Unit)? = null,
@@ -101,12 +103,14 @@ fun MangaCompactGridItem(
                     CoverTextOverlay(
                         title = title,
                         onClickContinueReading = onClickContinueReading,
+                        continueReadingProgress = continueReadingProgress,
                     )
                 } else if (onClickContinueReading != null) {
                     ContinueReadingButton(
                         size = ContinueReadingButtonSizeLarge,
                         iconSize = ContinueReadingButtonIconSizeLarge,
                         onClick = onClickContinueReading,
+                        progress = continueReadingProgress,
                         modifier = Modifier
                             .padding(ContinueReadingButtonGridPadding)
                             .align(Alignment.BottomEnd),
@@ -124,6 +128,7 @@ fun MangaCompactGridItem(
 private fun BoxScope.CoverTextOverlay(
     title: String,
     onClickContinueReading: (() -> Unit)? = null,
+    continueReadingProgress: Float? = null,
 ) {
     Box(
         modifier = Modifier
@@ -161,6 +166,7 @@ private fun BoxScope.CoverTextOverlay(
                 size = ContinueReadingButtonSizeSmall,
                 iconSize = ContinueReadingButtonIconSizeSmall,
                 onClick = onClickContinueReading,
+                progress = continueReadingProgress,
                 modifier = Modifier.padding(
                     end = ContinueReadingButtonGridPadding,
                     bottom = ContinueReadingButtonGridPadding,
@@ -185,6 +191,7 @@ fun MangaComfortableGridItem(
     coverBadgeStart: (@Composable RowScope.() -> Unit)? = null,
     coverBadgeEnd: (@Composable RowScope.() -> Unit)? = null,
     onClickContinueReading: (() -> Unit)? = null,
+    continueReadingProgress: Float? = null,
 ) {
     GridItemSelectable(
         isSelected = isSelected,
@@ -209,6 +216,7 @@ fun MangaComfortableGridItem(
                             size = ContinueReadingButtonSizeLarge,
                             iconSize = ContinueReadingButtonIconSizeLarge,
                             onClick = onClickContinueReading,
+                            progress = continueReadingProgress,
                             modifier = Modifier
                                 .padding(ContinueReadingButtonGridPadding)
                                 .align(Alignment.BottomEnd),
@@ -338,6 +346,7 @@ fun MangaListItem(
     isSelected: Boolean = false,
     coverAlpha: Float = 1f,
     onClickContinueReading: (() -> Unit)? = null,
+    continueReadingProgress: Float? = null,
 ) {
     Row(
         modifier = Modifier
@@ -371,6 +380,7 @@ fun MangaListItem(
                 size = ContinueReadingButtonSizeSmall,
                 iconSize = ContinueReadingButtonIconSizeSmall,
                 onClick = onClickContinueReading,
+                progress = continueReadingProgress,
                 modifier = Modifier.padding(start = ContinueReadingButtonListSpacing),
             )
         }
@@ -382,9 +392,18 @@ private fun ContinueReadingButton(
     size: Dp,
     iconSize: Dp,
     onClick: () -> Unit,
+    progress: Float? = null,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier) {
+        if (progress != null) {
+            CircularProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.size(size),
+                strokeWidth = 2.dp,
+                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            )
+        }
         FilledIconButton(
             onClick = onClick,
             shape = MaterialTheme.shapes.small,

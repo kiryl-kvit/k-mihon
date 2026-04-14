@@ -18,9 +18,10 @@ class SyncAnimeWithSource(
     private val animeRepository: AnimeRepository,
     private val animeEpisodeRepository: AnimeEpisodeRepository,
     private val animeSourceManager: AnimeSourceManager,
+    private val now: () -> Long = { Instant.now().toEpochMilli() },
 ) {
 
-    suspend operator fun invoke(anime: AnimeTitle) {
+    suspend operator fun invoke(anime: AnimeTitle): SyncResult {
         val source = animeSourceManager.get(anime.source) ?: throw SourceNotInstalledException()
         val networkAnime = source.getAnimeDetails(anime.toSAnime())
 
@@ -51,7 +52,7 @@ class SyncAnimeWithSource(
             .map { it.episode.url }
             .toSet()
         val existingEpisodes = animeEpisodeRepository.getEpisodesByAnimeId(anime.id)
-        val now = Instant.now().toEpochMilli()
+        val now = now()
         val representativeEpisodes = existingEpisodes
             .groupBy { it.sourceOrder }
             .values
@@ -139,6 +140,21 @@ class SyncAnimeWithSource(
         if (episodesToInsert.isNotEmpty()) {
             animeEpisodeRepository.addAll(episodesToInsert)
         }
+
+        val hasEpisodeChanges = episodesToInsert.isNotEmpty() || episodesToUpdate.isNotEmpty() || episodesToRemove.isNotEmpty()
+        if (hasEpisodeChanges) {
+            val timestamp = now()
+            if (!animeRepository.update(AnimeTitleUpdate(id = anime.id, lastUpdate = timestamp))) {
+                error("Failed to update anime ${anime.id}")
+            }
+        }
+
+        return SyncResult(
+            insertedEpisodes = episodesToInsert.size,
+            updatedEpisodes = episodesToUpdate.size,
+            removedEpisodes = episodesToRemove.size,
+            hasMetadataChanges = animeUpdate != AnimeTitleUpdate(id = anime.id),
+        )
     }
 
     private fun stateRank(episode: AnimeEpisode): Int {
@@ -155,4 +171,14 @@ class SyncAnimeWithSource(
         val resolvedName: String,
         val episodeNumber: Double,
     )
+
+    data class SyncResult(
+        val insertedEpisodes: Int,
+        val updatedEpisodes: Int,
+        val removedEpisodes: Int,
+        val hasMetadataChanges: Boolean,
+    ) {
+        val hasChanges: Boolean
+            get() = insertedEpisodes > 0 || updatedEpisodes > 0 || removedEpisodes > 0
+    }
 }

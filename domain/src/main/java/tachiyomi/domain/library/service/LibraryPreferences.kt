@@ -91,6 +91,16 @@ class LibraryPreferences(
         TriState.DISABLED,
     )
 
+    val animeFilterUnwatched: Preference<TriState> = preferenceStore.getEnum(
+        "pref_filter_anime_library_unwatched",
+        TriState.DISABLED,
+    )
+
+    val animeFilterStarted: Preference<TriState> = preferenceStore.getEnum(
+        "pref_filter_anime_library_started",
+        TriState.DISABLED,
+    )
+
     val filterIntervalCustom: Preference<TriState> = preferenceStore.getEnum(
         "pref_filter_library_interval_custom",
         TriState.DISABLED,
