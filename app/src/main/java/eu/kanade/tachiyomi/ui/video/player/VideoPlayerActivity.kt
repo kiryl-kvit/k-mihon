@@ -274,8 +274,8 @@ class VideoPlayerActivity : BaseActivity() {
                                 player = controllerPlayer
                                 useController = true
                                 controllerAutoShow = true
-                                setShowPreviousButton(current.previousEpisodeId != null)
-                                setShowNextButton(current.nextEpisodeId != null)
+                                setShowPreviousButton(true)
+                                setShowNextButton(true)
                                 setControllerVisibilityListener(PlayerControlView.VisibilityListener { visibility ->
                                     controlsVisible = visibility == View.VISIBLE
                                 })
@@ -298,8 +298,8 @@ class VideoPlayerActivity : BaseActivity() {
                         },
                         update = { playerView ->
                             playerView.player = controllerPlayer
-                            playerView.setShowPreviousButton(current.previousEpisodeId != null)
-                            playerView.setShowNextButton(current.nextEpisodeId != null)
+                            playerView.setShowPreviousButton(true)
+                            playerView.setShowNextButton(true)
                             playerView.findViewById<View?>(androidx.media3.ui.R.id.exo_settings)?.visibility = View.GONE
                             playerView.findViewById<ImageButton?>(androidx.media3.ui.R.id.exo_prev)?.apply {
                                 isEnabled = current.previousEpisodeId != null
