@@ -86,7 +86,6 @@ fun <T> UpdatesScreen(
     ) { contentPadding ->
         when {
             state.isLoading -> loadingContent(Modifier.padding(contentPadding))
-            state.isEmpty -> emptyContent(Modifier.padding(contentPadding))
             else -> {
                 val scope = rememberCoroutineScope()
                 var isRefreshing by remember { mutableStateOf(false) }
@@ -105,10 +104,13 @@ fun <T> UpdatesScreen(
                     enabled = !state.selectionMode,
                     indicatorPadding = contentPadding,
                 ) {
-                    FastScrollLazyColumn(
-                        contentPadding = contentPadding,
-                        content = content,
-                    )
+                    when {
+                        state.isEmpty -> emptyContent(Modifier.padding(contentPadding))
+                        else -> FastScrollLazyColumn(
+                            contentPadding = contentPadding,
+                            content = content,
+                        )
+                    }
                 }
             }
         }
