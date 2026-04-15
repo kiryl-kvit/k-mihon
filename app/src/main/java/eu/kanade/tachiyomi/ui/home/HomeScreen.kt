@@ -53,6 +53,7 @@ import eu.kanade.tachiyomi.ui.anime.AnimeBrowseTab
 import eu.kanade.tachiyomi.ui.anime.AnimeHistoryTab
 import eu.kanade.tachiyomi.ui.anime.AnimeLibraryTab
 import eu.kanade.tachiyomi.ui.anime.AnimeMoreTab
+import eu.kanade.tachiyomi.ui.anime.AnimeScreen
 import eu.kanade.tachiyomi.ui.anime.AnimeUpdatesTab
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collectLatest
@@ -304,6 +305,9 @@ object HomeScreen : Screen() {
 
                         if (it is Tab.Library && it.mangaIdToOpen != null && resolvedTab::class == LibraryTab::class) {
                             navigator.push(MangaScreen(it.mangaIdToOpen))
+                        }
+                        if (it is Tab.Library && it.animeIdToOpen != null && resolvedTab::class == AnimeLibraryTab::class) {
+                            navigator.push(AnimeScreen(it.animeIdToOpen))
                         }
                         if (it is Tab.More && resolvedTab::class == MoreTab::class && it.toDownloads) {
                             navigator.push(DownloadQueueScreen)
@@ -574,7 +578,10 @@ object HomeScreen : Screen() {
     }
 
     sealed interface Tab {
-        data class Library(val mangaIdToOpen: Long? = null) : Tab
+        data class Library(
+            val mangaIdToOpen: Long? = null,
+            val animeIdToOpen: Long? = null,
+        ) : Tab
         data object Updates : Tab
         data object History : Tab
         data class Browse(val toExtensions: Boolean = false) : Tab

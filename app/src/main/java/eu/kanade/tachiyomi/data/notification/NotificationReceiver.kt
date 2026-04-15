@@ -18,9 +18,13 @@ import eu.kanade.tachiyomi.util.system.getParcelableExtraCompat
 import eu.kanade.tachiyomi.util.system.notificationManager
 import eu.kanade.tachiyomi.util.system.toShareIntent
 import eu.kanade.tachiyomi.util.system.toast
+import eu.kanade.tachiyomi.ui.video.player.VideoPlayerActivity
 import kotlinx.coroutines.runBlocking
 import tachiyomi.core.common.Constants
 import tachiyomi.core.common.util.lang.launchIO
+import tachiyomi.domain.anime.model.AnimeEpisodeUpdate
+import tachiyomi.domain.anime.repository.AnimeEpisodeRepository
+import tachiyomi.domain.anime.repository.AnimePlaybackStateRepository
 import tachiyomi.domain.chapter.interactor.GetChapter
 import tachiyomi.domain.chapter.interactor.UpdateChapter
 import tachiyomi.domain.chapter.model.Chapter
@@ -48,6 +52,8 @@ class NotificationReceiver : BroadcastReceiver() {
     private val getChapter: GetChapter by injectLazy()
     private val updateChapter: UpdateChapter by injectLazy()
     private val downloadManager: DownloadManager by injectLazy()
+    private val animeEpisodeRepository: AnimeEpisodeRepository by injectLazy()
+    private val animePlaybackStateRepository: AnimePlaybackStateRepository by injectLazy()
 
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
@@ -80,6 +86,13 @@ class NotificationReceiver : BroadcastReceiver() {
             ACTION_START_APP_UPDATE -> startDownloadAppUpdate(context, intent)
             // Cancel downloading app update
             ACTION_CANCEL_APP_UPDATE_DOWNLOAD -> cancelDownloadAppUpdate(context)
+            ACTION_OPEN_EPISODE -> {
+                openEpisode(
+                    context,
+                    intent.getLongExtra(EXTRA_ANIME_ID, -1),
+                    intent.getLongExtra(EXTRA_EPISODE_ID, -1),
+                )
+            }
             // Open reader activity
             ACTION_OPEN_CHAPTER -> {
                 openChapter(
@@ -111,6 +124,14 @@ class NotificationReceiver : BroadcastReceiver() {
                 if (mangaId > -1) {
                     downloadChapters(urls, mangaId)
                 }
+            }
+            ACTION_MARK_AS_WATCHED -> {
+                val notificationId = intent.getIntExtra(EXTRA_NOTIFICATION_ID, -1)
+                if (notificationId > -1) {
+                    dismissNotification(context, notificationId, intent.getIntExtra(EXTRA_GROUP_ID, 0))
+                }
+                val episodeIds = intent.getLongArrayExtra(EXTRA_EPISODE_IDS) ?: return
+                markAsWatched(episodeIds)
             }
         }
     }
@@ -163,6 +184,17 @@ class NotificationReceiver : BroadcastReceiver() {
         } else {
             context.toast(MR.strings.chapter_error)
         }
+    }
+
+    private fun openEpisode(context: Context, animeId: Long, episodeId: Long) {
+        if (animeId <= -1 || episodeId <= -1) {
+            return
+        }
+
+        val intent = VideoPlayerActivity.newIntent(context, animeId, episodeId).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        context.startActivity(intent)
     }
 
     /**
@@ -239,6 +271,35 @@ class NotificationReceiver : BroadcastReceiver() {
         }
     }
 
+    private fun markAsWatched(episodeIds: LongArray) {
+        launchIO {
+            val episodeUpdates = mutableListOf<AnimeEpisodeUpdate>()
+            episodeIds.forEach { episodeId ->
+                animeEpisodeRepository.getEpisodeById(episodeId)
+                    ?.takeIf { !it.completed || !it.watched }
+                    ?.let { episode ->
+                        episodeUpdates += AnimeEpisodeUpdate(
+                            id = episode.id,
+                            watched = true,
+                            completed = true,
+                        )
+                    }
+            }
+            if (episodeUpdates.isNotEmpty()) {
+                animeEpisodeRepository.updateAll(episodeUpdates)
+            }
+
+            episodeIds.forEach { episodeId ->
+                animePlaybackStateRepository.getByEpisodeId(episodeId)
+                    ?.let { playbackState ->
+                        animePlaybackStateRepository.upsert(
+                            playbackState.copy(completed = true),
+                        )
+                    }
+            }
+        }
+    }
+
     companion object {
         private const val NAME = "NotificationReceiver"
 
@@ -255,7 +316,9 @@ class NotificationReceiver : BroadcastReceiver() {
         private const val ACTION_START_APP_UPDATE = "$ID.$NAME.ACTION_START_APP_UPDATE"
         private const val ACTION_CANCEL_APP_UPDATE_DOWNLOAD = "$ID.$NAME.CANCEL_APP_UPDATE_DOWNLOAD"
 
+        private const val ACTION_OPEN_EPISODE = "$ID.$NAME.ACTION_OPEN_EPISODE"
         private const val ACTION_MARK_AS_READ = "$ID.$NAME.MARK_AS_READ"
+        private const val ACTION_MARK_AS_WATCHED = "$ID.$NAME.MARK_AS_WATCHED"
         private const val ACTION_OPEN_CHAPTER = "$ID.$NAME.ACTION_OPEN_CHAPTER"
         private const val ACTION_DOWNLOAD_CHAPTER = "$ID.$NAME.ACTION_DOWNLOAD_CHAPTER"
 
@@ -270,6 +333,9 @@ class NotificationReceiver : BroadcastReceiver() {
         private const val EXTRA_URI = "$ID.$NAME.URI"
         private const val EXTRA_NOTIFICATION_ID = "$ID.$NAME.NOTIFICATION_ID"
         private const val EXTRA_GROUP_ID = "$ID.$NAME.EXTRA_GROUP_ID"
+        private const val EXTRA_ANIME_ID = "$ID.$NAME.EXTRA_ANIME_ID"
+        private const val EXTRA_EPISODE_ID = "$ID.$NAME.EXTRA_EPISODE_ID"
+        private const val EXTRA_EPISODE_IDS = "$ID.$NAME.EXTRA_EPISODE_IDS"
         private const val EXTRA_MANGA_ID = "$ID.$NAME.EXTRA_MANGA_ID"
         private const val EXTRA_CHAPTER_ID = "$ID.$NAME.EXTRA_CHAPTER_ID"
         private const val EXTRA_CHAPTER_URL = "$ID.$NAME.EXTRA_CHAPTER_URL"
@@ -422,6 +488,20 @@ class NotificationReceiver : BroadcastReceiver() {
             )
         }
 
+        internal fun openEpisodePendingActivity(context: Context, animeId: Long, episodeId: Long): PendingIntent {
+            val newIntent = Intent(context, NotificationReceiver::class.java).apply {
+                action = ACTION_OPEN_EPISODE
+                putExtra(EXTRA_ANIME_ID, animeId)
+                putExtra(EXTRA_EPISODE_ID, episodeId)
+            }
+            return PendingIntent.getBroadcast(
+                context,
+                episodeId.hashCode(),
+                newIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+        }
+
         /**
          * Returns [PendingIntent] that opens the manga info controller.
          *
@@ -497,6 +577,27 @@ class NotificationReceiver : BroadcastReceiver() {
             )
         }
 
+        internal fun markAsWatchedPendingBroadcast(
+            context: Context,
+            animeId: Long,
+            episodes: Array<tachiyomi.domain.anime.model.AnimeEpisode>,
+            groupId: Int,
+        ): PendingIntent {
+            val newIntent = Intent(context, NotificationReceiver::class.java).apply {
+                action = ACTION_MARK_AS_WATCHED
+                putExtra(EXTRA_ANIME_ID, animeId)
+                putExtra(EXTRA_EPISODE_IDS, episodes.map { it.id }.toLongArray())
+                putExtra(EXTRA_NOTIFICATION_ID, animeId.hashCode())
+                putExtra(EXTRA_GROUP_ID, groupId)
+            }
+            return PendingIntent.getBroadcast(
+                context,
+                animeId.hashCode(),
+                newIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+        }
+
         /**
          * Returns [PendingIntent] that opens the manga info controller
          *
@@ -512,6 +613,20 @@ class NotificationReceiver : BroadcastReceiver() {
             return PendingIntent.getActivity(
                 context,
                 mangaId.hashCode(),
+                newIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+        }
+
+        internal fun openAnimeEntryPendingActivity(context: Context, animeId: Long, groupId: Int): PendingIntent {
+            val newIntent = Intent(context, MainActivity::class.java).setAction(Constants.SHORTCUT_ANIME)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                .putExtra(Constants.ANIME_EXTRA, animeId)
+                .putExtra("notificationId", animeId.hashCode())
+                .putExtra("groupId", groupId)
+            return PendingIntent.getActivity(
+                context,
+                animeId.hashCode(),
                 newIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )

@@ -654,19 +654,28 @@ class MainActivity : BaseActivity() {
         }
 
         val tabToOpen = when (intent.action) {
-            Constants.SHORTCUT_LIBRARY -> HomeScreen.Tab.Library()
-            Constants.SHORTCUT_MANGA -> {
-                val idToOpen = intent.extras?.getLong(Constants.MANGA_EXTRA) ?: return false
-                navigator.popUntilRoot()
-                HomeScreen.Tab.Library(idToOpen)
-            }
-            Constants.SHORTCUT_UPDATES -> HomeScreen.Tab.Updates
-            Constants.SHORTCUT_HISTORY -> HomeScreen.Tab.History
-            Constants.SHORTCUT_SOURCES -> HomeScreen.Tab.Browse(false)
-            Constants.SHORTCUT_EXTENSIONS -> HomeScreen.Tab.Browse(true)
-            Constants.SHORTCUT_DOWNLOADS -> {
-                navigator.popUntilRoot()
-                HomeScreen.Tab.More(toDownloads = true)
+            Constants.SHORTCUT_LIBRARY,
+            Constants.SHORTCUT_MANGA,
+            Constants.SHORTCUT_ANIME,
+            Constants.SHORTCUT_UPDATES,
+            Constants.SHORTCUT_HISTORY,
+            Constants.SHORTCUT_SOURCES,
+            Constants.SHORTCUT_EXTENSIONS,
+            Constants.SHORTCUT_DOWNLOADS,
+            -> {
+                val tab = resolveShortcutTab(
+                    action = intent.action,
+                    mangaIdToOpen = intent.extras
+                        ?.takeIf { it.containsKey(Constants.MANGA_EXTRA) }
+                        ?.getLong(Constants.MANGA_EXTRA),
+                    animeIdToOpen = intent.extras
+                        ?.takeIf { it.containsKey(Constants.ANIME_EXTRA) }
+                        ?.getLong(Constants.ANIME_EXTRA),
+                ) ?: return false
+                if (intent.action != Constants.SHORTCUT_LIBRARY) {
+                    navigator.popUntilRoot()
+                }
+                tab
             }
             Intent.ACTION_SEARCH, Intent.ACTION_SEND, "com.google.android.gms.actions.SEARCH_ACTION" -> {
                 // If the intent match the "standard" Android search intent
@@ -767,6 +776,30 @@ class MainActivity : BaseActivity() {
         const val INTENT_SEARCH = "eu.kanade.tachiyomi.SEARCH"
         const val INTENT_SEARCH_QUERY = "query"
         const val INTENT_SEARCH_FILTER = "filter"
+    }
+}
+
+internal fun resolveShortcutTab(
+    action: String?,
+    mangaIdToOpen: Long? = null,
+    animeIdToOpen: Long? = null,
+): HomeScreen.Tab? {
+    return when (action) {
+        Constants.SHORTCUT_LIBRARY -> HomeScreen.Tab.Library()
+        Constants.SHORTCUT_MANGA -> {
+            val idToOpen = mangaIdToOpen ?: return null
+            HomeScreen.Tab.Library(mangaIdToOpen = idToOpen)
+        }
+        Constants.SHORTCUT_ANIME -> {
+            val idToOpen = animeIdToOpen ?: return null
+            HomeScreen.Tab.Library(animeIdToOpen = idToOpen)
+        }
+        Constants.SHORTCUT_UPDATES -> HomeScreen.Tab.Updates
+        Constants.SHORTCUT_HISTORY -> HomeScreen.Tab.History
+        Constants.SHORTCUT_SOURCES -> HomeScreen.Tab.Browse(false)
+        Constants.SHORTCUT_EXTENSIONS -> HomeScreen.Tab.Browse(true)
+        Constants.SHORTCUT_DOWNLOADS -> HomeScreen.Tab.More(toDownloads = true)
+        else -> null
     }
 }
 

@@ -31,6 +31,7 @@ import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.anime.interactor.SyncAnimeWithSource
+import tachiyomi.domain.anime.model.AnimeEpisode
 import tachiyomi.domain.anime.model.AnimeTitle
 import tachiyomi.domain.anime.repository.AnimeRepository
 import tachiyomi.domain.category.model.Category
@@ -129,6 +130,7 @@ class AnimeLibraryUpdateJob(private val context: Context, workerParams: WorkerPa
         val semaphore = Semaphore(5)
         val progressCount = AtomicInt(0)
         val currentlyUpdatingAnime = CopyOnWriteArrayList<AnimeTitle>()
+        val newUpdates = CopyOnWriteArrayList<Pair<AnimeTitle, Array<AnimeEpisode>>>()
         val failedUpdates = CopyOnWriteArrayList<Pair<AnimeTitle, String?>>()
 
         logcat(LogPriority.INFO) { "Processing ${animeToUpdate.size} queued anime library entries" }
@@ -154,11 +156,14 @@ class AnimeLibraryUpdateJob(private val context: Context, workerParams: WorkerPa
                                     try {
                                         val result = syncAnimeWithSource(currentAnime)
                                         if (result.hasChanges) {
-                                            if (result.insertedEpisodes > 0) {
-                                                libraryPreferences.newUpdatesCount.getAndSet { it + result.insertedEpisodes }
+                                            if (result.insertedEpisodes.isNotEmpty()) {
+                                                libraryPreferences.newUpdatesCount.getAndSet {
+                                                    it + result.insertedEpisodesCount
+                                                }
+                                                newUpdates.add(currentAnime to result.insertedEpisodes.toTypedArray())
                                             }
                                             logcat(LogPriority.INFO) {
-                                                "Anime library update found ${result.insertedEpisodes} new episode(s) for ${currentAnime.title}"
+                                                "Anime library update found ${result.insertedEpisodesCount} new episode(s) for ${currentAnime.title}"
                                             }
                                         }
                                     } catch (e: Throwable) {
@@ -189,8 +194,14 @@ class AnimeLibraryUpdateJob(private val context: Context, workerParams: WorkerPa
                 .awaitAll()
         }
 
+        notifier.cancelProgressNotification()
+
+        if (newUpdates.isNotEmpty()) {
+            notifier.showUpdateNotifications(newUpdates)
+        }
+
         logcat(LogPriority.INFO) {
-            "Anime library update finished with ${failedUpdates.size} failure${if (failedUpdates.size == 1) "" else "s"}"
+            "Anime library update finished with ${newUpdates.size} updated entr${if (newUpdates.size == 1) "y" else "ies"} and ${failedUpdates.size} failure${if (failedUpdates.size == 1) "" else "s"}"
         }
 
         if (failedUpdates.isNotEmpty()) {

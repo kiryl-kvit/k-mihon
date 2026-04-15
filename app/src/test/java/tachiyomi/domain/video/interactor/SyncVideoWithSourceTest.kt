@@ -92,7 +92,7 @@ class SyncAnimeWithSourceTest {
             animeSourceManager = FakeAnimeSourceManager(source),
             now = { 10_000L },
         )(localVideo) shouldBe SyncAnimeWithSource.SyncResult(
-            insertedEpisodes = 1,
+            insertedEpisodes = episodeRepository.insertResults,
             updatedEpisodes = 1,
             removedEpisodes = 0,
             hasMetadataChanges = true,
@@ -209,7 +209,7 @@ class SyncAnimeWithSourceTest {
             animeSourceManager = FakeAnimeSourceManager(source),
             now = { 20_000L },
         )(localVideo) shouldBe SyncAnimeWithSource.SyncResult(
-            insertedEpisodes = 0,
+            insertedEpisodes = emptyList(),
             updatedEpisodes = 1,
             removedEpisodes = 2,
             hasMetadataChanges = false,
@@ -258,9 +258,14 @@ class SyncAnimeWithSourceTest {
             animeEpisodeRepository = episodeRepository,
             animeSourceManager = FakeAnimeSourceManager(source),
             now = { 10_000L },
-        )(localVideo)
+        )(localVideo) shouldBe SyncAnimeWithSource.SyncResult(
+            insertedEpisodes = emptyList(),
+            updatedEpisodes = 0,
+            removedEpisodes = 0,
+            hasMetadataChanges = false,
+        )
 
-        videoRepository.updates shouldContain AnimeTitleUpdate(id = localVideo.id, lastUpdate = 10_000L)
+        videoRepository.updates shouldBe emptyList()
         videoRepository.updates.none { it.coverLastModified != null } shouldBe true
     }
 
@@ -308,7 +313,7 @@ class SyncAnimeWithSourceTest {
             animeSourceManager = FakeAnimeSourceManager(source),
             now = { 10_000L },
         )(localVideo) shouldBe SyncAnimeWithSource.SyncResult(
-            insertedEpisodes = 3,
+            insertedEpisodes = episodeRepository.insertResults,
             updatedEpisodes = 0,
             removedEpisodes = 0,
             hasMetadataChanges = false,
@@ -386,7 +391,7 @@ class SyncAnimeWithSourceTest {
             animeSourceManager = FakeAnimeSourceManager(source),
             now = { 10_000L },
         )(localVideo) shouldBe SyncAnimeWithSource.SyncResult(
-            insertedEpisodes = 0,
+            insertedEpisodes = emptyList(),
             updatedEpisodes = 1,
             removedEpisodes = 0,
             hasMetadataChanges = false,
@@ -456,7 +461,7 @@ class SyncAnimeWithSourceTest {
             animeSourceManager = FakeAnimeSourceManager(source),
             now = { 10_000L },
         )(localVideo) shouldBe SyncAnimeWithSource.SyncResult(
-            insertedEpisodes = 0,
+            insertedEpisodes = emptyList(),
             updatedEpisodes = 1,
             removedEpisodes = 0,
             hasMetadataChanges = false,
@@ -506,12 +511,17 @@ class SyncAnimeWithSourceTest {
     ) : AnimeEpisodeRepository {
         private val episodes = existingEpisodes
         val inserts = mutableListOf<AnimeEpisode>()
+        val insertResults = mutableListOf<AnimeEpisode>()
         val updates = mutableListOf<AnimeEpisodeUpdate>()
         val removals = mutableListOf<List<Long>>()
 
         override suspend fun addAll(episodes: List<AnimeEpisode>): List<AnimeEpisode> {
             inserts += episodes
-            return episodes
+            return episodes.mapIndexed { index, episode ->
+                episode.copy(id = 1_000L + insertResults.size + index)
+            }.also {
+                insertResults += it
+            }
         }
 
         override suspend fun update(episodeUpdate: AnimeEpisodeUpdate) = error("Not used")

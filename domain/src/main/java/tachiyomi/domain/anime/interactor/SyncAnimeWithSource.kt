@@ -175,11 +175,14 @@ class SyncAnimeWithSource(
             animeEpisodeRepository.updateAll(episodesToUpdate)
         }
 
-        if (episodesToInsert.isNotEmpty()) {
-            animeEpisodeRepository.addAll(episodesToInsert)
-        }
+        val insertedEpisodes =
+            if (episodesToInsert.isNotEmpty()) {
+                animeEpisodeRepository.addAll(episodesToInsert)
+            } else {
+                emptyList()
+            }
 
-        val hasEpisodeChanges = episodesToInsert.isNotEmpty() || episodesToUpdate.isNotEmpty() || episodesToRemove.isNotEmpty()
+        val hasEpisodeChanges = insertedEpisodes.isNotEmpty() || episodesToUpdate.isNotEmpty() || episodesToRemove.isNotEmpty()
         if (hasEpisodeChanges) {
             val timestamp = now()
             if (!animeRepository.update(AnimeTitleUpdate(id = anime.id, lastUpdate = timestamp))) {
@@ -188,7 +191,7 @@ class SyncAnimeWithSource(
         }
 
         return SyncResult(
-            insertedEpisodes = episodesToInsert.size,
+            insertedEpisodes = insertedEpisodes,
             updatedEpisodes = episodesToUpdate.size,
             removedEpisodes = episodesToRemove.size,
             hasMetadataChanges = animeUpdate != AnimeTitleUpdate(id = anime.id),
@@ -211,12 +214,15 @@ class SyncAnimeWithSource(
     )
 
     data class SyncResult(
-        val insertedEpisodes: Int,
+        val insertedEpisodes: List<AnimeEpisode>,
         val updatedEpisodes: Int,
         val removedEpisodes: Int,
         val hasMetadataChanges: Boolean,
     ) {
+        val insertedEpisodesCount: Int
+            get() = insertedEpisodes.size
+
         val hasChanges: Boolean
-            get() = insertedEpisodes > 0 || updatedEpisodes > 0 || removedEpisodes > 0
+            get() = insertedEpisodes.isNotEmpty() || updatedEpisodes > 0 || removedEpisodes > 0
     }
 }

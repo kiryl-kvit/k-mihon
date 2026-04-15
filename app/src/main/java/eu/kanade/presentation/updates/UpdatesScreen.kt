@@ -1,6 +1,7 @@
 package eu.kanade.presentation.updates
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -91,6 +92,7 @@ fun <T> UpdatesScreen(
                 var isRefreshing by remember { mutableStateOf(false) }
 
                 PullRefresh(
+                    modifier = Modifier.fillMaxSize(),
                     refreshing = isRefreshing,
                     onRefresh = {
                         val started = onUpdateLibrary()
@@ -107,6 +109,7 @@ fun <T> UpdatesScreen(
                     when {
                         state.isEmpty -> emptyContent(Modifier.padding(contentPadding))
                         else -> FastScrollLazyColumn(
+                            modifier = Modifier.fillMaxSize(),
                             contentPadding = contentPadding,
                             content = content,
                         )
