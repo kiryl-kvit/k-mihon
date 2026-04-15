@@ -17,6 +17,7 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.domain.anime.model.toMangaCover
 import eu.kanade.core.util.ifAnimeSourcesLoaded
 import eu.kanade.presentation.anime.AnimeScreen
+import eu.kanade.presentation.anime.AnimeScheduleSheet
 import eu.kanade.presentation.category.components.ChangeCategoryDialog
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.manga.components.EditDisplayNameDialog
@@ -102,6 +103,7 @@ data class AnimeScreen(
                             performTagSearch(navigator, current.anime, tag)
                         }
                     },
+                    onScheduleClicked = screenModel::showScheduleDialog.takeIf { current.showScheduleButton },
                     onCoverClicked = screenModel::showCoverDialog,
                     onEpisodeClick = { episodeId -> context.startAnimeEpisode(current.anime.id, episodeId) },
                     onEpisodeSelected = screenModel::toggleSelection,
@@ -127,6 +129,13 @@ data class AnimeScreen(
                         } else {
                             LoadingScreen(Modifier.systemBarsPadding())
                         }
+                    }
+                    AnimeScreenModel.Dialog.Schedule -> {
+                        AnimeScheduleSheet(
+                            schedule = current.schedule,
+                            onRetry = screenModel::retryLoadSchedule,
+                            onDismissRequest = screenModel::dismissDialog,
+                        )
                     }
                     is AnimeScreenModel.Dialog.ChangeCategory -> {
                         ChangeCategoryDialog(

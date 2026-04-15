@@ -72,7 +72,6 @@ class AnimeRestorer(
                         favorite = dbAnime.favorite || anime.favorite,
                         initialized = dbAnime.initialized || anime.initialized,
                         lastUpdate = anime.lastUpdate,
-                        nextUpdate = anime.nextUpdate,
                         dateAdded = anime.dateAdded,
                         version = maxOf(dbAnime.version, anime.version),
                         notes = anime.notes,

@@ -21,7 +21,6 @@ data class AnimeTitleUpdate(
     val favorite: Boolean? = null,
     val initialized: Boolean? = null,
     val lastUpdate: Long? = null,
-    val nextUpdate: Long? = null,
     val dateAdded: Long? = null,
     val version: Long? = null,
     val notes: String? = null,

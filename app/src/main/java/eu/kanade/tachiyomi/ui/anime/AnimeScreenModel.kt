@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Immutable
 import eu.kanade.core.util.addOrRemove
+import eu.kanade.tachiyomi.source.AnimeScheduleSource
 import eu.kanade.presentation.updates.UpdatesSelectionState
 import eu.kanade.tachiyomi.source.AnimeWebViewSource
 import cafe.adriel.voyager.core.model.StateScreenModel
@@ -42,6 +43,10 @@ import tachiyomi.i18n.MR
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import eu.kanade.tachiyomi.source.model.SAnimeScheduleEpisode
+import mihon.domain.anime.model.toSAnime
 
 class AnimeScreenModel(
     private val context: Context,
@@ -63,6 +68,9 @@ class AnimeScreenModel(
     val webViewSource: AnimeWebViewSource?
         get() = successState?.anime?.let { animeSourceManager.get(it.source) as? AnimeWebViewSource }
 
+    val scheduleSource: AnimeScheduleSource?
+        get() = successState?.anime?.let { animeSourceManager.get(it.source) as? AnimeScheduleSource }
+
     private val successState: State.Success?
         get() = state.value as? State.Success
 
@@ -82,6 +90,18 @@ class AnimeScreenModel(
                 val currentSuccess = successState
                 val sortedEpisodes = episodes.sortedBy { it.sourceOrder }
                 val playbackStateByEpisodeId = playbackStates.associateBy { it.episodeId }
+                val source = animeSourceManager.get(anime.source)
+                val hasScheduleSupport = source is AnimeScheduleSource
+                val schedule = if (hasScheduleSupport) {
+                    when (val currentSchedule = currentSuccess?.schedule) {
+                        null,
+                        ScheduleState.Unavailable,
+                        -> ScheduleState.NotLoaded
+                        else -> currentSchedule
+                    }
+                } else {
+                    ScheduleState.Unavailable
+                }
                 State.Success(
                     anime = anime,
                     sourceName = animeSourceManager.get(anime.source)?.name,
@@ -94,6 +114,8 @@ class AnimeScreenModel(
                         .toSet()
                         .toImmutableSet(),
                     categories = categories.filterNot { it.isSystemCategory }.toImmutableList(),
+                    hasScheduleSupport = hasScheduleSupport,
+                    schedule = schedule,
                     isRefreshing = currentSuccess?.isRefreshing ?: false,
                     dialog = currentSuccess?.dialog,
                 )
@@ -102,7 +124,12 @@ class AnimeScreenModel(
                     logcat(LogPriority.ERROR, e)
                     mutableState.value = State.Error(with(context) { e.formattedMessage })
                 }
-                .collectLatest { mutableState.value = it }
+                .collectLatest {
+                    mutableState.value = it
+                    if (it is State.Success) {
+                        prefetchScheduleIfNeeded(it)
+                    }
+                }
         }
     }
 
@@ -122,6 +149,9 @@ class AnimeScreenModel(
             setRefreshing(true)
             try {
                 syncAnimeWithSource(currentAnime)
+                if (!initial) {
+                    loadSchedule(force = true)
+                }
             } catch (e: Throwable) {
                 logcat(LogPriority.ERROR, e)
                 if (!initial || successState != null) {
@@ -333,6 +363,73 @@ class AnimeScreenModel(
         }
     }
 
+    fun showScheduleDialog() {
+        val currentState = successState ?: return
+        if (!currentState.showScheduleButton) return
+
+        mutableState.update { currentState ->
+            val success = currentState as? State.Success ?: return@update currentState
+            success.copy(dialog = Dialog.Schedule)
+        }
+    }
+
+    fun retryLoadSchedule() {
+        loadSchedule(force = true)
+    }
+
+    private fun prefetchScheduleIfNeeded(state: State.Success) {
+        if (!state.hasScheduleSupport || state.schedule != ScheduleState.NotLoaded) return
+        loadSchedule()
+    }
+
+    private fun loadSchedule(force: Boolean = false) {
+        val currentState = successState ?: return
+        val currentAnime = currentState.anime
+        val source = animeSourceManager.get(currentAnime.source) as? AnimeScheduleSource ?: return
+
+        val shouldLoad = when (currentState.schedule) {
+            ScheduleState.Unavailable -> false
+            ScheduleState.NotLoaded -> true
+            ScheduleState.Empty -> force
+            ScheduleState.Loading -> false
+            is ScheduleState.Error -> force
+            is ScheduleState.Success -> force
+        }
+        if (!shouldLoad) return
+
+        mutableState.update { currentState ->
+            val success = currentState as? State.Success ?: return@update currentState
+            success.copy(schedule = ScheduleState.Loading)
+        }
+
+        screenModelScope.launchIO {
+            val schedule = runCatching {
+                source.getEpisodeSchedule(currentAnime.toSAnime())
+            }
+
+            mutableState.update { currentState ->
+                val success = currentState as? State.Success ?: return@update currentState
+                schedule.fold(
+                    onSuccess = {
+                        val entries = it.map(SAnimeScheduleEpisode::toUi).toImmutableList()
+                        success.copy(
+                            schedule = entries.takeIf { it.isNotEmpty() }
+                                ?.let(ScheduleState::Success)
+                                ?: ScheduleState.Empty,
+                            dialog = success.dialog.takeUnless { dialog ->
+                                dialog is Dialog.Schedule && entries.isEmpty()
+                            },
+                        )
+                    },
+                    onFailure = {
+                        logcat(LogPriority.ERROR, it)
+                        success.copy(schedule = ScheduleState.Error(with(context) { it.formattedMessage }))
+                    },
+                )
+            }
+        }
+    }
+
     fun updateDisplayName(displayName: String) {
         val currentAnime = successState?.anime ?: return
         screenModelScope.launchIO {
@@ -377,6 +474,8 @@ class AnimeScreenModel(
     sealed interface Dialog {
         data object FullCover : Dialog
 
+        data object Schedule : Dialog
+
         data class ChangeCategory(
             val initialSelection: ImmutableList<CheckboxState.State<Category>>,
         ) : Dialog
@@ -400,6 +499,8 @@ class AnimeScreenModel(
             val primaryEpisodeId: Long?,
             val selection: kotlinx.collections.immutable.ImmutableSet<Long>,
             val categories: ImmutableList<Category>,
+            val hasScheduleSupport: Boolean,
+            val schedule: ScheduleState,
             val isRefreshing: Boolean,
             val dialog: Dialog? = null,
         ) : State {
@@ -409,8 +510,101 @@ class AnimeScreenModel(
 
             val selectedCount: Int = selection.size
 
+            val showScheduleButton: Boolean
+                get() = when (schedule) {
+                    is ScheduleState.Success,
+                    is ScheduleState.Error,
+                    -> true
+                    ScheduleState.Unavailable,
+                    ScheduleState.NotLoaded,
+                    ScheduleState.Loading,
+                    ScheduleState.Empty,
+                    -> false
+                }
+
             val primaryEpisode: AnimeEpisode?
                 get() = episodes.firstOrNull { it.id == primaryEpisodeId }
+
+            val scheduleSummary: ScheduleSummary
+                get() = when (val schedule = schedule) {
+                    ScheduleState.NotLoaded,
+                    ScheduleState.Loading -> ScheduleSummary.Loading
+                    is ScheduleState.Success -> {
+                        val today = LocalDate.now(ZoneId.systemDefault())
+                        val upcomingCount = schedule.entries.count { it.isUpcoming(today) }
+                        when {
+                            upcomingCount > 0 -> ScheduleSummary.Upcoming(upcomingCount)
+                            schedule.entries.isNotEmpty() -> ScheduleSummary.Scheduled(schedule.entries.size)
+                            else -> ScheduleSummary.Empty
+                        }
+                    }
+                    is ScheduleState.Error -> {
+                        ScheduleSummary.Error
+                    }
+                    ScheduleState.Empty -> {
+                        ScheduleSummary.Empty
+                    }
+                    ScheduleState.Unavailable -> {
+                        ScheduleSummary.Unavailable
+                    }
+                }
+        }
+    }
+
+    sealed interface ScheduleState {
+        data object Unavailable : ScheduleState
+
+        data object NotLoaded : ScheduleState
+
+        data object Loading : ScheduleState
+
+        data object Empty : ScheduleState
+
+        data class Error(val message: String) : ScheduleState
+
+        data class Success(val entries: ImmutableList<AnimeScheduleEpisode>) : ScheduleState
+    }
+
+    sealed interface ScheduleSummary {
+        data object Loading : ScheduleSummary
+
+        data class Upcoming(val count: Int) : ScheduleSummary
+
+        data class Scheduled(val count: Int) : ScheduleSummary
+
+        data object Error : ScheduleSummary
+
+        data object Empty : ScheduleSummary
+
+        data object Unavailable : ScheduleSummary
+    }
+
+    @Immutable
+    data class AnimeScheduleEpisode(
+        val seasonNumber: Int?,
+        val episodeNumber: Float?,
+        val title: String?,
+        val airDate: Long,
+        val statusText: String?,
+        val isAvailable: Boolean?,
+    ) {
+        val airLocalDate: LocalDate = Instant.ofEpochMilli(airDate).atZone(ZoneId.systemDefault()).toLocalDate()
+
+        fun isUpcoming(today: LocalDate = LocalDate.now(ZoneId.systemDefault())): Boolean {
+            return when (isAvailable) {
+                true -> false
+                false -> true
+                null -> airLocalDate >= today
+            }
         }
     }
 }
+
+private fun SAnimeScheduleEpisode.toUi() = AnimeScreenModel.AnimeScheduleEpisode(
+    seasonNumber = seasonNumber,
+    episodeNumber = episodeNumber,
+    title = title,
+    airDate = airDate,
+    statusText = statusText,
+    isAvailable = isAvailable,
+)

@@ -4,6 +4,7 @@ import android.app.Application
 import io.kotest.assertions.nondeterministic.eventually
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -32,7 +33,9 @@ import tachiyomi.domain.category.interactor.SetAnimeCategories
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.category.repository.CategoryRepository
 import tachiyomi.domain.source.service.AnimeSourceManager
+import eu.kanade.tachiyomi.source.AnimeScheduleSource
 import eu.kanade.tachiyomi.source.model.SAnime
+import eu.kanade.tachiyomi.source.model.SAnimeScheduleEpisode
 import eu.kanade.tachiyomi.source.model.SEpisode
 import eu.kanade.tachiyomi.source.model.VideoPlaybackSelection
 import eu.kanade.tachiyomi.source.model.VideoPlaybackData
@@ -189,14 +192,92 @@ class AnimeScreenModelTest {
         }
     }
 
+    @Test
+    fun `schedule preloads and shows upcoming summary when entries exist`() = runTest(dispatcher) {
+        val anime = AnimeTitle.create().copy(id = 1L, source = 99L, title = "Anime", favorite = true, initialized = true, url = "/anime/1")
+        val scheduleSource = FakeScheduleAnimeSource(
+            scheduleEntries = listOf(
+                SAnimeScheduleEpisode(
+                    seasonNumber = 1,
+                    episodeNumber = 12f,
+                    title = "Finale",
+                    airDate = System.currentTimeMillis() + 86_400_000L,
+                    isAvailable = false,
+                ),
+            ),
+        )
+
+        val model = createModel(
+            anime = anime,
+            episodes = emptyList(),
+            animeSourceManager = FakeAnimeSourceManager(scheduleSource),
+        )
+
+        advanceUntilIdle()
+
+        eventually(2.seconds) {
+            val state = model.state.value.shouldBeInstanceOf<AnimeScreenModel.State.Success>()
+            state.showScheduleButton shouldBe true
+            state.scheduleSummary shouldBe AnimeScreenModel.ScheduleSummary.Upcoming(1)
+            state.schedule.shouldBeInstanceOf<AnimeScreenModel.ScheduleState.Success>()
+            scheduleSource.scheduleRequests shouldBe 1
+        }
+    }
+
+    @Test
+    fun `empty preloaded schedule hides button and cannot open dialog`() = runTest(dispatcher) {
+        val anime = AnimeTitle.create().copy(id = 1L, source = 99L, title = "Anime", favorite = true, initialized = true, url = "/anime/1")
+        val scheduleSource = FakeScheduleAnimeSource(scheduleEntries = emptyList())
+
+        val model = createModel(
+            anime = anime,
+            episodes = emptyList(),
+            animeSourceManager = FakeAnimeSourceManager(scheduleSource),
+        )
+
+        advanceUntilIdle()
+        model.showScheduleDialog()
+        advanceUntilIdle()
+
+        eventually(2.seconds) {
+            val state = model.state.value.shouldBeInstanceOf<AnimeScreenModel.State.Success>()
+            state.showScheduleButton shouldBe false
+            state.schedule shouldBe AnimeScreenModel.ScheduleState.Empty
+            state.dialog shouldBe null
+            scheduleSource.scheduleRequests shouldBe 1
+        }
+    }
+
+    @Test
+    fun `schedule load failure keeps button visible for retry`() = runTest(dispatcher) {
+        val anime = AnimeTitle.create().copy(id = 1L, source = 99L, title = "Anime", favorite = true, initialized = true, url = "/anime/1")
+        val scheduleSource = FakeScheduleAnimeSource(error = IllegalStateException("boom"))
+
+        val model = createModel(
+            anime = anime,
+            episodes = emptyList(),
+            animeSourceManager = FakeAnimeSourceManager(scheduleSource),
+        )
+
+        advanceUntilIdle()
+
+        eventually(2.seconds) {
+            val state = model.state.value.shouldBeInstanceOf<AnimeScreenModel.State.Success>()
+            state.showScheduleButton shouldBe true
+            state.scheduleSummary shouldBe AnimeScreenModel.ScheduleSummary.Error
+            state.schedule.shouldBeInstanceOf<AnimeScreenModel.ScheduleState.Error>()
+            scheduleSource.scheduleRequests shouldBe 1
+        }
+    }
+
     private fun createModel(
         anime: AnimeTitle,
         episodes: List<AnimeEpisode>,
         episodeRepository: AnimeEpisodeRepository = FakeAnimeEpisodeRepository(episodes),
         playbackRepository: AnimePlaybackStateRepository = FakeAnimePlaybackStateRepository(emptyMap()),
+        animeSourceManager: AnimeSourceManager = FakeAnimeSourceManager(),
     ): AnimeScreenModel {
         val animeRepository = FakeAnimeRepository(listOf(anime))
-        val animeSourceManager = FakeAnimeSourceManager()
         return AnimeScreenModel(
             context = mockk<Application>(relaxed = true),
             animeId = anime.id,
@@ -272,11 +353,20 @@ class AnimeScreenModelTest {
     private class FakeAnimeSourceManager : AnimeSourceManager {
         override val isInitialized = MutableStateFlow(true)
         override val catalogueSources = flowOf(emptyList<eu.kanade.tachiyomi.source.AnimeCatalogueSource>())
-        override fun get(sourceKey: Long): eu.kanade.tachiyomi.source.AnimeSource? = FakeAnimeSource(sourceKey)
+
+        constructor()
+
+        constructor(source: eu.kanade.tachiyomi.source.AnimeSource) {
+            this.source = source
+        }
+
+        private var source: eu.kanade.tachiyomi.source.AnimeSource? = null
+
+        override fun get(sourceKey: Long): eu.kanade.tachiyomi.source.AnimeSource? = source ?: FakeAnimeSource(sourceKey)
         override fun getCatalogueSources(): List<eu.kanade.tachiyomi.source.AnimeCatalogueSource> = emptyList()
     }
 
-    private class FakeAnimeSource(
+    private open class FakeAnimeSource(
         override val id: Long,
         override val name: String = "Fake",
         override val lang: String = "en",
@@ -289,6 +379,19 @@ class AnimeScreenModelTest {
             episode: SEpisode,
             selection: VideoPlaybackSelection,
         ): VideoPlaybackData = error("Not used")
+    }
+
+    private class FakeScheduleAnimeSource(
+        private val scheduleEntries: List<SAnimeScheduleEpisode> = emptyList(),
+        private val error: Throwable? = null,
+    ) : FakeAnimeSource(id = 99L), AnimeScheduleSource {
+        var scheduleRequests = 0
+
+        override suspend fun getEpisodeSchedule(anime: SAnime): List<SAnimeScheduleEpisode> {
+            scheduleRequests += 1
+            error?.let { throw it }
+            return scheduleEntries
+        }
     }
 
     private class FakeCategoryRepository : CategoryRepository {

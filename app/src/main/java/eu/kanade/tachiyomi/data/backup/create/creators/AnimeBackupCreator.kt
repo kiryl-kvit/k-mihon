@@ -219,7 +219,6 @@ private fun AnimeTitle.toBackupAnime() = BackupAnime(
     dateAdded = this.dateAdded,
     initialized = this.initialized,
     lastUpdate = this.lastUpdate,
-    nextUpdate = this.nextUpdate,
     lastModifiedAt = this.lastModifiedAt,
     favoriteModifiedAt = this.favoriteModifiedAt,
     version = this.version,

@@ -106,6 +106,7 @@ import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.components.AppBarTitle
+import eu.kanade.presentation.components.AdaptiveSheet
 import eu.kanade.presentation.manga.components.MangaBottomActionMenu
 import eu.kanade.presentation.manga.components.DotSeparatorText
 import eu.kanade.presentation.manga.components.DISALLOWED_MARKDOWN_TYPES
@@ -131,8 +132,10 @@ import tachiyomi.domain.anime.model.AnimeEpisode
 import tachiyomi.domain.anime.model.AnimePlaybackState
 import tachiyomi.domain.anime.model.AnimeTitle
 import tachiyomi.i18n.MR
+import tachiyomi.presentation.core.components.ListGroupHeader
 import tachiyomi.presentation.core.components.TwoPanelBox
 import tachiyomi.presentation.core.components.VerticalFastScroller
+import tachiyomi.presentation.core.components.ScrollbarLazyColumn
 import tachiyomi.presentation.core.components.material.DISABLED_ALPHA
 import tachiyomi.presentation.core.components.material.PullRefresh
 import tachiyomi.presentation.core.components.material.SECONDARY_ALPHA
@@ -146,6 +149,8 @@ import tachiyomi.presentation.core.util.secondaryItemAlpha
 import tachiyomi.presentation.core.util.shouldExpandFAB
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import java.time.LocalDate
+import java.time.ZoneId
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -163,6 +168,7 @@ fun AnimeScreen(
     onWebViewLongClicked: (() -> Unit)?,
     onSearch: (String, Boolean) -> Unit,
     onTagSearch: (String) -> Unit,
+    onScheduleClicked: (() -> Unit)?,
     onCoverClicked: () -> Unit,
     onEpisodeClick: (Long) -> Unit,
     onEpisodeSelected: (AnimeEpisode, Boolean, Boolean) -> Unit,
@@ -184,6 +190,7 @@ fun AnimeScreen(
             onWebViewLongClicked = onWebViewLongClicked,
             onSearch = onSearch,
             onTagSearch = onTagSearch,
+            onScheduleClicked = onScheduleClicked,
             onCoverClicked = onCoverClicked,
             onEpisodeClick = onEpisodeClick,
             onEpisodeSelected = onEpisodeSelected,
@@ -205,6 +212,7 @@ fun AnimeScreen(
             onWebViewLongClicked = onWebViewLongClicked,
             onSearch = onSearch,
             onTagSearch = onTagSearch,
+            onScheduleClicked = onScheduleClicked,
             onCoverClicked = onCoverClicked,
             onEpisodeClick = onEpisodeClick,
             onEpisodeSelected = onEpisodeSelected,
@@ -229,6 +237,7 @@ private fun AnimeScreenSmallImpl(
     onWebViewLongClicked: (() -> Unit)?,
     onSearch: (String, Boolean) -> Unit,
     onTagSearch: (String) -> Unit,
+    onScheduleClicked: (() -> Unit)?,
     onCoverClicked: () -> Unit,
     onEpisodeClick: (Long) -> Unit,
     onEpisodeSelected: (AnimeEpisode, Boolean, Boolean) -> Unit,
@@ -344,10 +353,12 @@ private fun AnimeScreenSmallImpl(
                     item {
                         AnimeActionRow(
                             favorite = state.anime.favorite,
-                            nextUpdateMillis = state.anime.nextUpdate,
+                            scheduleSummary = state.scheduleSummary,
+                            showScheduleButton = state.showScheduleButton,
                             onAddToLibraryClicked = onAddToLibraryClicked,
                             onRefresh = onRefresh,
                             onEditCategoryClicked = onEditCategoryClicked,
+                            onScheduleClicked = onScheduleClicked,
                             onWebViewClicked = onWebViewClicked,
                             onWebViewLongClicked = onWebViewLongClicked,
                         )
@@ -395,6 +406,7 @@ private fun AnimeScreenLargeImpl(
     onWebViewLongClicked: (() -> Unit)?,
     onSearch: (String, Boolean) -> Unit,
     onTagSearch: (String) -> Unit,
+    onScheduleClicked: (() -> Unit)?,
     onCoverClicked: () -> Unit,
     onEpisodeClick: (Long) -> Unit,
     onEpisodeSelected: (AnimeEpisode, Boolean, Boolean) -> Unit,
@@ -493,10 +505,12 @@ private fun AnimeScreenLargeImpl(
                         )
                         AnimeActionRow(
                             favorite = state.anime.favorite,
-                            nextUpdateMillis = state.anime.nextUpdate,
+                            scheduleSummary = state.scheduleSummary,
+                            showScheduleButton = state.showScheduleButton,
                             onAddToLibraryClicked = onAddToLibraryClicked,
                             onRefresh = onRefresh,
                             onEditCategoryClicked = onEditCategoryClicked,
+                            onScheduleClicked = onScheduleClicked,
                             onWebViewClicked = onWebViewClicked,
                             onWebViewLongClicked = onWebViewLongClicked,
                         )
@@ -771,14 +785,33 @@ private fun ColumnScope.AnimeContentInfo(
 @Composable
 private fun AnimeActionRow(
     favorite: Boolean,
-    nextUpdateMillis: Long,
+    scheduleSummary: AnimeScreenModel.ScheduleSummary,
+    showScheduleButton: Boolean,
     onAddToLibraryClicked: () -> Unit,
     onRefresh: () -> Unit,
     onEditCategoryClicked: (() -> Unit)?,
+    onScheduleClicked: (() -> Unit)?,
     onWebViewClicked: (() -> Unit)?,
     onWebViewLongClicked: (() -> Unit)?,
 ) {
     val defaultActionButtonColor = MaterialTheme.colorScheme.onSurface.copy(alpha = DISABLED_ALPHA)
+    val scheduleTitle = when (scheduleSummary) {
+        AnimeScreenModel.ScheduleSummary.Loading -> stringResource(MR.strings.loading)
+        is AnimeScreenModel.ScheduleSummary.Upcoming -> pluralStringResource(
+            MR.plurals.anime_num_upcoming_episodes,
+            scheduleSummary.count,
+            scheduleSummary.count,
+        )
+        is AnimeScreenModel.ScheduleSummary.Scheduled -> pluralStringResource(
+            MR.plurals.anime_num_scheduled_episodes,
+            scheduleSummary.count,
+            scheduleSummary.count,
+        )
+        AnimeScreenModel.ScheduleSummary.Error -> stringResource(MR.strings.action_retry)
+        AnimeScreenModel.ScheduleSummary.Empty,
+        AnimeScreenModel.ScheduleSummary.Unavailable,
+        -> stringResource(MR.strings.not_applicable)
+    }
     Row(modifier = Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp)) {
         AnimeActionButton(
             title = if (favorite) stringResource(MR.strings.in_library) else stringResource(MR.strings.add_to_library),
@@ -787,13 +820,15 @@ private fun AnimeActionRow(
             onClick = onAddToLibraryClicked,
             onLongClick = onEditCategoryClicked,
         )
-        AnimeActionButton(
-            title = nextUpdateMillis.takeIf { it > 0L }?.let { relativeDateText(it) }
-                ?: stringResource(MR.strings.not_applicable),
-            icon = Icons.Filled.HourglassEmpty,
-            color = if (nextUpdateMillis > 0L) MaterialTheme.colorScheme.primary else defaultActionButtonColor,
-            onClick = {},
-        )
+        if (showScheduleButton) {
+            AnimeActionButton(
+                title = scheduleTitle,
+                icon = Icons.Filled.HourglassEmpty,
+                color = MaterialTheme.colorScheme.primary,
+                onClick = { onScheduleClicked?.invoke() },
+                enabled = onScheduleClicked != null,
+            )
+        }
         if (onWebViewClicked != null) {
             AnimeActionButton(
                 title = stringResource(MR.strings.action_web_view),
@@ -978,11 +1013,13 @@ private fun RowScope.AnimeActionButton(
     icon: ImageVector,
     color: Color,
     onClick: () -> Unit,
+    enabled: Boolean = true,
     onLongClick: (() -> Unit)? = null,
 ) {
     TextButton(
         onClick = onClick,
         onLongClick = onLongClick,
+        enabled = enabled,
         modifier = Modifier.weight(1f),
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -1442,4 +1479,194 @@ private fun AnimeBottomActionMenu(
 private fun AnimePlaybackState?.progressFraction(): Float? {
     if (this == null || durationMs <= 0L || positionMs <= 0L || completed) return null
     return (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+}
+
+@Composable
+fun AnimeScheduleSheet(
+    schedule: AnimeScreenModel.ScheduleState,
+    onRetry: () -> Unit,
+    onDismissRequest: () -> Unit,
+) {
+    AdaptiveSheet(onDismissRequest = onDismissRequest) {
+        when (schedule) {
+            AnimeScreenModel.ScheduleState.Unavailable -> {
+                Text(
+                    text = stringResource(MR.strings.not_applicable),
+                    modifier = Modifier.padding(24.dp),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
+            AnimeScreenModel.ScheduleState.Loading -> {
+                Text(
+                    text = stringResource(MR.strings.loading),
+                    modifier = Modifier.padding(24.dp),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
+            AnimeScreenModel.ScheduleState.NotLoaded,
+            AnimeScreenModel.ScheduleState.Empty,
+            -> {
+                Text(
+                    text = stringResource(MR.strings.not_applicable),
+                    modifier = Modifier.padding(24.dp),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
+            is AnimeScreenModel.ScheduleState.Error -> {
+                Column(modifier = Modifier.padding(24.dp)) {
+                    Text(text = schedule.message, style = MaterialTheme.typography.bodyLarge)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    TextButton(onClick = onRetry) {
+                        Text(text = stringResource(MR.strings.action_retry))
+                    }
+                }
+            }
+            is AnimeScreenModel.ScheduleState.Success -> {
+                val listState = rememberLazyListState()
+                val today = LocalDate.now(ZoneId.systemDefault())
+                val upcomingEntries = remember(schedule.entries, today) {
+                    schedule.entries
+                        .filter { it.isUpcoming(today) }
+                        .sortedBy { it.airDate }
+                }
+                val entriesBySeason = remember(schedule.entries) {
+                    schedule.entries
+                        .groupBy { it.seasonNumber }
+                        .toSortedMap(compareBy(nullsFirst()) { it })
+                }
+                Box {
+                    ScrollbarLazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .sizeIn(maxHeight = 560.dp),
+                        contentPadding = PaddingValues(vertical = 16.dp),
+                    ) {
+                        item {
+                            Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+                                Text(
+                                    text = stringResource(MR.strings.action_view_upcoming),
+                                    style = MaterialTheme.typography.titleLarge,
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = buildScheduleSubtitle(schedule.entries),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                        if (upcomingEntries.isNotEmpty()) {
+                            item(key = "upcoming-header") {
+                                HorizontalDivider(modifier = Modifier.padding(top = 16.dp))
+                                ListGroupHeader(text = stringResource(MR.strings.label_upcoming))
+                            }
+                            items(
+                                items = upcomingEntries,
+                                key = { episode -> "upcoming-${episode.scheduleKey()}" },
+                            ) { episode ->
+                                AnimeScheduleRow(episode)
+                            }
+                        }
+                        entriesBySeason.forEach { (season, episodes) ->
+                            item(key = "season-$season") {
+                                HorizontalDivider(modifier = Modifier.padding(top = 16.dp))
+                                ListGroupHeader(text = buildSeasonHeader(season))
+                            }
+                            items(
+                                items = episodes.sortedWith(compareBy<AnimeScreenModel.AnimeScheduleEpisode> { it.airDate }.thenBy { it.episodeNumber ?: Float.MAX_VALUE }),
+                                key = { episode -> episode.scheduleKey() },
+                            ) { episode ->
+                                AnimeScheduleRow(episode)
+                            }
+                        }
+                    }
+                    if (listState.canScrollBackward) HorizontalDivider(modifier = Modifier.align(Alignment.TopCenter))
+                    if (listState.canScrollForward) HorizontalDivider(modifier = Modifier.align(Alignment.BottomCenter))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AnimeScheduleRow(episode: AnimeScreenModel.AnimeScheduleEpisode) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = buildEpisodeLabel(episode),
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            val secondary = listOfNotNull(
+                episode.title?.takeIf { it.isNotBlank() },
+                episode.statusText?.takeIf { it.isNotBlank() },
+            ).joinToString(" • ")
+            if (secondary.isNotBlank()) {
+                Text(
+                    text = secondary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        Text(
+            text = relativeDateText(episode.airDate),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.End,
+        )
+    }
+}
+
+@Composable
+private fun buildScheduleSubtitle(entries: List<AnimeScreenModel.AnimeScheduleEpisode>): String {
+    val today = LocalDate.now(ZoneId.systemDefault())
+    val seasons = entries.mapNotNull { it.seasonNumber }.distinct().size
+    val upcoming = entries.count { it.isUpcoming(today) }
+    val entryCount = entries.size
+    return listOfNotNull(
+        seasons.takeIf { it > 0 }?.let { count ->
+            pluralStringResource(MR.plurals.anime_num_seasons, count, count)
+        },
+        entryCount.takeIf { it > 0 }?.let { count ->
+            pluralStringResource(MR.plurals.anime_num_scheduled_episodes, count, count)
+        },
+        upcoming.takeIf { it > 0 }?.let { count ->
+            pluralStringResource(MR.plurals.anime_num_upcoming_episodes, count, count)
+        },
+    ).joinToString(" • ")
+}
+
+@Composable
+private fun buildSeasonHeader(seasonNumber: Int?): String {
+    return seasonNumber?.let { stringResource(MR.strings.anime_schedule_season, it) }
+        ?: stringResource(MR.strings.unknown)
+}
+
+@Composable
+private fun buildEpisodeLabel(episode: AnimeScreenModel.AnimeScheduleEpisode): String {
+    val episodeNumber = episode.episodeNumber
+        ?.takeIf { it > 0f }
+        ?.let {
+            val rounded = it.toInt()
+            if (rounded.toFloat() == it) rounded.toString() else it.toString()
+        }
+    return listOfNotNull(
+        episode.seasonNumber?.let { "S$it" },
+        episodeNumber?.let { "E$it" },
+    ).joinToString(" ").ifBlank { stringResource(MR.strings.anime_schedule_episode) }
+}
+
+private fun AnimeScreenModel.AnimeScheduleEpisode.scheduleKey(): String {
+    return "${seasonNumber ?: "na"}-${episodeNumber ?: "na"}-$airDate-${title.orEmpty()}"
 }
