@@ -1,28 +1,18 @@
 package eu.kanade.presentation.anime.updates
 
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.RowScope
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Circle
-import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
-import eu.kanade.presentation.manga.components.DotSeparatorText
-import eu.kanade.presentation.updates.UpdatesBaseUiItem
+import eu.kanade.presentation.updates.ChapterUpdatesUiItem
 import eu.kanade.presentation.updates.UpdatesBottomBarConfig
 import eu.kanade.presentation.updates.UpdatesScreen
 import eu.kanade.presentation.updates.UpdatesScreenState
 import eu.kanade.presentation.updates.UpdatesUiModel
 import eu.kanade.presentation.updates.updatesLastUpdatedItem
 import eu.kanade.presentation.updates.updatesUiItems
+import eu.kanade.presentation.util.animateItemFastScroll
+import eu.kanade.tachiyomi.data.download.model.Download
 import eu.kanade.tachiyomi.ui.anime.updates.AnimeUpdatesItem
 import tachiyomi.i18n.MR
-import tachiyomi.presentation.core.i18n.stringResource
 
 @Composable
 fun AnimeUpdatesScreen(
@@ -54,12 +44,28 @@ fun AnimeUpdatesScreen(
             uiModels = uiModels,
             itemKey = { "anime-updates-${it.update.animeId}-${it.update.episodeId}" },
         ) { item ->
-            AnimeUpdatesUiItem(
-                item = item,
-                selectionMode = state.selectionMode,
-                onUpdateSelected = onUpdateSelected,
-                onClickCover = onClickCover,
-                onOpenEpisode = onOpenEpisode,
+            ChapterUpdatesUiItem(
+                modifier = Modifier.animateItemFastScroll(),
+                title = item.update.animeTitle,
+                subtitle = item.update.episodeName,
+                coverData = item.update.coverData,
+                selected = item.selected,
+                read = item.update.completed,
+                bookmark = false,
+                readProgress = null,
+                onClick = {
+                    when {
+                        state.selectionMode -> onUpdateSelected(item, !item.selected, false)
+                        else -> onOpenEpisode(item)
+                    }
+                },
+                onLongClick = {
+                    onUpdateSelected(item, !item.selected, true)
+                },
+                onClickCover = { onClickCover(item) }.takeIf { !state.selectionMode },
+                onDownloadChapter = null,
+                downloadStateProvider = { Download.State.NOT_DOWNLOADED },
+                downloadProgressProvider = { 0 },
             )
         }
     }
@@ -79,63 +85,5 @@ fun animeUpdatesBottomBarConfig(
         onMarkAsUnreadClicked = {
             onMarkWatched(selected, false)
         }.takeIf { selected.any { it.update.completed || it.update.watched } },
-    )
-}
-
-@Composable
-private fun AnimeUpdatesUiItem(
-    item: AnimeUpdatesItem,
-    selectionMode: Boolean,
-    onUpdateSelected: (AnimeUpdatesItem, Boolean, Boolean) -> Unit,
-    onClickCover: (AnimeUpdatesItem) -> Unit,
-    onOpenEpisode: (AnimeUpdatesItem) -> Unit,
-) {
-    UpdatesBaseUiItem(
-        title = item.update.animeTitle,
-        coverData = item.update.coverData,
-        selected = item.selected,
-        read = item.update.completed,
-        onClick = {
-            when {
-                selectionMode -> onUpdateSelected(item, !item.selected, false)
-                else -> onOpenEpisode(item)
-            }
-        },
-        onLongClick = {
-            onUpdateSelected(item, !item.selected, true)
-        },
-        onClickCover = { onClickCover(item) }.takeIf { !selectionMode },
-        subtitle = { textAlpha ->
-            if (!item.update.watched) {
-                Icon(
-                    imageVector = Icons.Filled.Circle,
-                    contentDescription = stringResource(MR.strings.action_filter_unwatched),
-                    modifier = Modifier.padding(end = 4.dp),
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-            }
-            Text(
-                text = when {
-                    item.update.completed -> stringResource(MR.strings.completed)
-                    item.update.watched -> stringResource(MR.strings.anime_watched)
-                    else -> item.update.episodeName
-                },
-                maxLines = 1,
-                style = MaterialTheme.typography.bodySmall,
-                color = LocalContentColor.current.copy(alpha = textAlpha),
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(weight = 1f, fill = false),
-            )
-            if (!item.update.completed && item.update.watched) {
-                DotSeparatorText()
-                Text(
-                    text = item.update.episodeName,
-                    maxLines = 1,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = LocalContentColor.current.copy(alpha = textAlpha),
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        },
     )
 }

@@ -114,12 +114,14 @@ internal fun LazyListScope.mangaUpdatesUiItems(
         uiModels = uiModels,
         itemKey = { "updates-${it.visibleMangaId}-${it.update.chapterId}" },
     ) { updatesItem ->
-        MangaUpdatesUiItem(
+        ChapterUpdatesUiItem(
             modifier = Modifier.animateItemFastScroll(),
-            update = updatesItem.update,
-            mangaTitle = updatesItem.visibleMangaTitle,
+            title = updatesItem.visibleMangaTitle,
+            subtitle = updatesItem.update.chapterName,
             coverData = updatesItem.visibleCoverData,
             selected = updatesItem.selected,
+            read = updatesItem.update.read,
+            bookmark = updatesItem.update.bookmark,
             readProgress = updatesItem.update.lastPageRead
                 .takeIf { !updatesItem.update.read && it > 0L }
                 ?.let {
@@ -208,11 +210,13 @@ fun UpdatesBaseUiItem(
 }
 
 @Composable
-private fun MangaUpdatesUiItem(
-    update: UpdatesWithRelations,
-    mangaTitle: String,
+internal fun ChapterUpdatesUiItem(
+    title: String,
+    subtitle: String,
     coverData: MangaCoverData,
     selected: Boolean,
+    read: Boolean,
+    bookmark: Boolean,
     readProgress: String?,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
@@ -223,17 +227,17 @@ private fun MangaUpdatesUiItem(
     modifier: Modifier = Modifier,
 ) {
     UpdatesBaseUiItem(
-        title = mangaTitle,
+        title = title,
         coverData = coverData,
         selected = selected,
-        read = update.read,
+        read = read,
         onClick = onClick,
         onLongClick = onLongClick,
         modifier = modifier,
         onClickCover = onClickCover,
         subtitle = { textAlpha ->
             var textHeight by remember { mutableIntStateOf(0) }
-            if (!update.read) {
+            if (!read) {
                 Icon(
                     imageVector = Icons.Filled.Circle,
                     contentDescription = stringResource(MR.strings.unread),
@@ -243,7 +247,7 @@ private fun MangaUpdatesUiItem(
                     tint = MaterialTheme.colorScheme.primary,
                 )
             }
-            if (update.bookmark) {
+            if (bookmark) {
                 Icon(
                     imageVector = Icons.Filled.Bookmark,
                     contentDescription = stringResource(MR.strings.action_filter_bookmarked),
@@ -254,7 +258,7 @@ private fun MangaUpdatesUiItem(
                 Spacer(modifier = Modifier.width(2.dp))
             }
             Text(
-                text = update.chapterName,
+                text = subtitle,
                 maxLines = 1,
                 style = MaterialTheme.typography.bodySmall,
                 color = LocalContentColor.current.copy(alpha = textAlpha),
