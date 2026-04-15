@@ -130,8 +130,6 @@ class VideoPlayerActivity : BaseActivity() {
 
             VideoPlayerScaffold(
                 state = state,
-                animeId = animeId,
-                episodeId = episodeId,
                 networkHelper = networkHelper,
             )
         }
@@ -159,15 +157,11 @@ class VideoPlayerActivity : BaseActivity() {
     @Composable
     private fun VideoPlayerScaffold(
         state: VideoPlayerViewModel.State,
-        animeId: Long,
-        episodeId: Long,
         networkHelper: NetworkHelper,
     ) {
         HideSystemUiEffect()
         VideoPlayerScreen(
             state = state,
-            animeId = animeId,
-            episodeId = episodeId,
             networkHelper = networkHelper,
         )
     }
@@ -176,27 +170,11 @@ class VideoPlayerActivity : BaseActivity() {
     @OptIn(markerClass = [UnstableApi::class])
     private fun VideoPlayerScreen(
         state: VideoPlayerViewModel.State,
-        animeId: Long,
-        episodeId: Long,
         networkHelper: NetworkHelper,
     ) {
         when (val current = state) {
             VideoPlayerViewModel.State.Loading -> {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        text = "Loading video stream...",
-                        style = MaterialTheme.typography.headlineSmall,
-                    )
-                    Text(
-                        text = "Video ID: $animeId\nEpisode ID: $episodeId",
-                        modifier = Modifier.padding(top = 12.dp),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
+                VideoPlayerLoadingOverlay(modifier = Modifier.fillMaxSize())
             }
             is VideoPlayerViewModel.State.Ready -> {
                 val context = LocalContext.current
@@ -211,7 +189,7 @@ class VideoPlayerActivity : BaseActivity() {
                 // Keep controller visibility state stable so the PlayerView listener stays in sync
                 // when the current stream changes after applying dub or quality selections.
                 var controlsVisible by remember { mutableStateOf(false) }
-                var startupOverlayVisible by remember(current.episodeId, current.streamUrl) { mutableStateOf(player == null) }
+                var startupOverlayVisible by remember(current.episodeId, current.streamUrl) { mutableStateOf(true) }
                 var settingsVisible by remember(current.episodeId, current.streamUrl) { mutableStateOf(false) }
                 val currentPlayer = remember(current.episodeId, current.streamUrl) {
                     buildVideoPlayer(
@@ -266,7 +244,7 @@ class VideoPlayerActivity : BaseActivity() {
                 }
 
                 LaunchedEffect(current.episodeId, current.streamUrl) {
-                    startupOverlayVisible = player == null
+                    startupOverlayVisible = true
                     releasePlayer(persistState = false)
                     player = currentPlayer
                     startProgressSaves(currentPlayer)
@@ -334,7 +312,7 @@ class VideoPlayerActivity : BaseActivity() {
                     )
 
                     if (startupOverlayVisible) {
-                        VideoPlayerStartupOverlay(modifier = Modifier.fillMaxSize())
+                        VideoPlayerLoadingOverlay(modifier = Modifier.fillMaxSize())
                     }
 
                     if (current.isSourceSwitching) {
@@ -384,22 +362,12 @@ class VideoPlayerActivity : BaseActivity() {
     }
 
     @Composable
-    private fun VideoPlayerStartupOverlay(modifier: Modifier = Modifier) {
+    private fun VideoPlayerLoadingOverlay(modifier: Modifier = Modifier) {
         Box(
             modifier = modifier.background(Color.Black.copy(alpha = 0.84f)),
             contentAlignment = Alignment.Center,
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                CircularProgressIndicator(color = Color.White)
-                Text(
-                    text = "Starting playback...",
-                    modifier = Modifier.padding(top = 16.dp),
-                    color = Color.White,
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-            }
+            CircularProgressIndicator(color = Color.White)
         }
     }
 
