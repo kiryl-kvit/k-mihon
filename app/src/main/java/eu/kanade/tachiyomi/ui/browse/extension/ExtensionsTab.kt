@@ -73,7 +73,7 @@ fun extensionsTab(
                 onClickItemCancel = extensionsScreenModel::cancelInstallUpdateExtension,
                 onClickUpdateAll = extensionsScreenModel::updateAllExtensions,
                 onOpenWebView = { extension ->
-                    extension.sources.getOrNull(0)?.let {
+                    (extension as? Extension.AvailableManga)?.sources?.getOrNull(0)?.let {
                         navigator.push(
                             WebViewScreen(
                                 url = it.baseUrl,
@@ -83,11 +83,19 @@ fun extensionsTab(
                         )
                     }
                 },
-                onInstallExtension = extensionsScreenModel::installExtension,
-                onOpenExtension = { navigator.push(ExtensionDetailsScreen(it.pkgName)) },
+                onInstallExtension = { extension ->
+                    (extension as? Extension.AvailableManga)?.let(extensionsScreenModel::installExtension)
+                },
+                onOpenExtension = { extension ->
+                    (extension as? Extension.InstalledManga)?.let {
+                        navigator.push(ExtensionDetailsScreen(it.pkgName))
+                    }
+                },
                 onTrustExtension = { extensionsScreenModel.trustExtension(it) },
                 onUninstallExtension = { extensionsScreenModel.uninstallExtension(it) },
-                onUpdateExtension = extensionsScreenModel::updateExtension,
+                onUpdateExtension = { extension ->
+                    (extension as? Extension.InstalledManga)?.let(extensionsScreenModel::updateExtension)
+                },
                 onRefresh = extensionsScreenModel::findAvailableExtensions,
             )
 

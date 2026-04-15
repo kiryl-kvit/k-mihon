@@ -1,10 +1,8 @@
 package eu.kanade.tachiyomi.ui.browse.extension
 
 import android.app.Application
-import androidx.compose.runtime.Immutable
 import cafe.adriel.voyager.core.model.StateScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
-import dev.icerock.moko.resources.StringResource
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.extension.interactor.GetExtensionsByType
 import eu.kanade.domain.source.service.GlobalSourcePreferences
@@ -38,7 +36,7 @@ class ExtensionsScreenModel(
     basePreferences: BasePreferences = Injekt.get(),
     private val extensionManager: ExtensionManager = Injekt.get(),
     private val getExtensions: GetExtensionsByType = Injekt.get(),
-) : StateScreenModel<ExtensionsScreenModel.State>(State()) {
+) : StateScreenModel<ExtensionListState>(ExtensionListState()) {
 
     init {
         val context = Injekt.get<Application>()
@@ -197,29 +195,4 @@ class ExtensionsScreenModel(
         }
     }
 
-    @Immutable
-    data class State(
-        val isLoading: Boolean = true,
-        val isRefreshing: Boolean = false,
-        val items: ItemGroups = mutableMapOf(),
-        val updates: Int = 0,
-        val installer: BasePreferences.ExtensionInstaller? = null,
-        val searchQuery: String? = null,
-    ) {
-        val isEmpty = items.isEmpty()
-    }
-}
-
-typealias ItemGroups = Map<ExtensionUiModel.Header, List<ExtensionUiModel.Item>>
-
-object ExtensionUiModel {
-    sealed interface Header {
-        data class Resource(val textRes: StringResource) : Header
-        data class Text(val text: String) : Header
-    }
-
-    data class Item(
-        val extension: Extension,
-        val installStep: InstallStep,
-    )
 }

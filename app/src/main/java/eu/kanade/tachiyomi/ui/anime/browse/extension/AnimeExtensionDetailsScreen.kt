@@ -8,8 +8,9 @@ import androidx.compose.ui.platform.LocalContext
 import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import eu.kanade.presentation.browse.AnimeExtensionDetailsScreen
+import eu.kanade.presentation.browse.ExtensionDetailsScreen
 import eu.kanade.presentation.util.Screen
+import eu.kanade.tachiyomi.ui.anime.browse.AnimeSourcePreferencesScreen
 import kotlinx.coroutines.flow.collectLatest
 import tachiyomi.presentation.core.screens.LoadingScreen
 
@@ -30,11 +31,17 @@ data class AnimeExtensionDetailsScreen(
 
         val navigator = LocalNavigator.currentOrThrow
 
-        AnimeExtensionDetailsScreen(
+        ExtensionDetailsScreen(
             navigateUp = navigator::pop,
             state = state,
+            onClickSourcePreferences = { sourceId ->
+                state.sources.firstOrNull { it.id == sourceId }?.name?.let { sourceName ->
+                    navigator.push(AnimeSourcePreferencesScreen(sourceId, sourceName))
+                }
+            },
             onClickEnableAll = { screenModel.toggleSources(true) },
             onClickDisableAll = { screenModel.toggleSources(false) },
+            onClickClearCookies = screenModel::clearCookies,
             onClickUninstall = screenModel::uninstallExtension,
             onClickSource = screenModel::toggleSource,
             onClickIncognito = screenModel::toggleIncognito,

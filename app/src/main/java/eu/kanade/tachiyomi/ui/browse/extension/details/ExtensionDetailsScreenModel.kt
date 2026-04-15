@@ -1,7 +1,6 @@
 package eu.kanade.tachiyomi.ui.browse.extension.details
 
 import android.content.Context
-import androidx.compose.runtime.Immutable
 import cafe.adriel.voyager.core.model.StateScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import eu.kanade.domain.extension.interactor.ExtensionSourceItem
@@ -12,9 +11,9 @@ import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.extension.model.Extension
 import eu.kanade.tachiyomi.network.NetworkHelper
+import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.util.system.LocaleHelper
-import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.channels.Channel
@@ -41,7 +40,7 @@ class ExtensionDetailsScreenModel(
     private val toggleSource: ToggleSource = Injekt.get(),
     private val toggleIncognito: ToggleIncognito = Injekt.get(),
     private val preferences: SourcePreferences = Injekt.get(),
-) : StateScreenModel<ExtensionDetailsScreenModel.State>(State()) {
+) : StateScreenModel<ExtensionDetailsState>(ExtensionDetailsState()) {
 
     private val _events: Channel<ExtensionDetailsEvent> = Channel()
     val events: Flow<ExtensionDetailsEvent> = _events.receiveAsFlow()
@@ -67,8 +66,8 @@ class ExtensionDetailsScreenModel(
             }
             launch {
                 state.collectLatest { state ->
-                    if (state.extension == null) return@collectLatest
-                    getExtensionSources.subscribe(state.extension)
+                    val extension = state.extension as? Extension.InstalledManga ?: return@collectLatest
+                    getExtensionSources.subscribe(extension)
                         .map {
                             it.sortedWith(
                                 compareBy(
@@ -82,10 +81,26 @@ class ExtensionDetailsScreenModel(
                         }
                         .catch { throwable ->
                             logcat(LogPriority.ERROR, throwable)
-                            mutableState.update { it.copy(_sources = persistentListOf()) }
+                            mutableState.update { it.copyWithSources(persistentListOf()) }
                         }
                         .collectLatest { sources ->
-                            mutableState.update { it.copy(_sources = sources.toImmutableList()) }
+                            mutableState.update {
+                                it.copyWithSources(
+                                    sources
+                                        .map { source ->
+                                            ExtensionDetailsSourceUiModel(
+                                                id = source.source.id,
+                                                name = source.source.name,
+                                                title = source.source.toString(),
+                                                lang = source.source.lang,
+                                                labelAsName = source.labelAsName,
+                                                enabled = source.enabled,
+                                                hasSettings = source.source is ConfigurableSource,
+                                            )
+                                        }
+                                        .toImmutableList(),
+                                )
+                            }
                         }
                 }
             }
@@ -102,7 +117,7 @@ class ExtensionDetailsScreenModel(
     }
 
     fun clearCookies() {
-        val extension = state.value.extension ?: return
+        val extension = state.value.extension as? Extension.InstalledManga ?: return
 
         val urls = extension.sources
             .filterIsInstance<HttpSource>()
@@ -131,7 +146,7 @@ class ExtensionDetailsScreenModel(
     }
 
     fun toggleSources(enable: Boolean) {
-        state.value.extension?.sources
+        (state.value.extension as? Extension.InstalledManga)?.sources
             ?.map { it.id }
             ?.let { toggleSource.await(it, enable) }
     }
@@ -140,20 +155,6 @@ class ExtensionDetailsScreenModel(
         state.value.extension?.pkgName?.let { packageName ->
             toggleIncognito.await(packageName, enable)
         }
-    }
-
-    @Immutable
-    data class State(
-        val extension: Extension.InstalledManga? = null,
-        val isIncognito: Boolean = false,
-        private val _sources: ImmutableList<ExtensionSourceItem>? = null,
-    ) {
-
-        val sources: ImmutableList<ExtensionSourceItem>
-            get() = _sources ?: persistentListOf()
-
-        val isLoading: Boolean
-            get() = extension == null || _sources == null
     }
 }
 

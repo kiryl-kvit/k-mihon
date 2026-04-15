@@ -52,8 +52,8 @@ import eu.kanade.presentation.util.animateItemFastScroll
 import eu.kanade.presentation.util.rememberRequestPackageInstallsPermissionState
 import eu.kanade.tachiyomi.extension.model.Extension
 import eu.kanade.tachiyomi.extension.model.InstallStep
+import eu.kanade.tachiyomi.ui.browse.extension.ExtensionListState
 import eu.kanade.tachiyomi.ui.browse.extension.ExtensionUiModel
-import eu.kanade.tachiyomi.ui.browse.extension.ExtensionsScreenModel
 import eu.kanade.tachiyomi.util.system.LocaleHelper
 import eu.kanade.tachiyomi.util.system.launchRequestPackageInstallsPermission
 import kotlinx.collections.immutable.persistentListOf
@@ -72,17 +72,17 @@ import tachiyomi.presentation.core.util.secondaryItemAlpha
 
 @Composable
 fun ExtensionScreen(
-    state: ExtensionsScreenModel.State,
+    state: ExtensionListState,
     contentPadding: PaddingValues,
     searchQuery: String?,
     onLongClickItem: (Extension) -> Unit,
     onClickItemCancel: (Extension) -> Unit,
-    onOpenWebView: (Extension.AvailableManga) -> Unit,
-    onInstallExtension: (Extension.AvailableManga) -> Unit,
+    onOpenWebView: (Extension.Available) -> Unit,
+    onInstallExtension: (Extension.Available) -> Unit,
     onUninstallExtension: (Extension) -> Unit,
-    onUpdateExtension: (Extension.InstalledManga) -> Unit,
+    onUpdateExtension: (Extension.Installed) -> Unit,
     onTrustExtension: (Extension.Untrusted) -> Unit,
-    onOpenExtension: (Extension.InstalledManga) -> Unit,
+    onOpenExtension: (Extension.Installed) -> Unit,
     onClickUpdateAll: () -> Unit,
     onRefresh: () -> Unit,
 ) {
@@ -134,16 +134,16 @@ fun ExtensionScreen(
 
 @Composable
 private fun ExtensionContent(
-    state: ExtensionsScreenModel.State,
+    state: ExtensionListState,
     contentPadding: PaddingValues,
     onLongClickItem: (Extension) -> Unit,
     onClickItemCancel: (Extension) -> Unit,
-    onOpenWebView: (Extension.AvailableManga) -> Unit,
-    onInstallExtension: (Extension.AvailableManga) -> Unit,
+    onOpenWebView: (Extension.Available) -> Unit,
+    onInstallExtension: (Extension.Available) -> Unit,
     onUninstallExtension: (Extension) -> Unit,
-    onUpdateExtension: (Extension.InstalledManga) -> Unit,
+    onUpdateExtension: (Extension.Installed) -> Unit,
     onTrustExtension: (Extension.Untrusted) -> Unit,
-    onOpenExtension: (Extension.InstalledManga) -> Unit,
+    onOpenExtension: (Extension.Installed) -> Unit,
     onClickUpdateAll: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -217,27 +217,26 @@ private fun ExtensionContent(
                     item = item,
                     onClickItem = {
                         when (it) {
-                            is Extension.AvailableManga -> onInstallExtension(it)
-                            is Extension.InstalledManga -> onOpenExtension(it)
+                            is Extension.Available -> onInstallExtension(it)
+                            is Extension.Installed -> onOpenExtension(it)
                             is Extension.Untrusted -> {
                                 trustState = it
                             }
-                            else -> Unit
                         }
                     },
                     onLongClickItem = onLongClickItem,
                     onClickItemSecondaryAction = {
                         when (it) {
-                            is Extension.AvailableManga -> onOpenWebView(it)
-                            is Extension.InstalledManga -> onOpenExtension(it)
+                            is Extension.Available -> onOpenWebView(it)
+                            is Extension.Installed -> onOpenExtension(it)
                             else -> {}
                         }
                     },
                     onClickItemCancel = onClickItemCancel,
                     onClickItemAction = {
                         when (it) {
-                            is Extension.AvailableManga -> onInstallExtension(it)
-                            is Extension.InstalledManga -> {
+                            is Extension.Available -> onInstallExtension(it)
+                            is Extension.Installed -> {
                                 if (it.hasUpdate) {
                                     onUpdateExtension(it)
                                 } else {
@@ -247,7 +246,6 @@ private fun ExtensionContent(
                             is Extension.Untrusted -> {
                                 trustState = it
                             }
-                            else -> Unit
                         }
                     },
                 )
@@ -474,7 +472,23 @@ private fun ExtensionItemActions(
                             }
                         }
                     }
-                    is Extension.InstalledAnime -> Unit
+                    is Extension.InstalledAnime -> {
+                        IconButton(onClick = { onClickItemSecondaryAction(extension) }) {
+                            Icon(
+                                imageVector = Icons.Outlined.Settings,
+                                contentDescription = stringResource(MR.strings.action_settings),
+                            )
+                        }
+
+                        if (extension.hasUpdate) {
+                            IconButton(onClick = { onClickItemAction(extension) }) {
+                                Icon(
+                                    imageVector = Icons.Outlined.GetApp,
+                                    contentDescription = stringResource(MR.strings.ext_update),
+                                )
+                            }
+                        }
+                    }
                     is Extension.Untrusted -> {
                         IconButton(onClick = { onClickItemAction(extension) }) {
                             Icon(
@@ -503,6 +517,15 @@ private fun ExtensionItemActions(
                         }
                     }
                     is Extension.AvailableAnime -> {
+                        if (extension.sources.isNotEmpty()) {
+                            IconButton(onClick = { onClickItemSecondaryAction(extension) }) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Public,
+                                    contentDescription = stringResource(MR.strings.action_open_in_web_view),
+                                )
+                            }
+                        }
+
                         IconButton(onClick = { onClickItemAction(extension) }) {
                             Icon(
                                 imageVector = Icons.Outlined.GetApp,

@@ -1,7 +1,6 @@
 package eu.kanade.tachiyomi.ui.anime.browse.extension
 
 import android.app.Application
-import androidx.compose.runtime.Immutable
 import cafe.adriel.voyager.core.model.StateScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import eu.kanade.domain.base.BasePreferences
@@ -11,8 +10,8 @@ import eu.kanade.presentation.components.SEARCH_DEBOUNCE_MILLIS
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.extension.model.Extension
 import eu.kanade.tachiyomi.extension.model.InstallStep
+import eu.kanade.tachiyomi.ui.browse.extension.ExtensionListState
 import eu.kanade.tachiyomi.ui.browse.extension.ExtensionUiModel
-import eu.kanade.tachiyomi.ui.browse.extension.ItemGroups
 import eu.kanade.tachiyomi.util.system.LocaleHelper
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -37,7 +36,7 @@ class AnimeExtensionsScreenModel(
     basePreferences: BasePreferences = Injekt.get(),
     private val extensionManager: ExtensionManager = Injekt.get(),
     private val getAnimeExtensions: GetAnimeExtensions = Injekt.get(),
-) : StateScreenModel<AnimeExtensionsScreenModel.State>(State()) {
+) : StateScreenModel<ExtensionListState>(ExtensionListState()) {
 
     init {
         val context = Injekt.get<Application>()
@@ -142,6 +141,16 @@ class AnimeExtensionsScreenModel(
         }
     }
 
+    fun updateAllExtensions() {
+        screenModelScope.launchIO {
+            state.value.items.values.flatten()
+                .map { it.extension }
+                .filterIsInstance<Extension.InstalledAnime>()
+                .filter { it.hasUpdate }
+                .forEach(::updateExtension)
+        }
+    }
+
     fun installExtension(extension: Extension.AvailableAnime) {
         screenModelScope.launchIO {
             extensionManager.installExtension(extension).collectToInstallUpdate(extension)
@@ -183,15 +192,4 @@ class AnimeExtensionsScreenModel(
         }
     }
 
-    @Immutable
-    data class State(
-        val isLoading: Boolean = true,
-        val isRefreshing: Boolean = false,
-        val items: ItemGroups = mutableMapOf(),
-        val updates: Int = 0,
-        val installer: BasePreferences.ExtensionInstaller? = null,
-        val searchQuery: String? = null,
-    ) {
-        val isEmpty = items.isEmpty()
-    }
 }
