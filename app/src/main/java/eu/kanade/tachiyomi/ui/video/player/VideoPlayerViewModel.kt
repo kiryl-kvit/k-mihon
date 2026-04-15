@@ -9,9 +9,13 @@ import eu.kanade.tachiyomi.source.model.VideoPlaybackSelection
 import eu.kanade.tachiyomi.source.model.VideoStream
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -39,12 +43,15 @@ class VideoPlayerViewModel @JvmOverloads constructor(
 
     private val mutableState = MutableStateFlow<State>(State.Loading)
     val state = mutableState.asStateFlow()
+    private val mutableEvents = MutableSharedFlow<Event>(extraBufferCapacity = 1)
+    val events = mutableEvents.asSharedFlow()
 
     private var initialized = false
     private var playbackSession: VideoPlaybackSession? = null
     private val persistMutex = Mutex()
     private var animeId: Long = INVALID_ID
     private var episodeId: Long = INVALID_ID
+    private var applySelectionJob: Job? = null
 
     fun init(animeId: Long, episodeId: Long) {
         if (initialized) return
@@ -59,47 +66,20 @@ class VideoPlayerViewModel @JvmOverloads constructor(
         }
     }
 
-    fun selectDub(dubKey: String?) {
+    fun applySourceSelection(selection: VideoPlaybackSelection) {
         val current = mutableState.value as? State.Ready ?: return
-        viewModelScope.launch {
+        applySelectionJob?.cancel()
+        applySelectionJob = viewModelScope.launch {
             persistPlaybackPreferences(
                 animeId = current.animeId,
-                sourceSelection = current.playback.sourceSelection.copy(dubKey = dubKey, streamKey = null, sourceQualityKey = null),
+                sourceSelection = selection,
                 adaptiveQuality = current.playback.currentAdaptiveQuality,
             )
+            if (!isActive) return@launch
             resolvePlayback(
-                selection = current.playback.sourceSelection.copy(dubKey = dubKey, streamKey = null, sourceQualityKey = null),
+                selection = selection,
                 preservePositionMs = current.resumePositionMs,
-            )
-        }
-    }
-
-    fun selectStream(streamKey: String?) {
-        val current = mutableState.value as? State.Ready ?: return
-        viewModelScope.launch {
-            persistPlaybackPreferences(
-                animeId = current.animeId,
-                sourceSelection = current.playback.sourceSelection.copy(streamKey = streamKey),
-                adaptiveQuality = current.playback.currentAdaptiveQuality,
-            )
-            resolvePlayback(
-                selection = current.playback.sourceSelection.copy(streamKey = streamKey),
-                preservePositionMs = current.resumePositionMs,
-            )
-        }
-    }
-
-    fun selectSourceQuality(sourceQualityKey: String?) {
-        val current = mutableState.value as? State.Ready ?: return
-        viewModelScope.launch {
-            persistPlaybackPreferences(
-                animeId = current.animeId,
-                sourceSelection = current.playback.sourceSelection.copy(sourceQualityKey = sourceQualityKey),
-                adaptiveQuality = current.playback.currentAdaptiveQuality,
-            )
-            resolvePlayback(
-                selection = current.playback.sourceSelection.copy(sourceQualityKey = sourceQualityKey),
-                preservePositionMs = current.resumePositionMs,
+                showLoading = false,
             )
         }
     }
@@ -112,7 +92,7 @@ class VideoPlayerViewModel @JvmOverloads constructor(
         viewModelScope.launch {
             persistPlaybackPreferences(
                 animeId = current.animeId,
-                sourceSelection = current.playback.sourceSelection,
+                sourceSelection = current.playback.persistedSourceSelection,
                 adaptiveQuality = preference,
             )
         }
@@ -168,8 +148,15 @@ class VideoPlayerViewModel @JvmOverloads constructor(
         selection: VideoPlaybackSelection? = null,
         preservePositionMs: Long? = null,
         initial: Boolean = false,
+        showLoading: Boolean = true,
     ) {
-        mutableState.value = State.Loading
+        val previousReady = mutableState.value as? State.Ready
+        mutableState.value = if (showLoading || previousReady == null) {
+            State.Loading
+        } else {
+            previousReady.copy(isSourceSwitching = true)
+        }
+
         mutableState.value = when (val result = withContext(resolveDispatcher) { resolveVideoStream(animeId, episodeId, selection) }) {
             is ResolveVideoStream.Result.Success -> {
                 val resumePositionMs = preservePositionMs
@@ -189,9 +176,17 @@ class VideoPlayerViewModel @JvmOverloads constructor(
                     stream = playback.currentStream,
                     playback = playback,
                     resumePositionMs = resumePositionMs,
+                    isSourceSwitching = false,
                 )
             }
-            is ResolveVideoStream.Result.Error -> State.Error(result.reason.toMessage())
+            is ResolveVideoStream.Result.Error -> {
+                if (!showLoading && previousReady != null) {
+                    mutableEvents.tryEmit(Event.ShowMessage(result.reason.toMessage()))
+                    previousReady.copy(isSourceSwitching = false)
+                } else {
+                    State.Error(result.reason.toMessage())
+                }
+            }
         }
 
         val current = mutableState.value
@@ -217,6 +212,7 @@ class VideoPlayerViewModel @JvmOverloads constructor(
 
     private suspend fun playEpisode(targetEpisodeId: Long) {
         mutableState.value as? State.Ready ?: return
+        applySelectionJob?.cancel()
         savedState[EPISODE_ID_KEY] = targetEpisodeId
         episodeId = targetEpisodeId
         playbackSession = null
@@ -248,6 +244,7 @@ class VideoPlayerViewModel @JvmOverloads constructor(
             sourceSelection = playbackData.selection.copy(
                 streamKey = currentStream.key.ifBlank { currentStream.label.ifBlank { currentStream.request.url } },
             ),
+            preferredSourceQualityKey = savedPreferences.sourceQualityKey,
             currentStream = currentStream,
             currentStreamLabel = currentStream.label.ifBlank { currentStream.request.url },
             streamOptions = streamOptions,
@@ -289,9 +286,14 @@ class VideoPlayerViewModel @JvmOverloads constructor(
             val stream: VideoStream,
             val playback: VideoPlaybackUiState,
             val resumePositionMs: Long,
+            val isSourceSwitching: Boolean = false,
         ) : State
 
         data class Error(val message: String) : State
+    }
+
+    sealed interface Event {
+        data class ShowMessage(val message: String) : Event
     }
 
     private fun ResolveVideoStream.Reason.toMessage(): String {

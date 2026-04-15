@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -29,11 +30,13 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -61,11 +64,13 @@ import androidx.media3.ui.PlayerControlView
 import androidx.media3.ui.PlayerView
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.network.NetworkHelper
+import eu.kanade.tachiyomi.source.model.VideoPlaybackSelection
 import eu.kanade.tachiyomi.ui.base.activity.BaseActivity
 import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.view.setComposeContent
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import tachiyomi.presentation.core.components.SettingsChipRow
@@ -192,8 +197,15 @@ class VideoPlayerActivity : BaseActivity() {
             }
             is VideoPlayerViewModel.State.Ready -> {
                 val context = LocalContext.current
+                LaunchedEffect(Unit) {
+                    viewModel.events.collectLatest { event ->
+                        when (event) {
+                            is VideoPlayerViewModel.Event.ShowMessage -> toast(event.message)
+                        }
+                    }
+                }
                 var controlsVisible by remember(current.episodeId, current.streamUrl) { mutableStateOf(false) }
-                var startupOverlayVisible by remember(current.episodeId, current.streamUrl) { mutableStateOf(true) }
+                var startupOverlayVisible by remember(current.episodeId, current.streamUrl) { mutableStateOf(player == null) }
                 var settingsVisible by remember(current.episodeId, current.streamUrl) { mutableStateOf(false) }
                 val currentPlayer = remember(current.episodeId, current.streamUrl) {
                     buildVideoPlayer(
@@ -248,6 +260,7 @@ class VideoPlayerActivity : BaseActivity() {
                 }
 
                 LaunchedEffect(current.episodeId, current.streamUrl) {
+                    startupOverlayVisible = player == null
                     releasePlayer(persistState = false)
                     player = currentPlayer
                     startProgressSaves(currentPlayer)
@@ -272,6 +285,7 @@ class VideoPlayerActivity : BaseActivity() {
                         factory = { androidContext ->
                             PlayerView(androidContext).apply {
                                 player = controllerPlayer
+                                setKeepContentOnPlayerReset(true)
                                 useController = true
                                 controllerAutoShow = true
                                 setShowPreviousButton(true)
@@ -279,6 +293,7 @@ class VideoPlayerActivity : BaseActivity() {
                                 setControllerVisibilityListener(PlayerControlView.VisibilityListener { visibility ->
                                     controlsVisible = visibility == View.VISIBLE
                                 })
+                                controlsVisible = findViewById<View?>(androidx.media3.ui.R.id.exo_controller)?.visibility == View.VISIBLE
                                 setShutterBackgroundColor(android.graphics.Color.BLACK)
                                 setBackgroundColor(android.graphics.Color.BLACK)
                                 layoutParams = ViewGroup.LayoutParams(
@@ -298,8 +313,10 @@ class VideoPlayerActivity : BaseActivity() {
                         },
                         update = { playerView ->
                             playerView.player = controllerPlayer
+                            playerView.setKeepContentOnPlayerReset(true)
                             playerView.setShowPreviousButton(true)
                             playerView.setShowNextButton(true)
+                            controlsVisible = playerView.findViewById<View?>(androidx.media3.ui.R.id.exo_controller)?.visibility == View.VISIBLE
                             playerView.findViewById<View?>(androidx.media3.ui.R.id.exo_settings)?.visibility = View.GONE
                             playerView.findViewById<ImageButton?>(androidx.media3.ui.R.id.exo_prev)?.apply {
                                 isEnabled = current.previousEpisodeId != null
@@ -314,6 +331,10 @@ class VideoPlayerActivity : BaseActivity() {
 
                     if (startupOverlayVisible) {
                         VideoPlayerStartupOverlay(modifier = Modifier.fillMaxSize())
+                    }
+
+                    if (current.isSourceSwitching) {
+                        VideoPlayerSwitchingOverlay(modifier = Modifier.align(Alignment.TopCenter))
                     }
 
                     if (controlsVisible) {
@@ -331,9 +352,7 @@ class VideoPlayerActivity : BaseActivity() {
                         VideoPlayerSettingsSheet(
                             playback = current.playback,
                             onDismissRequest = { settingsVisible = false },
-                            onSelectDub = viewModel::selectDub,
-                            onSelectStream = viewModel::selectStream,
-                            onSelectSourceQuality = viewModel::selectSourceQuality,
+                            onApplySourceSelection = viewModel::applySourceSelection,
                             onSelectAdaptiveQuality = viewModel::selectAdaptiveQuality,
                         )
                     }
@@ -376,6 +395,29 @@ class VideoPlayerActivity : BaseActivity() {
                     style = MaterialTheme.typography.bodyLarge,
                 )
             }
+        }
+    }
+
+    @Composable
+    private fun VideoPlayerSwitchingOverlay(modifier: Modifier = Modifier) {
+        Row(
+            modifier = modifier
+                .padding(top = 24.dp)
+                .background(Color.Black.copy(alpha = 0.72f), shape = MaterialTheme.shapes.small)
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(20.dp),
+                color = Color.White,
+                strokeWidth = 2.dp,
+            )
+            Text(
+                text = "Switching source...",
+                color = Color.White,
+                style = MaterialTheme.typography.bodyMedium,
+            )
         }
     }
 
@@ -498,12 +540,18 @@ class VideoPlayerActivity : BaseActivity() {
     private fun VideoPlayerSettingsSheet(
         playback: VideoPlaybackUiState,
         onDismissRequest: () -> Unit,
-        onSelectDub: (String?) -> Unit,
-        onSelectStream: (String?) -> Unit,
-        onSelectSourceQuality: (String?) -> Unit,
+        onApplySourceSelection: (VideoPlaybackSelection) -> Unit,
         onSelectAdaptiveQuality: (VideoAdaptiveQualityPreference) -> Unit,
     ) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        val originalSelection = remember(playback.sourceSelection, playback.preferredSourceQualityKey) {
+            playback.sourceSelection.copy(sourceQualityKey = playback.preferredSourceQualityKey ?: playback.sourceSelection.sourceQualityKey)
+        }
+        var draftSelection by remember(originalSelection) { mutableStateOf(originalSelection) }
+        val hasPendingSourceChanges = draftSelection != originalSelection
+        val streamOptionsEnabled = draftSelection.dubKey == playback.sourceSelection.dubKey &&
+            draftSelection.sourceQualityKey == playback.sourceSelection.sourceQualityKey
+
         ModalBottomSheet(
             onDismissRequest = onDismissRequest,
             sheetState = sheetState,
@@ -519,8 +567,8 @@ class VideoPlayerActivity : BaseActivity() {
                         PlaybackOptionRow(
                             options = playback.playbackData.dubs,
                             titleRes = MR.strings.anime_playback_dub,
-                            selectedKey = playback.sourceSelection.dubKey,
-                            onSelect = onSelectDub,
+                            selectedKey = draftSelection.dubKey,
+                            onSelect = { draftSelection = draftSelection.withSelectedDub(it, originalSelection) },
                         )
                     }
                 }
@@ -530,8 +578,9 @@ class VideoPlayerActivity : BaseActivity() {
                         PlaybackOptionRow(
                             options = playback.streamOptions,
                             titleRes = MR.strings.anime_playback_stream,
-                            selectedKey = playback.sourceSelection.streamKey,
-                            onSelect = onSelectStream,
+                            selectedKey = draftSelection.streamKey,
+                            enabled = streamOptionsEnabled,
+                            onSelect = { draftSelection = draftSelection.withSelectedStream(it) },
                         )
                     }
                 }
@@ -541,8 +590,8 @@ class VideoPlayerActivity : BaseActivity() {
                         PlaybackOptionRow(
                             options = playback.playbackData.sourceQualities,
                             titleRes = MR.strings.anime_playback_source_quality,
-                            selectedKey = playback.sourceSelection.sourceQualityKey,
-                            onSelect = onSelectSourceQuality,
+                            selectedKey = draftSelection.sourceQualityKey,
+                            onSelect = { draftSelection = draftSelection.withSelectedSourceQuality(it, originalSelection) },
                         )
                     }
                 }
@@ -560,6 +609,29 @@ class VideoPlayerActivity : BaseActivity() {
                         }
                     }
                 }
+
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        TextButton(onClick = onDismissRequest) {
+                            Text(text = stringResource(MR.strings.action_cancel))
+                        }
+                        Spacer(modifier = Modifier.padding(horizontal = 4.dp))
+                        Button(
+                            enabled = hasPendingSourceChanges,
+                            onClick = {
+                                onApplySourceSelection(draftSelection)
+                                onDismissRequest()
+                            },
+                        ) {
+                            Text(text = stringResource(MR.strings.action_apply))
+                        }
+                    }
+                }
             }
         }
     }
@@ -569,11 +641,13 @@ class VideoPlayerActivity : BaseActivity() {
         options: List<eu.kanade.tachiyomi.source.model.VideoPlaybackOption>,
         titleRes: dev.icerock.moko.resources.StringResource,
         selectedKey: String?,
+        enabled: Boolean = true,
         onSelect: (String?) -> Unit,
     ) {
         SettingsChipRow(titleRes) {
             options.forEach { option ->
                 FilterChip(
+                    enabled = enabled,
                     selected = option.key == selectedKey,
                     onClick = { onSelect(option.key) },
                     label = { Text(option.label) },

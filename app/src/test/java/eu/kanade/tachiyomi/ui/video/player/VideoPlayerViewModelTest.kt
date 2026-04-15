@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -181,6 +182,126 @@ class VideoPlayerViewModelTest {
         state.nextEpisodeId shouldBe 30L
     }
 
+    @Test
+    fun `apply source selection resolves once and preserves resume position`() = runTest(dispatcher) {
+        val playbackRepository = FakeAnimePlaybackStateRepository(
+            existingState = AnimePlaybackState(
+                episodeId = 2L,
+                positionMs = 12_345L,
+                durationMs = 60_000L,
+                completed = false,
+                lastWatchedAt = 500L,
+            ),
+        )
+        val historyRepository = FakeAnimeHistoryRepository()
+        val preferencesRepository = RecordingAnimePlaybackPreferencesRepository()
+        val resolver = RecordingVideoStreamResolver()
+        val viewModel = VideoPlayerViewModel(
+            savedState = SavedStateHandle(),
+            resolveVideoStream = resolver,
+            animePlaybackPreferencesRepository = preferencesRepository,
+            animeEpisodeRepository = FakeAnimeEpisodeRepository(episodes = emptyList()),
+            videoPlaybackStateRepository = playbackRepository,
+            videoHistoryRepository = historyRepository,
+            resolveDispatcher = dispatcher,
+            persistenceDispatcher = dispatcher,
+        )
+
+        viewModel.init(animeId = 1L, episodeId = 2L)
+        advanceUntilIdle()
+
+        viewModel.applySourceSelection(
+            VideoPlaybackSelection(
+                dubKey = "dub-2",
+                sourceQualityKey = "1080p",
+            ),
+        )
+        advanceUntilIdle()
+
+        resolver.requests shouldBe listOf(2L, 2L)
+        resolver.selections shouldBe listOf(
+            null,
+            VideoPlaybackSelection(
+                dubKey = "dub-2",
+                sourceQualityKey = "1080p",
+            ),
+        )
+        preferencesRepository.upserts.single().sourceQualityKey shouldBe "1080p"
+        val state = viewModel.state.value as VideoPlayerViewModel.State.Ready
+        state.resumePositionMs shouldBe 12_345L
+    }
+
+    @Test
+    fun `adaptive quality persistence keeps preferred source quality after fallback resolve`() = runTest(dispatcher) {
+        val playbackRepository = FakeAnimePlaybackStateRepository(existingState = null)
+        val historyRepository = FakeAnimeHistoryRepository()
+        val preferencesRepository = RecordingAnimePlaybackPreferencesRepository(
+            existing = AnimePlaybackPreferences(
+                animeId = 1L,
+                dubKey = null,
+                streamKey = null,
+                sourceQualityKey = "1080p",
+                playerQualityMode = PlayerQualityMode.AUTO,
+                playerQualityHeight = null,
+                updatedAt = 0L,
+            ),
+        )
+        val viewModel = VideoPlayerViewModel(
+            savedState = SavedStateHandle(),
+            resolveVideoStream = fallbackQualityResolver(),
+            animePlaybackPreferencesRepository = preferencesRepository,
+            animeEpisodeRepository = FakeAnimeEpisodeRepository(episodes = emptyList()),
+            videoPlaybackStateRepository = playbackRepository,
+            videoHistoryRepository = historyRepository,
+            resolveDispatcher = dispatcher,
+            persistenceDispatcher = dispatcher,
+        )
+
+        viewModel.init(animeId = 1L, episodeId = 2L)
+        advanceUntilIdle()
+
+        val readyState = viewModel.state.value as VideoPlayerViewModel.State.Ready
+        readyState.playback.sourceSelection.sourceQualityKey shouldBe "720p"
+        readyState.playback.preferredSourceQualityKey shouldBe "1080p"
+
+        viewModel.selectAdaptiveQuality(VideoAdaptiveQualityPreference.SpecificHeight(720))
+        advanceUntilIdle()
+
+        preferencesRepository.upserts.last().sourceQualityKey shouldBe "1080p"
+    }
+
+    @Test
+    fun `apply source selection keeps ready state while switching`() = runTest(dispatcher) {
+        val playbackRepository = FakeAnimePlaybackStateRepository(existingState = null)
+        val historyRepository = FakeAnimeHistoryRepository()
+        val preferencesRepository = RecordingAnimePlaybackPreferencesRepository()
+        val resolver = DelayedRecordingVideoStreamResolver(delayMs = 1_000L)
+        val viewModel = VideoPlayerViewModel(
+            savedState = SavedStateHandle(),
+            resolveVideoStream = resolver,
+            animePlaybackPreferencesRepository = preferencesRepository,
+            animeEpisodeRepository = FakeAnimeEpisodeRepository(episodes = emptyList()),
+            videoPlaybackStateRepository = playbackRepository,
+            videoHistoryRepository = historyRepository,
+            resolveDispatcher = dispatcher,
+            persistenceDispatcher = dispatcher,
+        )
+
+        viewModel.init(animeId = 1L, episodeId = 2L)
+        advanceUntilIdle()
+
+        viewModel.applySourceSelection(VideoPlaybackSelection(dubKey = "dub-2"))
+        advanceTimeBy(1)
+
+        val switchingState = viewModel.state.value as VideoPlayerViewModel.State.Ready
+        switchingState.isSourceSwitching shouldBe true
+
+        advanceUntilIdle()
+
+        val finalState = viewModel.state.value as VideoPlayerViewModel.State.Ready
+        finalState.isSourceSwitching shouldBe false
+    }
+
     private fun videoEpisode(id: Long, animeId: Long, sourceOrder: Long): AnimeEpisode {
         return AnimeEpisode.create().copy(
             id = id,
@@ -241,12 +362,82 @@ class VideoPlayerViewModelTest {
         }
     }
 
+    private fun fallbackQualityResolver(): VideoStreamResolver {
+        val video = AnimeTitle.create().copy(
+            id = 1L,
+            source = 99L,
+            title = "Video 1",
+            initialized = true,
+            url = "/video/1",
+        )
+        val episode = AnimeEpisode.create().copy(
+            id = 2L,
+            animeId = 1L,
+            url = "/episode/2",
+            name = "Episode 2",
+            episodeNumber = 1.0,
+        )
+        val fallbackStream = VideoStream(
+            request = VideoRequest(url = "https://cdn.example.com/video-720.m3u8"),
+            label = "720p",
+            type = VideoStreamType.HLS,
+        )
+
+        return object : VideoStreamResolver {
+            override suspend fun invoke(
+                animeId: Long,
+                episodeId: Long,
+                selection: VideoPlaybackSelection?,
+            ): ResolveVideoStream.Result {
+                return ResolveVideoStream.Result.Success(
+                    video = video,
+                    episode = episode,
+                    playbackData = VideoPlaybackData(
+                        selection = VideoPlaybackSelection(
+                            dubKey = selection?.dubKey,
+                            sourceQualityKey = "720p",
+                        ),
+                        sourceQualities = listOf(
+                            eu.kanade.tachiyomi.source.model.VideoPlaybackOption(key = "720p", label = "720p"),
+                            eu.kanade.tachiyomi.source.model.VideoPlaybackOption(key = "480p", label = "480p"),
+                        ),
+                        streams = listOf(fallbackStream),
+                    ),
+                    stream = fallbackStream,
+                    savedPreferences = AnimePlaybackPreferences(
+                        animeId = animeId,
+                        dubKey = null,
+                        streamKey = null,
+                        sourceQualityKey = "1080p",
+                        playerQualityMode = PlayerQualityMode.AUTO,
+                        playerQualityHeight = null,
+                        updatedAt = 0L,
+                    ),
+                )
+            }
+        }
+    }
+
     private class FakeAnimePlaybackPreferencesRepository : AnimePlaybackPreferencesRepository {
         override suspend fun getByAnimeId(animeId: Long): AnimePlaybackPreferences? = null
 
         override fun getByAnimeIdAsFlow(animeId: Long): Flow<AnimePlaybackPreferences?> = emptyFlow()
 
         override suspend fun upsert(preferences: AnimePlaybackPreferences) = Unit
+    }
+
+    private class RecordingAnimePlaybackPreferencesRepository(
+        private val existing: AnimePlaybackPreferences? = null,
+    ) : AnimePlaybackPreferencesRepository {
+        val upserts = mutableListOf<AnimePlaybackPreferences>()
+
+        override suspend fun getByAnimeId(animeId: Long): AnimePlaybackPreferences? = existing
+
+        override fun getByAnimeIdAsFlow(animeId: Long): Flow<AnimePlaybackPreferences?> = flowOf(existing)
+
+        override suspend fun upsert(preferences: AnimePlaybackPreferences) {
+            upserts += preferences
+        }
     }
 
     private class FakeAnimeEpisodeRepository(
@@ -329,6 +520,7 @@ class VideoPlayerViewModelTest {
 
     private class RecordingVideoStreamResolver : VideoStreamResolver {
         val requests = mutableListOf<Long>()
+        val selections = mutableListOf<VideoPlaybackSelection?>()
 
         override suspend fun invoke(
             animeId: Long,
@@ -336,6 +528,7 @@ class VideoPlayerViewModelTest {
             selection: VideoPlaybackSelection?,
         ): ResolveVideoStream.Result {
             requests += episodeId
+            selections += selection
             val video = AnimeTitle.create().copy(
                 id = animeId,
                 source = 99L,
@@ -369,6 +562,56 @@ class VideoPlayerViewModelTest {
                     dubKey = null,
                     streamKey = null,
                     sourceQualityKey = null,
+                    playerQualityMode = PlayerQualityMode.AUTO,
+                    playerQualityHeight = null,
+                    updatedAt = 0L,
+                ),
+            )
+        }
+    }
+
+    private class DelayedRecordingVideoStreamResolver(
+        private val delayMs: Long,
+    ) : VideoStreamResolver {
+        override suspend fun invoke(
+            animeId: Long,
+            episodeId: Long,
+            selection: VideoPlaybackSelection?,
+        ): ResolveVideoStream.Result {
+            kotlinx.coroutines.delay(delayMs)
+            val video = AnimeTitle.create().copy(
+                id = animeId,
+                source = 99L,
+                title = "Video $animeId",
+                initialized = true,
+                url = "/video/$animeId",
+            )
+            val episode = AnimeEpisode.create().copy(
+                id = episodeId,
+                animeId = animeId,
+                url = "/episode/$episodeId",
+                name = "Episode $episodeId",
+                episodeNumber = 1.0,
+            )
+            val stream = VideoStream(
+                request = VideoRequest(url = "https://cdn.example.com/delayed-$episodeId.m3u8"),
+                label = "Auto",
+                type = VideoStreamType.HLS,
+            )
+
+            return ResolveVideoStream.Result.Success(
+                video = video,
+                episode = episode,
+                playbackData = VideoPlaybackData(
+                    selection = selection ?: VideoPlaybackSelection(),
+                    streams = listOf(stream),
+                ),
+                stream = stream,
+                savedPreferences = AnimePlaybackPreferences(
+                    animeId = animeId,
+                    dubKey = selection?.dubKey,
+                    streamKey = null,
+                    sourceQualityKey = selection?.sourceQualityKey,
                     playerQualityMode = PlayerQualityMode.AUTO,
                     playerQualityHeight = null,
                     updatedAt = 0L,
