@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,9 +23,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -44,7 +47,10 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowInsetsControllerCompat
@@ -91,7 +97,7 @@ class ProfilePickerScreen : Screen() {
                     }
                 }
             },
-            onOpenManagement = null,
+            onOpenManagement = { navigator.push(ProfilesSettingsScreen()) },
         )
     }
 }
@@ -106,6 +112,7 @@ fun ProfilePickerScene(
 ) {
     val context = LocalContext.current
     val view = LocalView.current
+    val groupedProfiles = remember(profiles) { profiles.groupBy(Profile::type) }
 
     DisposableEffect(context, view) {
         val activity = context as? Activity
@@ -138,28 +145,7 @@ fun ProfilePickerScene(
                 .padding(horizontal = 24.dp, vertical = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(40.dp),
-            ) {
-                if (onOpenManagement != null) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .clip(CircleShape)
-                            .clickable(onClick = onOpenManagement)
-                            .padding(8.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Settings,
-                            contentDescription = stringResource(MR.strings.profiles_title),
-                            tint = MaterialTheme.colorScheme.onSurface,
-                        )
-                    }
-                }
-            }
-
+            ProfilePickerHeader(onOpenManagement = onOpenManagement)
             Icon(
                 painter = painterResource(R.drawable.ic_mihon),
                 contentDescription = stringResource(MR.strings.app_name),
@@ -170,33 +156,97 @@ fun ProfilePickerScene(
                 text = stringResource(MR.strings.profiles_choose_profile),
                 color = MaterialTheme.colorScheme.onSurface,
                 style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(top = 44.dp, bottom = 28.dp),
             )
 
-            Box(
+            Column(
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxWidth(),
-                contentAlignment = Alignment.Center,
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(28.dp),
             ) {
-                FlowRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterHorizontally),
-                    verticalArrangement = Arrangement.spacedBy(28.dp),
-                    maxItemsInEachRow = 3,
-                ) {
-                    profiles.forEach { profile ->
-                        ProfilePickerTile(
-                            profile = profile,
-                            isActive = profile.id == activeProfileId,
-                            onClick = { onProfileSelected(profile) },
+                ProfileType.entries.forEach { type ->
+                    val typeProfiles = groupedProfiles[type].orEmpty()
+                    if (typeProfiles.isNotEmpty()) {
+                        ProfileTypeSection(
+                            type = type,
+                            profiles = typeProfiles,
+                            activeProfileId = activeProfileId,
+                            onProfileSelected = onProfileSelected,
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfilePickerHeader(
+    onOpenManagement: (() -> Unit)?,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(40.dp),
+    ) {
+        if (onOpenManagement != null) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .clip(CircleShape)
+                    .clickable(onClick = onOpenManagement)
+                    .padding(8.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Settings,
+                    contentDescription = stringResource(MR.strings.profiles_manage_title),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileTypeSection(
+    type: ProfileType,
+    profiles: List<Profile>,
+    activeProfileId: Long?,
+    onProfileSelected: (Profile) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = type.icon(),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp),
+            )
+            Text(
+                text = type.label(),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterHorizontally),
+            verticalArrangement = Arrangement.spacedBy(28.dp),
+            maxItemsInEachRow = 3,
+        ) {
+            profiles.forEach { profile ->
+                ProfilePickerTile(
+                    profile = profile,
+                    isActive = profile.id == activeProfileId,
+                    onClick = { onProfileSelected(profile) },
+                )
             }
         }
     }
@@ -209,6 +259,24 @@ private fun ProfilePickerTile(
     onClick: () -> Unit,
 ) {
     val faceColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.92f)
+    val typeLabel = profile.type.label()
+    val lockedLabel = stringResource(MR.strings.profiles_locked)
+    val activeLabel = stringResource(MR.strings.profiles_active)
+    val semanticsLabel = remember(profile.name, typeLabel, isActive, profile.requiresAuth, activeLabel, lockedLabel) {
+        buildString {
+            append(profile.name)
+            append(", ")
+            append(typeLabel)
+            if (isActive) {
+                append(", ")
+                append(activeLabel)
+            }
+            if (profile.requiresAuth) {
+                append(", ")
+                append(lockedLabel)
+            }
+        }
+    }
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -229,7 +297,11 @@ private fun ProfilePickerTile(
                     },
                     shape = RoundedCornerShape(12.dp),
                 )
-                .clickable(onClick = onClick),
+                .clickable(role = Role.Button, onClick = onClick)
+                .semantics(mergeDescendants = true) {
+                    selected = isActive
+                    contentDescription = semanticsLabel
+                },
         ) {
             Box(
                 modifier = Modifier
@@ -243,25 +315,42 @@ private fun ProfilePickerTile(
                             ),
                         ),
                     ),
-            )
-
-            Canvas(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(18.dp),
             ) {
-                val eyeRadius = size.minDimension * 0.05f
-                drawCircle(faceColor, eyeRadius, Offset(size.width * 0.34f, size.height * 0.34f))
-                drawCircle(faceColor, eyeRadius, Offset(size.width * 0.66f, size.height * 0.34f))
-                drawArc(
-                    color = faceColor,
-                    startAngle = 18f,
-                    sweepAngle = 144f,
-                    useCenter = false,
-                    topLeft = Offset(size.width * 0.28f, size.height * 0.38f),
-                    size = Size(size.width * 0.44f, size.height * 0.28f),
-                    style = Stroke(width = size.minDimension * 0.045f, cap = StrokeCap.Round),
-                )
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(18.dp),
+                ) {
+                    val eyeRadius = size.minDimension * 0.05f
+                    drawCircle(faceColor, eyeRadius, Offset(size.width * 0.34f, size.height * 0.34f))
+                    drawCircle(faceColor, eyeRadius, Offset(size.width * 0.66f, size.height * 0.34f))
+                    drawArc(
+                        color = faceColor,
+                        startAngle = 18f,
+                        sweepAngle = 144f,
+                        useCenter = false,
+                        topLeft = Offset(size.width * 0.28f, size.height * 0.38f),
+                        size = Size(size.width * 0.44f, size.height * 0.28f),
+                        style = Stroke(width = size.minDimension * 0.045f, cap = StrokeCap.Round),
+                    )
+                }
+
+                if (profile.requiresAuth) {
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp),
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.18f),
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Lock,
+                            contentDescription = null,
+                            modifier = Modifier.padding(6.dp).size(14.dp),
+                        )
+                    }
+                }
             }
         }
 
@@ -269,13 +358,6 @@ private fun ProfilePickerTile(
             text = profile.name,
             color = if (isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodyMedium,
-            maxLines = 1,
-            textAlign = TextAlign.Center,
-        )
-        Text(
-            text = profile.type.label(),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.labelSmall,
             maxLines = 1,
             textAlign = TextAlign.Center,
         )
@@ -293,11 +375,3 @@ private fun profileTileBrush(seed: Long): Brush {
 }
 
 private val ProfileTileSize = 118.dp
-
-@Composable
-private fun ProfileType.label(): String {
-    return when (this) {
-        ProfileType.MANGA -> stringResource(MR.strings.profiles_type_manga)
-        ProfileType.ANIME -> stringResource(MR.strings.profiles_type_anime)
-    }
-}

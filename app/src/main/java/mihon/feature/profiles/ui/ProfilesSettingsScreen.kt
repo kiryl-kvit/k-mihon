@@ -310,7 +310,7 @@ private fun ProfileNameDialog(
                 if (originalValue == null) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
-                            text = stringResource(MR.strings.track_type),
+                            text = stringResource(MR.strings.profiles_type_title),
                             style = MaterialTheme.typography.titleSmall,
                         )
                         ProfileType.entries.forEach { type ->
@@ -380,12 +380,4 @@ private sealed interface ProfilesDialog {
     data class Rename(val profile: Profile) : ProfilesDialog
     data class Archive(val profile: Profile) : ProfilesDialog
     data class Delete(val profile: Profile) : ProfilesDialog
-}
-
-@Composable
-private fun ProfileType.label(): String {
-    return when (this) {
-        ProfileType.MANGA -> stringResource(MR.strings.profiles_type_manga)
-        ProfileType.ANIME -> stringResource(MR.strings.profiles_type_anime)
-    }
 }

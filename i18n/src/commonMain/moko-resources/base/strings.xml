@@ -705,7 +705,9 @@
     <string name="profiles_active">Active</string>
     <string name="profiles_default">Default</string>
     <string name="profiles_choose_profile">Select profile</string>
+    <string name="profiles_locked">Locked</string>
     <string name="profiles_name_exists">A profile with this name already exists</string>
+    <string name="profiles_type_title">Profile type</string>
     <string name="profiles_type_manga">Manga</string>
     <string name="profiles_type_anime">Anime</string>
     <string name="profiles_archive_profile_confirmation">Archive %1$s?</string>
