@@ -232,6 +232,135 @@ class VideoPlayerViewModelTest {
     }
 
     @Test
+    fun `preview source selection updates preview qualities without changing active playback`() = runTest(dispatcher) {
+        val playbackRepository = FakeAnimePlaybackStateRepository(existingState = null)
+        val historyRepository = FakeAnimeHistoryRepository()
+        val resolver = PreviewAwareRecordingVideoStreamResolver()
+        val viewModel = VideoPlayerViewModel(
+            savedState = SavedStateHandle(),
+            resolveVideoStream = resolver,
+            animePlaybackPreferencesRepository = RecordingAnimePlaybackPreferencesRepository(),
+            animeEpisodeRepository = FakeAnimeEpisodeRepository(episodes = emptyList()),
+            videoPlaybackStateRepository = playbackRepository,
+            videoHistoryRepository = historyRepository,
+            resolveDispatcher = dispatcher,
+            persistenceDispatcher = dispatcher,
+        )
+
+        viewModel.init(animeId = 1L, episodeId = 2L)
+        advanceUntilIdle()
+
+        viewModel.previewSourceSelection(VideoPlaybackSelection(dubKey = "dub-2"))
+        advanceUntilIdle()
+
+        val state = viewModel.state.value as VideoPlayerViewModel.State.Ready
+        state.playback.sourceSelection.dubKey shouldBe null
+        state.playback.preview.selection shouldBe VideoPlaybackSelection(dubKey = "dub-2")
+        state.playback.displayedPlaybackData.sourceQualities.map { it.key } shouldBe listOf("720p", "480p")
+    }
+
+    @Test
+    fun `preview source selection reuses cache for repeated dub toggles`() = runTest(dispatcher) {
+        val playbackRepository = FakeAnimePlaybackStateRepository(existingState = null)
+        val historyRepository = FakeAnimeHistoryRepository()
+        val resolver = PreviewAwareRecordingVideoStreamResolver()
+        val viewModel = VideoPlayerViewModel(
+            savedState = SavedStateHandle(),
+            resolveVideoStream = resolver,
+            animePlaybackPreferencesRepository = RecordingAnimePlaybackPreferencesRepository(),
+            animeEpisodeRepository = FakeAnimeEpisodeRepository(episodes = emptyList()),
+            videoPlaybackStateRepository = playbackRepository,
+            videoHistoryRepository = historyRepository,
+            resolveDispatcher = dispatcher,
+            persistenceDispatcher = dispatcher,
+        )
+
+        viewModel.init(animeId = 1L, episodeId = 2L)
+        advanceUntilIdle()
+
+        viewModel.previewSourceSelection(VideoPlaybackSelection(dubKey = "dub-2"))
+        advanceUntilIdle()
+        viewModel.previewSourceSelection(VideoPlaybackSelection())
+        advanceUntilIdle()
+        viewModel.previewSourceSelection(VideoPlaybackSelection(dubKey = "dub-2"))
+        advanceUntilIdle()
+
+        resolver.selections shouldBe listOf(
+            null,
+            VideoPlaybackSelection(dubKey = "dub-2"),
+        )
+    }
+
+    @Test
+    fun `preview source selection exposes loading state before qualities arrive`() = runTest(dispatcher) {
+        val playbackRepository = FakeAnimePlaybackStateRepository(existingState = null)
+        val historyRepository = FakeAnimeHistoryRepository()
+        val resolver = DelayedPreviewAwareRecordingVideoStreamResolver(delayMs = 1_000L)
+        val viewModel = VideoPlayerViewModel(
+            savedState = SavedStateHandle(),
+            resolveVideoStream = resolver,
+            animePlaybackPreferencesRepository = RecordingAnimePlaybackPreferencesRepository(),
+            animeEpisodeRepository = FakeAnimeEpisodeRepository(episodes = emptyList()),
+            videoPlaybackStateRepository = playbackRepository,
+            videoHistoryRepository = historyRepository,
+            resolveDispatcher = dispatcher,
+            persistenceDispatcher = dispatcher,
+        )
+
+        viewModel.init(animeId = 1L, episodeId = 2L)
+        advanceUntilIdle()
+
+        viewModel.previewSourceSelection(VideoPlaybackSelection(dubKey = "dub-2"))
+        advanceTimeBy(1)
+
+        val loadingState = viewModel.state.value as VideoPlayerViewModel.State.Ready
+        loadingState.playback.preview.selection shouldBe VideoPlaybackSelection(dubKey = "dub-2")
+        loadingState.playback.preview.isLoading shouldBe true
+        loadingState.playback.preview.playbackData shouldBe null
+
+        advanceUntilIdle()
+
+        val resolvedState = viewModel.state.value as VideoPlayerViewModel.State.Ready
+        resolvedState.playback.preview.isLoading shouldBe false
+        resolvedState.playback.preview.playbackData?.sourceQualities?.map { it.key } shouldBe listOf("720p", "480p")
+    }
+
+    @Test
+    fun `apply reuses cached preview result for same selection`() = runTest(dispatcher) {
+        val playbackRepository = FakeAnimePlaybackStateRepository(existingState = null)
+        val historyRepository = FakeAnimeHistoryRepository()
+        val preferencesRepository = RecordingAnimePlaybackPreferencesRepository()
+        val resolver = PreviewAwareRecordingVideoStreamResolver()
+        val viewModel = VideoPlayerViewModel(
+            savedState = SavedStateHandle(),
+            resolveVideoStream = resolver,
+            animePlaybackPreferencesRepository = preferencesRepository,
+            animeEpisodeRepository = FakeAnimeEpisodeRepository(episodes = emptyList()),
+            videoPlaybackStateRepository = playbackRepository,
+            videoHistoryRepository = historyRepository,
+            resolveDispatcher = dispatcher,
+            persistenceDispatcher = dispatcher,
+        )
+
+        viewModel.init(animeId = 1L, episodeId = 2L)
+        advanceUntilIdle()
+        viewModel.previewSourceSelection(VideoPlaybackSelection(dubKey = "dub-2", sourceQualityKey = "720p"))
+        advanceUntilIdle()
+
+        viewModel.applySourceSelection(VideoPlaybackSelection(dubKey = "dub-2", sourceQualityKey = "720p"))
+        advanceUntilIdle()
+
+        resolver.selections shouldBe listOf(
+            null,
+            VideoPlaybackSelection(dubKey = "dub-2", sourceQualityKey = "720p"),
+        )
+        preferencesRepository.upserts.last().sourceQualityKey shouldBe "720p"
+        val state = viewModel.state.value as VideoPlayerViewModel.State.Ready
+        state.playback.sourceSelection.dubKey shouldBe "dub-2"
+        state.playback.preview.playbackData shouldBe null
+    }
+
+    @Test
     fun `adaptive quality persistence keeps preferred source quality after fallback resolve`() = runTest(dispatcher) {
         val playbackRepository = FakeAnimePlaybackStateRepository(existingState = null)
         val historyRepository = FakeAnimeHistoryRepository()
@@ -567,6 +696,87 @@ class VideoPlayerViewModelTest {
                     updatedAt = 0L,
                 ),
             )
+        }
+    }
+
+    private class PreviewAwareRecordingVideoStreamResolver : VideoStreamResolver {
+        val selections = mutableListOf<VideoPlaybackSelection?>()
+
+        override suspend fun invoke(
+            animeId: Long,
+            episodeId: Long,
+            selection: VideoPlaybackSelection?,
+        ): ResolveVideoStream.Result {
+            selections += selection
+            val video = AnimeTitle.create().copy(
+                id = animeId,
+                source = 99L,
+                title = "Video $animeId",
+                initialized = true,
+                url = "/video/$animeId",
+            )
+            val episode = AnimeEpisode.create().copy(
+                id = episodeId,
+                animeId = animeId,
+                url = "/episode/$episodeId",
+                name = "Episode $episodeId",
+                episodeNumber = episodeId.toDouble(),
+            )
+            val qualityLabel = if (selection?.dubKey == "dub-2") "720p" else "1080p"
+            val stream = VideoStream(
+                request = VideoRequest(url = "https://cdn.example.com/$episodeId-$qualityLabel.m3u8"),
+                label = qualityLabel,
+                type = VideoStreamType.HLS,
+            )
+            val sourceQualities = if (selection?.dubKey == "dub-2") {
+                listOf(
+                    eu.kanade.tachiyomi.source.model.VideoPlaybackOption(key = "720p", label = "720p"),
+                    eu.kanade.tachiyomi.source.model.VideoPlaybackOption(key = "480p", label = "480p"),
+                )
+            } else {
+                listOf(
+                    eu.kanade.tachiyomi.source.model.VideoPlaybackOption(key = "1080p", label = "1080p"),
+                    eu.kanade.tachiyomi.source.model.VideoPlaybackOption(key = "720p", label = "720p"),
+                )
+            }
+
+            return ResolveVideoStream.Result.Success(
+                video = video,
+                episode = episode,
+                playbackData = VideoPlaybackData(
+                    selection = selection ?: VideoPlaybackSelection(),
+                    dubs = listOf(
+                        eu.kanade.tachiyomi.source.model.VideoPlaybackOption(key = "dub-2", label = "Dub 2"),
+                    ),
+                    sourceQualities = sourceQualities,
+                    streams = listOf(stream),
+                ),
+                stream = stream,
+                savedPreferences = AnimePlaybackPreferences(
+                    animeId = animeId,
+                    dubKey = null,
+                    streamKey = null,
+                    sourceQualityKey = selection?.sourceQualityKey,
+                    playerQualityMode = PlayerQualityMode.AUTO,
+                    playerQualityHeight = null,
+                    updatedAt = 0L,
+                ),
+            )
+        }
+    }
+
+    private class DelayedPreviewAwareRecordingVideoStreamResolver(
+        private val delayMs: Long,
+    ) : VideoStreamResolver {
+        private val delegate = PreviewAwareRecordingVideoStreamResolver()
+
+        override suspend fun invoke(
+            animeId: Long,
+            episodeId: Long,
+            selection: VideoPlaybackSelection?,
+        ): ResolveVideoStream.Result {
+            kotlinx.coroutines.delay(delayMs)
+            return delegate.invoke(animeId, episodeId, selection)
         }
     }
 

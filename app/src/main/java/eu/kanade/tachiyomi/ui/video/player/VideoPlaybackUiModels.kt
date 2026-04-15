@@ -13,17 +13,30 @@ data class VideoPlaybackUiState(
     val currentStreamLabel: String,
     val streamOptions: List<VideoPlaybackOption>,
     val playbackData: VideoPlaybackData,
+    val preview: VideoPlaybackPreviewState = VideoPlaybackPreviewState(),
     val adaptiveQualities: List<VideoAdaptiveQualityOption> = emptyList(),
     val currentAdaptiveQuality: VideoAdaptiveQualityPreference = VideoAdaptiveQualityPreference.Auto,
 ) {
     val showsAdaptiveQualitySelector: Boolean
         get() = playbackData.sourceQualities.isEmpty() && adaptiveQualities.size > 1
 
+    val displayedPlaybackData: VideoPlaybackData
+        get() = preview.playbackData ?: playbackData
+
+    val isPreviewLoading: Boolean
+        get() = preview.isLoading
+
     val persistedSourceSelection: VideoPlaybackSelection
         get() = sourceSelection.copy(
             sourceQualityKey = preferredSourceQualityKey ?: sourceSelection.sourceQualityKey,
         )
 }
+
+data class VideoPlaybackPreviewState(
+    val selection: VideoPlaybackSelection? = null,
+    val playbackData: VideoPlaybackData? = null,
+    val isLoading: Boolean = false,
+)
 
 sealed interface VideoAdaptiveQualityPreference {
     data object Auto : VideoAdaptiveQualityPreference

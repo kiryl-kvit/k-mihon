@@ -7,6 +7,7 @@ import eu.kanade.tachiyomi.source.model.VideoPlaybackData
 import eu.kanade.tachiyomi.source.model.VideoPlaybackOption
 import eu.kanade.tachiyomi.source.model.VideoPlaybackSelection
 import eu.kanade.tachiyomi.source.model.VideoStream
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -52,6 +53,8 @@ class VideoPlayerViewModel @JvmOverloads constructor(
     private var animeId: Long = INVALID_ID
     private var episodeId: Long = INVALID_ID
     private var applySelectionJob: Job? = null
+    private var previewSelectionJob: Job? = null
+    private val selectionResultCache = LinkedHashMap<SelectionCacheKey, ResolveVideoStream.Result.Success>()
 
     fun init(animeId: Long, episodeId: Long) {
         if (initialized) return
@@ -68,6 +71,7 @@ class VideoPlayerViewModel @JvmOverloads constructor(
 
     fun applySourceSelection(selection: VideoPlaybackSelection) {
         val current = mutableState.value as? State.Ready ?: return
+        previewSelectionJob?.cancel()
         applySelectionJob?.cancel()
         applySelectionJob = viewModelScope.launch {
             persistPlaybackPreferences(
@@ -76,11 +80,97 @@ class VideoPlayerViewModel @JvmOverloads constructor(
                 adaptiveQuality = current.playback.currentAdaptiveQuality,
             )
             if (!isActive) return@launch
-            resolvePlayback(
-                selection = selection,
-                preservePositionMs = current.resumePositionMs,
-                showLoading = false,
+            val cachedResult = cachedSelectionResult(current.episodeId, selection)
+            if (cachedResult != null) {
+                mutableState.value = buildReadyState(
+                    result = cachedResult,
+                    preservePositionMs = current.resumePositionMs,
+                    preview = VideoPlaybackPreviewState(),
+                    isSourceSwitching = false,
+                )
+            } else {
+                resolvePlayback(
+                    selection = selection,
+                    preservePositionMs = current.resumePositionMs,
+                    showLoading = false,
+                )
+            }
+        }
+    }
+
+    fun previewSourceSelection(selection: VideoPlaybackSelection) {
+        val current = mutableState.value as? State.Ready ?: return
+        if (selection.dubKey == current.playback.sourceSelection.dubKey) {
+            previewSelectionJob?.cancel()
+            mutableState.value = current.copy(
+                playback = current.playback.copy(preview = VideoPlaybackPreviewState()),
             )
+            return
+        }
+
+        val currentPreview = current.playback.preview
+        if (currentPreview.selection == selection && currentPreview.isLoading) return
+
+        val cachedPreview = cachedSelectionResult(current.episodeId, selection)
+        if (cachedPreview != null) {
+            mutableState.value = current.copy(
+                playback = current.playback.copy(
+                    preview = VideoPlaybackPreviewState(
+                        selection = selection,
+                        playbackData = cachedPreview.playbackData,
+                        isLoading = false,
+                    ),
+                ),
+            )
+            return
+        }
+
+        previewSelectionJob?.cancel()
+        mutableState.value = current.copy(
+            playback = current.playback.copy(
+                preview = VideoPlaybackPreviewState(
+                    selection = selection,
+                    isLoading = true,
+                ),
+            ),
+        )
+
+        previewSelectionJob = viewModelScope.launch {
+            val result = try {
+                withContext(resolveDispatcher) { resolveVideoStream(current.animeId, current.episodeId, selection) }
+            } catch (_: CancellationException) {
+                return@launch
+            }
+
+            val latestState = mutableState.value as? State.Ready ?: return@launch
+            val latestPreview = latestState.playback.preview
+            if (latestPreview.selection != selection) return@launch
+
+            when (result) {
+                is ResolveVideoStream.Result.Success -> {
+                    cacheSelectionResult(current.episodeId, selection, result)
+                    mutableState.value = latestState.copy(
+                        playback = latestState.playback.copy(
+                            preview = VideoPlaybackPreviewState(
+                                selection = selection,
+                                playbackData = result.playbackData,
+                                isLoading = false,
+                            ),
+                        ),
+                    )
+                }
+                is ResolveVideoStream.Result.Error -> {
+                    mutableEvents.tryEmit(Event.ShowPreviewMessage(result.reason.toMessage()))
+                    mutableState.value = latestState.copy(
+                        playback = latestState.playback.copy(
+                            preview = VideoPlaybackPreviewState(
+                                selection = selection,
+                                isLoading = false,
+                            ),
+                        ),
+                    )
+                }
+            }
         }
     }
 
@@ -151,6 +241,7 @@ class VideoPlayerViewModel @JvmOverloads constructor(
         showLoading: Boolean = true,
     ) {
         val previousReady = mutableState.value as? State.Ready
+        previewSelectionJob?.cancel()
         mutableState.value = if (showLoading || previousReady == null) {
             State.Loading
         } else {
@@ -159,30 +250,21 @@ class VideoPlayerViewModel @JvmOverloads constructor(
 
         mutableState.value = when (val result = withContext(resolveDispatcher) { resolveVideoStream(animeId, episodeId, selection) }) {
             is ResolveVideoStream.Result.Success -> {
-                val resumePositionMs = preservePositionMs
-                    ?: videoPlaybackStateRepository.getByEpisodeId(result.episode.id)?.positionMs
-                    ?: 0L
-                val navigation = resolveEpisodeNavigation(result.video.id, result.episode.id)
-                val playback = buildPlaybackUiState(result.playbackData, result.stream, result.savedPreferences)
-                State.Ready(
-                    animeId = result.video.id,
-                    episodeId = result.episode.id,
-                    previousEpisodeId = navigation.previousEpisodeId,
-                    nextEpisodeId = navigation.nextEpisodeId,
-                    videoTitle = result.video.displayTitle,
-                    episodeName = result.episode.name,
-                    streamLabel = playback.currentStreamLabel,
-                    streamUrl = playback.currentStream.request.url,
-                    stream = playback.currentStream,
-                    playback = playback,
-                    resumePositionMs = resumePositionMs,
+                cacheSelectionResult(result.episode.id, result.playbackData.selection, result)
+                buildReadyState(
+                    result = result,
+                    preservePositionMs = preservePositionMs,
+                    preview = VideoPlaybackPreviewState(),
                     isSourceSwitching = false,
                 )
             }
             is ResolveVideoStream.Result.Error -> {
                 if (!showLoading && previousReady != null) {
                     mutableEvents.tryEmit(Event.ShowMessage(result.reason.toMessage()))
-                    previousReady.copy(isSourceSwitching = false)
+                    previousReady.copy(
+                        playback = previousReady.playback.copy(preview = VideoPlaybackPreviewState()),
+                        isSourceSwitching = false,
+                    )
                 } else {
                     State.Error(result.reason.toMessage())
                 }
@@ -213,10 +295,40 @@ class VideoPlayerViewModel @JvmOverloads constructor(
     private suspend fun playEpisode(targetEpisodeId: Long) {
         mutableState.value as? State.Ready ?: return
         applySelectionJob?.cancel()
+        previewSelectionJob?.cancel()
+        clearSelectionResultCache()
         savedState[EPISODE_ID_KEY] = targetEpisodeId
         episodeId = targetEpisodeId
         playbackSession = null
         resolvePlayback(initial = true)
+    }
+
+    private suspend fun buildReadyState(
+        result: ResolveVideoStream.Result.Success,
+        preservePositionMs: Long?,
+        preview: VideoPlaybackPreviewState,
+        isSourceSwitching: Boolean,
+    ): State.Ready {
+        val resumePositionMs = preservePositionMs
+            ?: videoPlaybackStateRepository.getByEpisodeId(result.episode.id)?.positionMs
+            ?: 0L
+        val navigation = resolveEpisodeNavigation(result.video.id, result.episode.id)
+        val playback = buildPlaybackUiState(result.playbackData, result.stream, result.savedPreferences)
+            .copy(preview = preview)
+        return State.Ready(
+            animeId = result.video.id,
+            episodeId = result.episode.id,
+            previousEpisodeId = navigation.previousEpisodeId,
+            nextEpisodeId = navigation.nextEpisodeId,
+            videoTitle = result.video.displayTitle,
+            episodeName = result.episode.name,
+            streamLabel = playback.currentStreamLabel,
+            streamUrl = playback.currentStream.request.url,
+            stream = playback.currentStream,
+            playback = playback,
+            resumePositionMs = resumePositionMs,
+            isSourceSwitching = isSourceSwitching,
+        )
     }
 
     private fun buildPlaybackUiState(
@@ -251,6 +363,33 @@ class VideoPlayerViewModel @JvmOverloads constructor(
             playbackData = playbackData,
             currentAdaptiveQuality = adaptivePreference,
         )
+    }
+
+    private fun cachedSelectionResult(
+        episodeId: Long,
+        selection: VideoPlaybackSelection,
+    ): ResolveVideoStream.Result.Success? {
+        return selectionResultCache[SelectionCacheKey(episodeId = episodeId, selection = selection.normalized())]
+    }
+
+    private fun cacheSelectionResult(
+        episodeId: Long,
+        selection: VideoPlaybackSelection,
+        result: ResolveVideoStream.Result.Success,
+    ) {
+        selectionResultCache[SelectionCacheKey(episodeId = episodeId, selection = selection.normalized())] = result
+        trimSelectionResultCache()
+    }
+
+    private fun trimSelectionResultCache() {
+        while (selectionResultCache.size > SELECTION_CACHE_LIMIT) {
+            val firstKey = selectionResultCache.entries.firstOrNull()?.key ?: break
+            selectionResultCache.remove(firstKey)
+        }
+    }
+
+    private fun clearSelectionResultCache() {
+        selectionResultCache.clear()
     }
 
     private suspend fun persistPlaybackPreferences(
@@ -294,6 +433,8 @@ class VideoPlayerViewModel @JvmOverloads constructor(
 
     sealed interface Event {
         data class ShowMessage(val message: String) : Event
+
+        data class ShowPreviewMessage(val message: String) : Event
     }
 
     private fun ResolveVideoStream.Reason.toMessage(): String {
@@ -316,7 +457,17 @@ class VideoPlayerViewModel @JvmOverloads constructor(
         private const val VIDEO_ID_KEY = "video_id"
         private const val EPISODE_ID_KEY = "episode_id"
         private const val INVALID_ID = -1L
+        private const val SELECTION_CACHE_LIMIT = 12
     }
+}
+
+private data class SelectionCacheKey(
+    val episodeId: Long,
+    val selection: VideoPlaybackSelection,
+)
+
+private fun VideoPlaybackSelection.normalized(): VideoPlaybackSelection {
+    return copy(streamKey = null)
 }
 
 private data class EpisodeNavigation(

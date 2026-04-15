@@ -234,7 +234,9 @@ internal object ExtensionLoader {
         val appInfo = pkgInfo.applicationInfo!!
         val pkgName = pkgInfo.packageName
 
-        val extName = pkgManager.getApplicationLabel(appInfo).toString().substringAfter("Tachiyomi: ")
+        val extName = pkgManager.getApplicationLabel(appInfo).toString()
+            .removePrefix("Tachiyomi: ")
+            .removePrefix("K-Mihon: ")
         val versionName = pkgInfo.versionName
         val versionCode = PackageInfoCompat.getLongVersionCode(pkgInfo)
 

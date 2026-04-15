@@ -201,6 +201,7 @@ class VideoPlayerActivity : BaseActivity() {
                     viewModel.events.collectLatest { event ->
                         when (event) {
                             is VideoPlayerViewModel.Event.ShowMessage -> toast(event.message)
+                            is VideoPlayerViewModel.Event.ShowPreviewMessage -> toast(event.message)
                         }
                     }
                 }
@@ -260,6 +261,10 @@ class VideoPlayerActivity : BaseActivity() {
                 }
 
                 LaunchedEffect(current.episodeId, current.streamUrl) {
+                    controlsVisible = false
+                }
+
+                LaunchedEffect(current.episodeId, current.streamUrl) {
                     startupOverlayVisible = player == null
                     releasePlayer(persistState = false)
                     player = currentPlayer
@@ -293,7 +298,6 @@ class VideoPlayerActivity : BaseActivity() {
                                 setControllerVisibilityListener(PlayerControlView.VisibilityListener { visibility ->
                                     controlsVisible = visibility == View.VISIBLE
                                 })
-                                controlsVisible = findViewById<View?>(androidx.media3.ui.R.id.exo_controller)?.visibility == View.VISIBLE
                                 setShutterBackgroundColor(android.graphics.Color.BLACK)
                                 setBackgroundColor(android.graphics.Color.BLACK)
                                 layoutParams = ViewGroup.LayoutParams(
@@ -316,7 +320,6 @@ class VideoPlayerActivity : BaseActivity() {
                             playerView.setKeepContentOnPlayerReset(true)
                             playerView.setShowPreviousButton(true)
                             playerView.setShowNextButton(true)
-                            controlsVisible = playerView.findViewById<View?>(androidx.media3.ui.R.id.exo_controller)?.visibility == View.VISIBLE
                             playerView.findViewById<View?>(androidx.media3.ui.R.id.exo_settings)?.visibility = View.GONE
                             playerView.findViewById<ImageButton?>(androidx.media3.ui.R.id.exo_prev)?.apply {
                                 isEnabled = current.previousEpisodeId != null
@@ -353,6 +356,7 @@ class VideoPlayerActivity : BaseActivity() {
                             playback = current.playback,
                             onDismissRequest = { settingsVisible = false },
                             onApplySourceSelection = viewModel::applySourceSelection,
+                            onPreviewSourceSelection = viewModel::previewSourceSelection,
                             onSelectAdaptiveQuality = viewModel::selectAdaptiveQuality,
                         )
                     }
@@ -541,6 +545,7 @@ class VideoPlayerActivity : BaseActivity() {
         playback: VideoPlaybackUiState,
         onDismissRequest: () -> Unit,
         onApplySourceSelection: (VideoPlaybackSelection) -> Unit,
+        onPreviewSourceSelection: (VideoPlaybackSelection) -> Unit,
         onSelectAdaptiveQuality: (VideoAdaptiveQualityPreference) -> Unit,
     ) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -548,9 +553,29 @@ class VideoPlayerActivity : BaseActivity() {
             playback.sourceSelection.copy(sourceQualityKey = playback.preferredSourceQualityKey ?: playback.sourceSelection.sourceQualityKey)
         }
         var draftSelection by remember(originalSelection) { mutableStateOf(originalSelection) }
+        val draftDubMatchesActive = draftSelection.dubKey == playback.sourceSelection.dubKey
+        val previewSelection = playback.preview.selection
+        val previewMatchesDraft = previewSelection?.dubKey == draftSelection.dubKey && !draftDubMatchesActive
+        val sourceQualityOptions = if (draftDubMatchesActive) {
+            playback.playbackData.sourceQualities
+        } else {
+            playback.preview.playbackData?.sourceQualities.orEmpty()
+        }
+        val qualityOptionsLoading = !draftDubMatchesActive &&
+            playback.isPreviewLoading &&
+            previewSelection?.dubKey == draftSelection.dubKey &&
+            sourceQualityOptions.isEmpty()
         val hasPendingSourceChanges = draftSelection != originalSelection
-        val streamOptionsEnabled = draftSelection.dubKey == playback.sourceSelection.dubKey &&
+        val streamOptionsEnabled = draftDubMatchesActive &&
             draftSelection.sourceQualityKey == playback.sourceSelection.sourceQualityKey
+
+        LaunchedEffect(draftSelection.dubKey) {
+            if (draftDubMatchesActive) {
+                onPreviewSourceSelection(playback.sourceSelection)
+            } else {
+                onPreviewSourceSelection(draftSelection)
+            }
+        }
 
         ModalBottomSheet(
             onDismissRequest = onDismissRequest,
@@ -585,14 +610,18 @@ class VideoPlayerActivity : BaseActivity() {
                     }
                 }
 
-                if (playback.playbackData.sourceQualities.isNotEmpty()) {
+                if (qualityOptionsLoading || sourceQualityOptions.isNotEmpty()) {
                     item {
-                        PlaybackOptionRow(
-                            options = playback.playbackData.sourceQualities,
-                            titleRes = MR.strings.anime_playback_source_quality,
-                            selectedKey = draftSelection.sourceQualityKey,
-                            onSelect = { draftSelection = draftSelection.withSelectedSourceQuality(it, originalSelection) },
-                        )
+                        if (qualityOptionsLoading) {
+                            LoadingPlaybackOptionRow(titleRes = MR.strings.anime_playback_source_quality)
+                        } else {
+                            PlaybackOptionRow(
+                                options = sourceQualityOptions,
+                                titleRes = MR.strings.anime_playback_source_quality,
+                                selectedKey = draftSelection.sourceQualityKey,
+                                onSelect = { draftSelection = draftSelection.withSelectedSourceQuality(it, originalSelection) },
+                            )
+                        }
                     }
                 }
 
@@ -652,6 +681,22 @@ class VideoPlayerActivity : BaseActivity() {
                     onClick = { onSelect(option.key) },
                     label = { Text(option.label) },
                 )
+            }
+        }
+    }
+
+    @Composable
+    private fun LoadingPlaybackOptionRow(
+        titleRes: dev.icerock.moko.resources.StringResource,
+    ) {
+        SettingsChipRow(titleRes) {
+            Row(
+                modifier = Modifier.padding(vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                Text(text = "Loading qualities...")
             }
         }
     }
