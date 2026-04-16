@@ -26,6 +26,8 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.core.util.ifSourcesLoaded
 import eu.kanade.domain.manga.model.hasCustomCover
 import eu.kanade.domain.manga.model.toSManga
+import eu.kanade.presentation.browse.components.BrowseMergeEditorDialog
+import eu.kanade.presentation.browse.components.MergeTargetPickerDialog
 import eu.kanade.presentation.category.components.ChangeCategoryDialog
 import eu.kanade.presentation.components.NavigatorAdaptiveSheet
 import eu.kanade.presentation.library.DeleteLibraryMangaDialog
@@ -62,11 +64,13 @@ import kotlinx.coroutines.launch
 import logcat.LogPriority
 import mihon.feature.migration.config.MigrationConfigScreen
 import mihon.feature.migration.dialog.MigrateMangaDialog
+import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.presentationTitle
+import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.screens.LoadingScreen
 
 class MangaScreen(
@@ -136,6 +140,9 @@ class MangaScreen(
                 screenModel.toggleFavorite()
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
             },
+            onAddToMergeClicked = screenModel::showMergeTargetPicker.takeIf {
+                !successState.isPartOfMerge && (successState.isFromSource || successState.manga.favorite)
+            },
             onWebViewClicked = {
                 openMangaInWebView(
                     navigator,
@@ -179,7 +186,10 @@ class MangaScreen(
                 successState.manga.favorite
             },
             onEditDisplayNameClicked = screenModel::showEditDisplayNameDialog.takeIf { successState.manga.favorite },
-            onManageMergeClicked = screenModel::showManageMergeDialog.takeIf { successState.isMerged },
+            onManageMergeClicked = screenModel::showManageMergeDialog.takeIf { successState.isPartOfMerge },
+            onOpenMergedEntryClicked = {
+                navigator.push(MangaScreen(successState.mergeTargetId))
+            }.takeIf { successState.showMergeNotice },
             onMigrateClicked = {
                 navigator.push(MigrationConfigScreen(successState.manga.id))
             }.takeIf { successState.manga.favorite },
@@ -260,19 +270,44 @@ class MangaScreen(
                 )
             }
 
+            is MangaScreenModel.Dialog.EditMerge -> {
+                BrowseMergeEditorDialog(
+                    entries = dialog.entries,
+                    targetId = dialog.targetId,
+                    targetLocked = dialog.targetLocked,
+                    removedIds = dialog.removedIds,
+                    libraryRemovalIds = dialog.libraryRemovalIds,
+                    confirmEnabled = dialog.enabled,
+                    onDismissRequest = onDismissRequest,
+                    onMove = screenModel::moveMergeEntry,
+                    onSelectTarget = screenModel::setMergeTarget,
+                    onToggleRemove = screenModel::toggleMergeEntryRemoval,
+                    onToggleLibraryRemove = screenModel::toggleMergeEntryLibraryRemoval,
+                    onConfirm = screenModel::confirmMerge,
+                )
+            }
+
             is MangaScreenModel.Dialog.ManageMerge -> {
                 ManageMergeDialog(
                     targetId = dialog.targetId,
                     members = dialog.members,
                     removableIds = dialog.removableIds,
+                    libraryRemovalIds = dialog.libraryRemovalIds,
                     onDismissRequest = onDismissRequest,
                     onMove = screenModel::reorderMergeMembers,
                     onSaveOrder = screenModel::saveMergeOrder,
                     onOpenManga = { mangaIdToOpen ->
                         screenModel.dismissDialog()
-                        navigator.push(MangaScreen(mangaIdToOpen, bypassMerge = true))
+                        navigator.push(
+                            MangaScreen(
+                                mangaIdToOpen,
+                                bypassMerge = mangaIdToOpen != dialog.savedTargetId,
+                            ),
+                        )
                     },
+                    onSelectTarget = screenModel::setManageMergeTarget,
                     onToggleRemoveMember = screenModel::toggleMergedMemberRemoval,
+                    onToggleRemoveMemberFromLibrary = screenModel::toggleMergedMemberLibraryRemoval,
                     onRemoveMembers = screenModel::removeMergedMembers,
                     onUnmergeAll = screenModel::unmergeAll,
                 )
@@ -296,6 +331,16 @@ class MangaScreen(
                     // Initiated from the context of [dialog.target] so we show [dialog.current].
                     onClickTitle = { navigator.push(MangaScreen(dialog.current.id)) },
                     onDismissRequest = onDismissRequest,
+                )
+            }
+            is MangaScreenModel.Dialog.SelectMergeTarget -> {
+                MergeTargetPickerDialog(
+                    title = context.stringResource(MR.strings.action_merge_into_library),
+                    query = dialog.query,
+                    visibleTargets = dialog.visibleTargets,
+                    onDismissRequest = onDismissRequest,
+                    onQueryChange = screenModel::updateMergeTargetQuery,
+                    onSelectTarget = screenModel::openMergeEditor,
                 )
             }
             MangaScreenModel.Dialog.SettingsSheet -> ChapterSettingsDialog(

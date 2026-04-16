@@ -32,6 +32,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.CallSplit
 import androidx.compose.material.icons.filled.BrokenImage
 import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.Favorite
@@ -202,6 +203,7 @@ fun MangaActionRow(
     nextUpdate: Instant?,
     isUserIntervalMode: Boolean,
     onAddToLibraryClicked: () -> Unit,
+    onAddToMergeClicked: (() -> Unit)?,
     onWebViewClicked: (() -> Unit)?,
     onWebViewLongClicked: (() -> Unit)?,
     onTrackingClicked: () -> Unit,
@@ -234,6 +236,14 @@ fun MangaActionRow(
             onClick = onAddToLibraryClicked,
             onLongClick = onEditCategory,
         )
+        if (onAddToMergeClicked != null) {
+            MangaActionButton(
+                title = stringResource(MR.strings.action_add_to_merge),
+                icon = Icons.AutoMirrored.Outlined.CallSplit,
+                color = defaultActionButtonColor,
+                onClick = onAddToMergeClicked,
+            )
+        }
         MangaActionButton(
             title = when (nextUpdateDays) {
                 null -> stringResource(MR.strings.not_applicable)
