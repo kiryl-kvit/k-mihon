@@ -348,10 +348,13 @@ data class BrowseSourceScreen(
                     targetId = dialog.targetId,
                     targetLocked = dialog.targetLocked,
                     removedIds = dialog.removedIds,
+                    libraryRemovalIds = dialog.libraryRemovalIds,
                     confirmEnabled = dialog.enabled,
                     onDismissRequest = onDismissRequest,
                     onMove = screenModel::moveMergeEntry,
+                    onSelectTarget = screenModel::setMergeTarget,
                     onToggleRemove = screenModel::toggleMergeEntryRemoval,
+                    onToggleLibraryRemove = screenModel::toggleMergeEntryLibraryRemoval,
                     onConfirm = screenModel::confirmBrowseMerge,
                 )
             }

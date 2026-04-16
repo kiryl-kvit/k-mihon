@@ -276,10 +276,13 @@ class MangaScreen(
                     targetId = dialog.targetId,
                     targetLocked = dialog.targetLocked,
                     removedIds = dialog.removedIds,
+                    libraryRemovalIds = dialog.libraryRemovalIds,
                     confirmEnabled = dialog.enabled,
                     onDismissRequest = onDismissRequest,
                     onMove = screenModel::moveMergeEntry,
+                    onSelectTarget = screenModel::setMergeTarget,
                     onToggleRemove = screenModel::toggleMergeEntryRemoval,
+                    onToggleLibraryRemove = screenModel::toggleMergeEntryLibraryRemoval,
                     onConfirm = screenModel::confirmMerge,
                 )
             }
@@ -298,10 +301,11 @@ class MangaScreen(
                         navigator.push(
                             MangaScreen(
                                 mangaIdToOpen,
-                                bypassMerge = mangaIdToOpen != dialog.targetId,
+                                bypassMerge = mangaIdToOpen != dialog.savedTargetId,
                             ),
                         )
                     },
+                    onSelectTarget = screenModel::setManageMergeTarget,
                     onToggleRemoveMember = screenModel::toggleMergedMemberRemoval,
                     onToggleRemoveMemberFromLibrary = screenModel::toggleMergedMemberLibraryRemoval,
                     onRemoveMembers = screenModel::removeMergedMembers,

@@ -262,14 +262,20 @@ private fun ReorderableCollectionItemScope.MergeEditorItem(
     var expanded by remember { mutableStateOf(false) }
     val isMarkedForMergeRemoval = markedForRemoval
     val isMarkedForLibraryRemoval = markedForLibraryRemoval
+    val canRemoveEntry = entry.isRemovable && !isTarget
+    val hasOverflowActions =
+        (onSelectTarget != null && !targetLocked && !isTarget) ||
+            (canRemoveEntry && onToggleRemove != null) ||
+            (canRemoveEntry && onToggleLibraryRemove != null) ||
+            onOpenManga != null
     val containerColor = when {
-        isMarkedForMergeRemoval -> MaterialTheme.colorScheme.errorContainer
-        isMarkedForLibraryRemoval -> MaterialTheme.colorScheme.secondaryContainer
+        isMarkedForLibraryRemoval -> MaterialTheme.colorScheme.errorContainer
+        isMarkedForMergeRemoval -> MaterialTheme.colorScheme.secondaryContainer
         else -> MaterialTheme.colorScheme.surfaceContainerLow
     }
     val secondaryTextColor = when {
-        isMarkedForMergeRemoval -> MaterialTheme.colorScheme.onErrorContainer
-        isMarkedForLibraryRemoval -> MaterialTheme.colorScheme.onSecondaryContainer
+        isMarkedForLibraryRemoval -> MaterialTheme.colorScheme.onErrorContainer
+        isMarkedForMergeRemoval -> MaterialTheme.colorScheme.onSecondaryContainer
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
@@ -320,24 +326,24 @@ private fun ReorderableCollectionItemScope.MergeEditorItem(
                         Text(
                             text = stringResource(MR.strings.action_remove),
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                        )
-                    }
-                    if (isMarkedForLibraryRemoval) {
-                        Text(
-                            text = stringResource(MR.strings.remove_from_library),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (isMarkedForMergeRemoval) {
+                            color = if (isMarkedForLibraryRemoval) {
                                 MaterialTheme.colorScheme.onErrorContainer
                             } else {
                                 MaterialTheme.colorScheme.onSecondaryContainer
                             },
                         )
                     }
+                    if (isMarkedForLibraryRemoval) {
+                        Text(
+                            text = stringResource(MR.strings.remove_from_library),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                        )
+                    }
                 }
 
                 when {
-                    onToggleRemove != null || onToggleLibraryRemove != null || onOpenManga != null -> {
+                    hasOverflowActions -> {
                         Box {
                             IconButton(onClick = { expanded = true }) {
                                 Icon(
@@ -349,7 +355,18 @@ private fun ReorderableCollectionItemScope.MergeEditorItem(
                                 expanded = expanded,
                                 onDismissRequest = { expanded = false },
                             ) {
-                                if (entry.isRemovable && onToggleRemove != null) {
+                                if (onSelectTarget != null && !targetLocked && !isTarget) {
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(stringResource(MR.strings.action_set_as_root))
+                                        },
+                                        onClick = {
+                                            onSelectTarget(entry.id)
+                                            expanded = false
+                                        },
+                                    )
+                                }
+                                if (canRemoveEntry && onToggleRemove != null) {
                                     DropdownMenuItem(
                                         text = {
                                             Text(
@@ -364,7 +381,7 @@ private fun ReorderableCollectionItemScope.MergeEditorItem(
                                         },
                                     )
                                 }
-                                if (entry.isRemovable && onToggleLibraryRemove != null) {
+                                if (canRemoveEntry && onToggleLibraryRemove != null) {
                                     DropdownMenuItem(
                                         text = {
                                             Text(

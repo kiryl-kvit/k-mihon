@@ -106,10 +106,13 @@ fun BrowseMergeEditorDialog(
     targetId: Long,
     targetLocked: Boolean,
     removedIds: Set<Long>,
+    libraryRemovalIds: Set<Long>,
     confirmEnabled: Boolean,
     onDismissRequest: () -> Unit,
     onMove: (Int, Int) -> Unit,
+    onSelectTarget: ((Long) -> Unit)? = null,
     onToggleRemove: (Long) -> Unit,
+    onToggleLibraryRemove: ((Long) -> Unit)? = null,
     onConfirm: () -> Unit,
 ) {
     MergeEditorDialog(
@@ -121,7 +124,10 @@ fun BrowseMergeEditorDialog(
         onMove = onMove,
         onConfirm = onConfirm,
         removableIds = removedIds,
+        libraryRemovalIds = libraryRemovalIds,
+        onSelectTarget = onSelectTarget,
         onToggleRemove = onToggleRemove,
+        onToggleLibraryRemove = onToggleLibraryRemove,
         confirmEnabled = confirmEnabled,
     )
 }

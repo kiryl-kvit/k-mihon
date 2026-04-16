@@ -213,6 +213,7 @@ fun ManageMergeDialog(
     onMove: (Int, Int) -> Unit,
     onSaveOrder: () -> Unit,
     onOpenManga: (Long) -> Unit,
+    onSelectTarget: (Long) -> Unit,
     onToggleRemoveMember: (Long) -> Unit,
     onToggleRemoveMemberFromLibrary: (Long) -> Unit,
     onRemoveMembers: (List<Long>) -> Unit,
@@ -222,26 +223,19 @@ fun ManageMergeDialog(
         title = stringResource(MR.strings.action_manage_merge),
         entries = members.map(MangaScreenModel.MergeMember::toMergeEditorEntry).toPersistentList(),
         targetId = targetId,
-        targetLocked = true,
+        targetLocked = false,
         onDismissRequest = onDismissRequest,
         onMove = onMove,
         onConfirm = onSaveOrder,
         removableIds = removableIds.toSet(),
         libraryRemovalIds = libraryRemovalIds.toSet(),
+        onSelectTarget = onSelectTarget,
         onToggleRemove = onToggleRemoveMember,
         onToggleLibraryRemove = onToggleRemoveMemberFromLibrary,
         onOpenManga = onOpenManga,
         confirmContent = {
-            Row(horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small)) {
-                TextButton(onClick = onSaveOrder) {
-                    Text(text = stringResource(MR.strings.action_save))
-                }
-                TextButton(
-                    enabled = removableIds.isNotEmpty(),
-                    onClick = { onRemoveMembers(removableIds) },
-                ) {
-                    Text(text = stringResource(MR.strings.action_remove))
-                }
+            TextButton(onClick = onSaveOrder) {
+                Text(text = stringResource(MR.strings.action_save))
             }
         },
         dismissContent = {

@@ -1498,13 +1498,15 @@ class MangaScreenModel(
             val targetLocked: Boolean,
             val entries: ImmutableList<MergeEditorEntry>,
             val removedIds: Set<Long>,
+            val libraryRemovalIds: Set<Long>,
             val categoryIds: List<Long>,
         ) : Dialog {
             val enabled: Boolean
-                get() = entries.count { it.id !in removedIds } > 1
+                get() = entries.count { it.id !in (removedIds + libraryRemovalIds) } > 1
         }
         data class ManageMerge(
             val targetId: Long,
+            val savedTargetId: Long,
             val members: ImmutableList<MergeMember>,
             val removableIds: ImmutableList<Long> = persistentListOf(),
             val libraryRemovalIds: ImmutableList<Long> = persistentListOf(),
@@ -1604,15 +1606,41 @@ class MangaScreenModel(
         }
     }
 
+    fun setMergeTarget(mangaId: Long) {
+        updateSuccessState { state ->
+            val dialog = state.dialog as? Dialog.EditMerge ?: return@updateSuccessState state
+            if (dialog.targetLocked || dialog.entries.none { it.id == mangaId }) return@updateSuccessState state
+            state.copy(
+                dialog = dialog.copy(
+                    targetId = mangaId,
+                    removedIds = dialog.removedIds - mangaId,
+                    libraryRemovalIds = dialog.libraryRemovalIds - mangaId,
+                ),
+            )
+        }
+    }
+
     fun toggleMergeEntryRemoval(mangaId: Long) {
         updateSuccessState { state ->
             val dialog = state.dialog as? Dialog.EditMerge ?: return@updateSuccessState state
             val entry = dialog.entries.firstOrNull { it.id == mangaId } ?: return@updateSuccessState state
-            if (!entry.isRemovable) return@updateSuccessState state
+            if (!entry.isRemovable || mangaId == dialog.targetId) return@updateSuccessState state
             val removedIds = dialog.removedIds.toMutableSet().apply {
                 if (!add(mangaId)) remove(mangaId)
             }
             state.copy(dialog = dialog.copy(removedIds = removedIds))
+        }
+    }
+
+    fun toggleMergeEntryLibraryRemoval(mangaId: Long) {
+        updateSuccessState { state ->
+            val dialog = state.dialog as? Dialog.EditMerge ?: return@updateSuccessState state
+            val entry = dialog.entries.firstOrNull { it.id == mangaId } ?: return@updateSuccessState state
+            if (!entry.isRemovable || mangaId == dialog.targetId) return@updateSuccessState state
+            val libraryRemovalIds = dialog.libraryRemovalIds.toMutableSet().apply {
+                if (!add(mangaId)) remove(mangaId)
+            }
+            state.copy(dialog = dialog.copy(libraryRemovalIds = libraryRemovalIds))
         }
     }
 
@@ -1624,13 +1652,14 @@ class MangaScreenModel(
             ensureFavorite(remoteManga, targetManga, dialog.categoryIds)
 
             val orderedIds = dialog.entries
-                .filterNot { it.id in dialog.removedIds }
+                .filterNot { it.id in (dialog.removedIds + dialog.libraryRemovalIds) }
                 .map(MergeEditorEntry::id)
                 .distinct()
 
             if (orderedIds.size > 1) {
                 updateMergedManga.awaitMerge(dialog.targetId, orderedIds)
             }
+            removeMembersFromLibrary(dialog.libraryRemovalIds)
             dismissDialog()
         }
     }
@@ -1687,7 +1716,7 @@ class MangaScreenModel(
             }
                 .toImmutableList()
             updateSuccessState {
-                it.copy(dialog = Dialog.ManageMerge(targetId = state.mergeTargetId, members = members))
+                it.copy(dialog = Dialog.ManageMerge(targetId = state.mergeTargetId, savedTargetId = state.mergeTargetId, members = members))
             }
         }
     }
@@ -1737,6 +1766,23 @@ class MangaScreenModel(
                     members = reordered.toImmutableList(),
                     removableIds = reorderedRemovalIds,
                     libraryRemovalIds = reorderedLibraryRemovalIds,
+                ),
+            )
+        }
+    }
+
+    fun setManageMergeTarget(mangaId: Long) {
+        updateSuccessState { state ->
+            val dialog = state.dialog as? Dialog.ManageMerge ?: return@updateSuccessState state
+            if (dialog.members.none { it.id == mangaId }) return@updateSuccessState state
+
+            val updatedRemovals = dialog.removableIds.filterNot { it == mangaId }.toImmutableList()
+            val updatedLibraryRemovals = dialog.libraryRemovalIds.filterNot { it == mangaId }.toImmutableList()
+            state.copy(
+                dialog = dialog.copy(
+                    targetId = mangaId,
+                    removableIds = updatedRemovals,
+                    libraryRemovalIds = updatedLibraryRemovals,
                 ),
             )
         }
@@ -1945,7 +1991,7 @@ class MangaScreenModel(
                         id = member.id,
                         manga = member,
                         subtitle = getMergeSubtitle(member),
-                        isRemovable = member.id != target.id,
+                        isRemovable = true,
                         isMember = true,
                     ),
                 )
@@ -1965,9 +2011,10 @@ class MangaScreenModel(
         return Dialog.EditMerge(
             manga = localManga,
             targetId = target.id,
-            targetLocked = true,
+            targetLocked = false,
             entries = entries,
             removedIds = emptySet(),
+            libraryRemovalIds = emptySet(),
             categoryIds = target.categoryIds,
         )
     }

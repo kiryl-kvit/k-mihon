@@ -35,6 +35,7 @@ import eu.kanade.presentation.manga.components.MergeTarget
 import eu.kanade.presentation.manga.components.buildMergeTargets
 import eu.kanade.presentation.util.ioCoroutineScope
 import eu.kanade.tachiyomi.data.cache.CoverCache
+import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.util.removeCovers
@@ -96,6 +97,7 @@ class BrowseSourceScreenModel(
     private val networkToLocalManga: NetworkToLocalManga = Injekt.get(),
     private val updateMergedManga: UpdateMergedManga = Injekt.get(),
     private val updateManga: UpdateManga = Injekt.get(),
+    private val downloadManager: DownloadManager = Injekt.get(),
     private val addTracks: AddTracks = Injekt.get(),
     private val getIncognitoState: GetIncognitoState = Injekt.get(),
 ) : StateScreenModel<BrowseSourceScreenModel.State>(State(Listing.valueOf(listingQuery))) {
@@ -401,14 +403,36 @@ class BrowseSourceScreenModel(
         }
     }
 
+    fun setMergeTarget(mangaId: Long) {
+        updateBrowseMergeDialog { dialog ->
+            if (dialog.targetLocked || dialog.entries.none { it.id == mangaId }) return@updateBrowseMergeDialog dialog
+            dialog.copy(
+                targetId = mangaId,
+                removedIds = dialog.removedIds - mangaId,
+                libraryRemovalIds = dialog.libraryRemovalIds - mangaId,
+            )
+        }
+    }
+
     fun toggleMergeEntryRemoval(mangaId: Long) {
         updateBrowseMergeDialog { dialog ->
             val entry = dialog.entries.firstOrNull { it.id == mangaId } ?: return@updateBrowseMergeDialog dialog
-            if (!entry.isRemovable) return@updateBrowseMergeDialog dialog
+            if (!entry.isRemovable || mangaId == dialog.targetId) return@updateBrowseMergeDialog dialog
             val removedIds = dialog.removedIds.toMutableSet().apply {
                 if (!add(mangaId)) remove(mangaId)
             }
             dialog.copy(removedIds = removedIds)
+        }
+    }
+
+    fun toggleMergeEntryLibraryRemoval(mangaId: Long) {
+        updateBrowseMergeDialog { dialog ->
+            val entry = dialog.entries.firstOrNull { it.id == mangaId } ?: return@updateBrowseMergeDialog dialog
+            if (!entry.isRemovable || mangaId == dialog.targetId) return@updateBrowseMergeDialog dialog
+            val libraryRemovalIds = dialog.libraryRemovalIds.toMutableSet().apply {
+                if (!add(mangaId)) remove(mangaId)
+            }
+            dialog.copy(libraryRemovalIds = libraryRemovalIds)
         }
     }
 
@@ -420,13 +444,14 @@ class BrowseSourceScreenModel(
             setMangaCategories.await(remoteManga.id, dialog.categoryIds)
 
             val orderedIds = dialog.entries
-                .filterNot { it.id in dialog.removedIds }
+                .filterNot { it.id in (dialog.removedIds + dialog.libraryRemovalIds) }
                 .map(MergeEditorEntry::id)
                 .distinct()
 
             if (orderedIds.size > 1) {
                 updateMergedManga.awaitMerge(dialog.targetId, orderedIds)
             }
+            removeMergedMembersFromLibrary(dialog.libraryRemovalIds)
             dismissDialog()
         }
     }
@@ -689,7 +714,7 @@ class BrowseSourceScreenModel(
                         id = member.id,
                         manga = member,
                         subtitle = getSourceSubtitle(member),
-                        isRemovable = member.id != target.id,
+                        isRemovable = true,
                         isMember = true,
                     ),
                 )
@@ -709,11 +734,23 @@ class BrowseSourceScreenModel(
         return Dialog.EditMerge(
             manga = remoteManga,
             targetId = target.id,
-            targetLocked = true,
+            targetLocked = false,
             entries = entries,
             removedIds = emptySet(),
+            libraryRemovalIds = emptySet(),
             categoryIds = target.categoryIds,
         )
+    }
+
+    private suspend fun removeMergedMembersFromLibrary(mangaIds: Collection<Long>) {
+        mangaIds.distinct().forEach { mangaId ->
+            val manga = getManga.await(mangaId) ?: return@forEach
+            if (updateManga.awaitUpdateFavorite(manga.id, false) && manga.removeCovers() != manga) {
+                updateManga.awaitUpdateCoverLastModified(manga.id)
+            }
+            val source = sourceManager.get(manga.source) ?: return@forEach
+            downloadManager.deleteManga(manga, source)
+        }
     }
 
     private suspend fun ensureFavorite(manga: Manga) {
@@ -794,10 +831,11 @@ class BrowseSourceScreenModel(
             val targetLocked: Boolean,
             val entries: ImmutableList<MergeEditorEntry>,
             val removedIds: Set<Long>,
+            val libraryRemovalIds: Set<Long>,
             val categoryIds: List<Long>,
         ) : Dialog {
             val enabled: Boolean
-                get() = entries.count { it.id !in removedIds } > 1
+                get() = entries.count { it.id !in (removedIds + libraryRemovalIds) } > 1
         }
         data class ChangeMangaCategory(
             val manga: Manga,

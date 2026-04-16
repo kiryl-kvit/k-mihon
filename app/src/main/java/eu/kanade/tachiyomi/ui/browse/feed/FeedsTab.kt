@@ -444,10 +444,13 @@ private fun FeedsTabContent(
                             targetId = dialog.targetId,
                             targetLocked = dialog.targetLocked,
                             removedIds = dialog.removedIds,
+                            libraryRemovalIds = dialog.libraryRemovalIds,
                             confirmEnabled = dialog.enabled,
                             onDismissRequest = browseModel::dismissDialog,
                             onMove = browseModel::moveMergeEntry,
+                            onSelectTarget = browseModel::setMergeTarget,
                             onToggleRemove = browseModel::toggleMergeEntryRemoval,
+                            onToggleLibraryRemove = browseModel::toggleMergeEntryLibraryRemoval,
                             onConfirm = browseModel::confirmBrowseMerge,
                         )
                     }

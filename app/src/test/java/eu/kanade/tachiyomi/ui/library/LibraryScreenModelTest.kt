@@ -87,10 +87,26 @@ class LibraryScreenModelTest {
 
         val dialog = buildMergeDialog(listOf(existingMerge, newSelection))
 
-        dialog?.targetLocked shouldBe true
+        dialog?.targetLocked shouldBe false
         dialog?.targetId shouldBe 1L
         dialog?.entries?.map { it.id } shouldBe listOf(1L, 2L, 3L, 4L)
         dialog?.entries?.map { it.isFromExistingMerge } shouldBe listOf(true, true, true, false)
+    }
+
+    @Test
+    fun `buildMergeDialog keeps existing merge root but allows changing it`() {
+        val existingMerge = libraryManga(
+            id = 10L,
+            title = "Current Root",
+            memberMangas = listOf(
+                manga(id = 10L, title = "Current Root"),
+                manga(id = 11L, title = "Candidate Root"),
+            ),
+        )
+        val dialog = buildMergeDialog(listOf(existingMerge, libraryManga(id = 12L, title = "New")))
+
+        dialog?.targetId shouldBe 10L
+        dialog?.targetLocked shouldBe false
     }
 
     @Test

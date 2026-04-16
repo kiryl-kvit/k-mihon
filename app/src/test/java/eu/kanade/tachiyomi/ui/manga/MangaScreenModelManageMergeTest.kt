@@ -33,9 +33,43 @@ class MangaScreenModelManageMergeTest {
         resolveManageMergeTargetId(targetId = 1L, remainingIds = emptyList()) shouldBe null
     }
 
+    @Test
+    fun `dialogRemainingIds respects changed root while removing staged members`() {
+        val dialog = manageMergeDialog(
+            targetId = 2L,
+            memberIds = listOf(1L, 2L, 3L),
+        )
+
+        dialogRemainingIds(dialog, mangaIdsToRemove = listOf(3L)) shouldBe listOf(1L, 2L)
+        resolveManageMergeTargetId(targetId = dialog.targetId, remainingIds = listOf(1L, 2L)) shouldBe 2L
+    }
+
+    @Test
+    fun `changing root allows previous root to be removed`() {
+        val dialog = manageMergeDialog(
+            targetId = 2L,
+            memberIds = listOf(1L, 2L, 3L),
+        )
+
+        dialogRemainingIds(dialog, mangaIdsToRemove = listOf(1L)) shouldBe listOf(2L, 3L)
+        resolveManageMergeTargetId(targetId = dialog.targetId, remainingIds = listOf(2L, 3L)) shouldBe 2L
+    }
+
+    @Test
+    fun `changed root remains in merge when removing previous root and library members`() {
+        val dialog = manageMergeDialog(
+            targetId = 2L,
+            memberIds = listOf(1L, 2L, 3L, 4L),
+        )
+
+        dialogRemainingIds(dialog, mangaIdsToRemove = listOf(1L, 4L)) shouldBe listOf(2L, 3L)
+        resolveManageMergeTargetId(targetId = dialog.targetId, remainingIds = listOf(2L, 3L)) shouldBe 2L
+    }
+
     private fun manageMergeDialog(targetId: Long, memberIds: List<Long>): MangaScreenModel.Dialog.ManageMerge {
         return MangaScreenModel.Dialog.ManageMerge(
             targetId = targetId,
+            savedTargetId = targetId,
             members = memberIds.map { memberId ->
                 MangaScreenModel.MergeMember(
                     id = memberId,

@@ -1191,7 +1191,7 @@ internal fun buildMergeDialog(selection: List<LibraryManga>): LibraryScreenModel
     return LibraryScreenModel.Dialog.MergeManga(
         entries = entries,
         targetId = existingMerge?.manga?.id ?: entries.first().id,
-        targetLocked = existingMerge != null,
+        targetLocked = false,
     )
 }
 
