@@ -7,6 +7,7 @@ import eu.kanade.domain.anime.model.episodesFiltered
 import eu.kanade.core.util.addOrRemove
 import eu.kanade.presentation.anime.AnimeMergeTarget
 import eu.kanade.presentation.anime.buildAnimeMergeTargets
+import eu.kanade.presentation.anime.matchesQuery
 import eu.kanade.presentation.anime.toMergeEditorEntry
 import eu.kanade.presentation.manga.components.MergeEditorEntry
 import eu.kanade.tachiyomi.source.AnimeScheduleSource
@@ -527,13 +528,16 @@ class AnimeScreenModel(
         screenModelScope.launchIO {
             val targets = getMergeTargets(currentState.mergeGroupMemberIds.toSet())
             if (targets.isEmpty()) return@launchIO
+            val query = currentState.anime.displayTitle
+            val visibleTargets = targets.filter { it.matchesQuery(query) }.toImmutableList()
 
             updateSuccessState {
                 it.copy(
                     dialog = Dialog.SelectMergeTarget(
                         anime = currentState.anime,
+                        query = query,
                         targets = targets,
-                        visibleTargets = targets,
+                        visibleTargets = visibleTargets,
                     ),
                 )
             }
@@ -543,15 +547,7 @@ class AnimeScreenModel(
     fun updateMergeTargetQuery(query: String) {
         updateSuccessState { state ->
             val dialog = state.dialog as? Dialog.SelectMergeTarget ?: return@updateSuccessState state
-            val trimmed = query.trim()
-            val visibleTargets = if (trimmed.isBlank()) {
-                dialog.targets
-            } else {
-                dialog.targets.filter { target ->
-                    target.entry.title.contains(trimmed, ignoreCase = true) ||
-                        target.searchableTitle.contains(trimmed, ignoreCase = true)
-                }.toImmutableList()
-            }
+            val visibleTargets = dialog.targets.filter { it.matchesQuery(query) }.toImmutableList()
             state.copy(dialog = dialog.copy(query = query, visibleTargets = visibleTargets))
         }
     }

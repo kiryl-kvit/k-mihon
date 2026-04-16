@@ -24,7 +24,10 @@ import tachiyomi.core.common.preference.TriState
 import tachiyomi.domain.anime.interactor.SetAnimeDefaultEpisodeFlags
 import tachiyomi.domain.anime.interactor.SetAnimeEpisodeFlags
 import tachiyomi.domain.anime.interactor.SyncAnimeWithSource
+import tachiyomi.domain.anime.interactor.GetAnimeWithEpisodes
 import tachiyomi.domain.anime.interactor.GetMergedAnime
+import tachiyomi.domain.anime.interactor.GetDuplicateLibraryAnime
+import tachiyomi.domain.anime.interactor.NetworkToLocalAnime
 import tachiyomi.domain.anime.interactor.UpdateMergedAnime
 import tachiyomi.domain.anime.model.AnimeEpisode
 import tachiyomi.domain.anime.model.AnimeEpisodeUpdate
@@ -42,6 +45,7 @@ import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.interactor.SetAnimeCategories
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.category.repository.CategoryRepository
+import tachiyomi.domain.manga.service.DuplicatePreferences
 import tachiyomi.domain.source.service.AnimeSourceManager
 import eu.kanade.tachiyomi.source.AnimeScheduleSource
 import eu.kanade.tachiyomi.source.model.SAnime
@@ -462,6 +466,52 @@ class AnimeScreenModelTest {
         }
     }
 
+    @Test
+    fun `show merge target picker seeds query from visible title and prefilters targets`() = runTest(dispatcher) {
+        val anime = AnimeTitle.create().copy(
+            id = 1L,
+            source = 99L,
+            title = "Source Title",
+            displayName = "Custom Title",
+            favorite = true,
+            initialized = true,
+            url = "/anime/1",
+        )
+        val matchingTarget = AnimeTitle.create().copy(
+            id = 2L,
+            source = 99L,
+            title = "Custom Title Season 2",
+            favorite = true,
+            initialized = true,
+            url = "/anime/2",
+        )
+        val otherTarget = AnimeTitle.create().copy(
+            id = 3L,
+            source = 99L,
+            title = "Different Show",
+            favorite = true,
+            initialized = true,
+            url = "/anime/3",
+        )
+
+        val model = createModel(
+            anime = anime,
+            episodes = emptyList(),
+            animeRepository = FakeAnimeRepository(listOf(anime, matchingTarget, otherTarget)),
+        )
+
+        advanceUntilIdle()
+        awaitSuccess(model)
+        model.showMergeTargetPicker()
+
+        eventually(2.seconds) {
+            val state = model.state.value as AnimeScreenModel.State.Success
+            val dialog = state.dialog as AnimeScreenModel.Dialog.SelectMergeTarget
+            dialog.query shouldBe "Custom Title"
+            dialog.visibleTargets.map { it.id } shouldContainExactly listOf(2L)
+        }
+    }
+
     private fun createModel(
         anime: AnimeTitle,
         episodes: List<AnimeEpisode>,
@@ -473,6 +523,13 @@ class AnimeScreenModelTest {
         mergedRepository: MergedAnimeRepository = FakeMergedAnimeRepository(emptyList()),
     ): AnimeScreenModel {
         val setAnimeEpisodeFlags = SetAnimeEpisodeFlags(animeRepository)
+        val getAnimeWithEpisodes = GetAnimeWithEpisodes(animeRepository, episodeRepository, mergedRepository)
+        val getDuplicateLibraryAnime = GetDuplicateLibraryAnime(
+            animeRepository = animeRepository,
+            animeEpisodeRepository = episodeRepository,
+            mergedAnimeRepository = mergedRepository,
+            duplicatePreferences = DuplicatePreferences(InMemoryPreferenceStore()),
+        )
         return AnimeScreenModel(
             context = mockk<Application>(relaxed = true),
             animeId = anime.id,
@@ -483,7 +540,10 @@ class AnimeScreenModelTest {
             getCategories = GetCategories(FakeCategoryRepository()),
             getAnimeCategories = fakeGetAnimeCategories(),
             setAnimeCategories = fakeSetAnimeCategories(),
+            getAnimeWithEpisodes = getAnimeWithEpisodes,
+            getDuplicateLibraryAnime = getDuplicateLibraryAnime,
             getMergedAnime = GetMergedAnime(mergedRepository),
+            networkToLocalAnime = NetworkToLocalAnime(animeRepository),
             updateMergedAnime = UpdateMergedAnime(mergedRepository),
             setAnimeEpisodeFlags = setAnimeEpisodeFlags,
             setAnimeDefaultEpisodeFlags = SetAnimeDefaultEpisodeFlags(libraryPreferences, setAnimeEpisodeFlags),

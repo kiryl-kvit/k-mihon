@@ -21,6 +21,14 @@ data class AnimeMergeTarget(
     val entry: MergeEditorEntry,
 )
 
+fun AnimeMergeTarget.matchesQuery(query: String): Boolean {
+    val trimmed = query.trim()
+    if (trimmed.isBlank()) return true
+
+    return entry.title.contains(trimmed, ignoreCase = true) ||
+        searchableTitle.contains(trimmed, ignoreCase = true)
+}
+
 fun buildAnimeMergeTargets(
     libraryAnime: List<AnimeTitle>,
     merges: List<AnimeMerge>,

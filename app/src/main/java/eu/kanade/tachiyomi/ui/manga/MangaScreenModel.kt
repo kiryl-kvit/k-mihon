@@ -35,6 +35,7 @@ import eu.kanade.presentation.util.formattedMessage
 import eu.kanade.presentation.manga.components.MergeEditorEntry
 import eu.kanade.presentation.manga.components.MergeTarget
 import eu.kanade.presentation.manga.components.buildMergeTargets
+import eu.kanade.presentation.manga.components.matchesQuery
 import eu.kanade.tachiyomi.data.download.DownloadCache
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.download.DownloadProvider
@@ -1557,12 +1558,15 @@ class MangaScreenModel(
                 excludedMangaIds = excludedIds,
             )
             if (targets.isEmpty()) return@launchIO
+            val query = state.manga.presentationTitle()
+            val visibleTargets = targets.filter { it.matchesQuery(query) }.toImmutableList()
             updateSuccessState {
                 it.copy(
                     dialog = Dialog.SelectMergeTarget(
                         manga = state.manga,
+                        query = query,
                         targets = targets,
-                        visibleTargets = targets,
+                        visibleTargets = visibleTargets,
                     ),
                 )
             }
@@ -1572,15 +1576,7 @@ class MangaScreenModel(
     fun updateMergeTargetQuery(query: String) {
         updateSuccessState { state ->
             val dialog = state.dialog as? Dialog.SelectMergeTarget ?: return@updateSuccessState state
-            val trimmed = query.trim()
-            val visibleTargets = if (trimmed.isBlank()) {
-                dialog.targets
-            } else {
-                dialog.targets.filter { target ->
-                    target.entry.title.contains(trimmed, ignoreCase = true) ||
-                        target.searchableTitle.contains(trimmed, ignoreCase = true)
-                }.toImmutableList()
-            }
+            val visibleTargets = dialog.targets.filter { it.matchesQuery(query) }.toImmutableList()
             state.copy(dialog = dialog.copy(query = query, visibleTargets = visibleTargets))
         }
     }

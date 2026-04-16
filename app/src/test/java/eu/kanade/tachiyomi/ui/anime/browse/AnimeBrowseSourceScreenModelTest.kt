@@ -258,7 +258,31 @@ class AnimeBrowseSourceScreenModelTest {
 
         eventually(2.seconds) {
             val dialog = model.state.value.dialog as AnimeBrowseSourceScreenModel.Dialog.SelectMergeTarget
-            dialog.visibleTargets.map { it.id } shouldContainExactly listOf(30L)
+            dialog.targets.map { it.id } shouldContainExactly listOf(30L)
+        }
+    }
+
+    @Test
+    fun `show merge target picker seeds query from browse anime title and prefilters targets`() = runTest(dispatcher) {
+        val current = anime(id = 10L, favorite = false, title = "Current Search")
+        val matching = anime(id = 20L, favorite = true, title = "Current Search Results")
+        val other = anime(id = 30L, favorite = true, title = "Other Target")
+        val animeRepository = FakeAnimeRepository(
+            anime = listOf(current, matching, other),
+            favorites = listOf(matching, other),
+        )
+
+        val model = createModel(
+            anime = current,
+            animeRepository = animeRepository,
+        )
+
+        model.showMergeTargetPicker(current)
+
+        eventually(2.seconds) {
+            val dialog = model.state.value.dialog as AnimeBrowseSourceScreenModel.Dialog.SelectMergeTarget
+            dialog.query shouldBe "Current Search"
+            dialog.visibleTargets.map { it.id } shouldContainExactly listOf(20L)
         }
     }
 

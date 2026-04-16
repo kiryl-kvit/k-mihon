@@ -17,6 +17,7 @@ import cafe.adriel.voyager.core.model.screenModelScope
 import eu.kanade.core.preference.asState
 import eu.kanade.presentation.anime.AnimeMergeTarget
 import eu.kanade.presentation.anime.buildAnimeMergeTargets
+import eu.kanade.presentation.anime.matchesQuery
 import eu.kanade.presentation.anime.toMergeEditorEntry
 import eu.kanade.presentation.manga.components.MergeEditorEntry
 import eu.kanade.domain.source.interactor.GetIncognitoState
@@ -229,11 +230,14 @@ class AnimeBrowseSourceScreenModel(
         screenModelScope.launchIO {
             val targets = getMergeTargets(excludedAnimeIds = getMergeMemberIds(anime.id).toSet())
             if (targets.isEmpty()) return@launchIO
+            val query = anime.displayTitle
+            val visibleTargets = targets.filter { it.matchesQuery(query) }.toImmutableList()
             setDialog(
                 Dialog.SelectMergeTarget(
                     anime = anime,
+                    query = query,
                     targets = targets,
-                    visibleTargets = targets,
+                    visibleTargets = visibleTargets,
                 ),
             )
         }
@@ -241,15 +245,7 @@ class AnimeBrowseSourceScreenModel(
 
     fun updateMergeTargetQuery(query: String) {
         val dialog = state.value.dialog as? Dialog.SelectMergeTarget ?: return
-        val trimmed = query.trim()
-        val visibleTargets = if (trimmed.isBlank()) {
-            dialog.targets
-        } else {
-            dialog.targets.filter { target ->
-                target.entry.title.contains(trimmed, ignoreCase = true) ||
-                    target.searchableTitle.contains(trimmed, ignoreCase = true)
-            }.toImmutableList()
-        }
+        val visibleTargets = dialog.targets.filter { it.matchesQuery(query) }.toImmutableList()
         setDialog(dialog.copy(query = query, visibleTargets = visibleTargets))
     }
 

@@ -33,6 +33,7 @@ import eu.kanade.presentation.manga.components.MangaPreviewSizeUi
 import eu.kanade.presentation.manga.components.MergeEditorEntry
 import eu.kanade.presentation.manga.components.MergeTarget
 import eu.kanade.presentation.manga.components.buildMergeTargets
+import eu.kanade.presentation.manga.components.matchesQuery
 import eu.kanade.presentation.util.ioCoroutineScope
 import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.data.download.DownloadManager
@@ -361,11 +362,14 @@ class BrowseSourceScreenModel(
         screenModelScope.launchIO {
             val targets = buildMergeTargets(getLibraryManga.await(), sourceManager)
             if (targets.isEmpty()) return@launchIO
+            val query = manga.presentationTitle()
+            val visibleTargets = targets.filter { it.matchesQuery(query) }.toImmutableList()
             setDialog(
                 Dialog.SelectMergeTarget(
                     manga = manga,
+                    query = query,
                     targets = targets,
-                    visibleTargets = targets,
+                    visibleTargets = visibleTargets,
                 ),
             )
         }
@@ -373,15 +377,7 @@ class BrowseSourceScreenModel(
 
     fun updateMergeTargetQuery(query: String) {
         val dialog = state.value.dialog as? Dialog.SelectMergeTarget ?: return
-        val trimmed = query.trim()
-        val visibleTargets = if (trimmed.isBlank()) {
-            dialog.targets
-        } else {
-            dialog.targets.filter { target ->
-                target.entry.title.contains(trimmed, ignoreCase = true) ||
-                    target.searchableTitle.contains(trimmed, ignoreCase = true)
-            }.toImmutableList()
-        }
+        val visibleTargets = dialog.targets.filter { it.matchesQuery(query) }.toImmutableList()
         setDialog(dialog.copy(query = query, visibleTargets = visibleTargets))
     }
 
