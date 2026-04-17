@@ -240,8 +240,11 @@ class VideoPlayerViewModel @JvmOverloads constructor(
 
     fun persistPlayback(positionMs: Long, durationMs: Long) {
         val current = mutableState.value as? State.Ready ?: return
+        val safePositionMs = positionMs.coerceAtLeast(0L)
+        val safeDurationMs = durationMs.coerceAtLeast(0L)
+        mutableState.value = current.copy(resumePositionMs = safePositionMs)
         val session = playbackSession ?: VideoPlaybackSession(current.episodeId).also { playbackSession = it }
-        val snapshot = session.snapshot(positionMs = positionMs, durationMs = durationMs)
+        val snapshot = session.snapshot(positionMs = safePositionMs, durationMs = safeDurationMs)
 
         viewModelScope.launch(persistenceDispatcher) {
             withContext(NonCancellable) {

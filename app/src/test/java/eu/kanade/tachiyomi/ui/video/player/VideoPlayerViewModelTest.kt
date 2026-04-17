@@ -124,6 +124,30 @@ class VideoPlayerViewModelTest {
     }
 
     @Test
+    fun `persist playback updates resume position in ready state`() = runTest(dispatcher) {
+        val playbackRepository = FakeAnimePlaybackStateRepository(existingState = null)
+        val historyRepository = FakeAnimeHistoryRepository()
+        val viewModel = VideoPlayerViewModel(
+            savedState = SavedStateHandle(),
+            resolveVideoStream = fakeResolver(animeId = 1L, episodeId = 2L),
+            animePlaybackPreferencesRepository = FakeAnimePlaybackPreferencesRepository(),
+            animeEpisodeRepository = FakeAnimeEpisodeRepository(episodes = emptyList()),
+            videoPlaybackStateRepository = playbackRepository,
+            videoHistoryRepository = historyRepository,
+            resolveDispatcher = dispatcher,
+            persistenceDispatcher = dispatcher,
+        )
+
+        viewModel.init(animeId = 1L, episodeId = 2L)
+        advanceUntilIdle()
+
+        viewModel.persistPlayback(positionMs = 45_000L, durationMs = 100_000L)
+
+        val state = viewModel.state.value as VideoPlayerViewModel.State.Ready
+        state.resumePositionMs shouldBe 45_000L
+    }
+
+    @Test
     fun `reset playback baseline prevents duplicate history after seek`() = runTest(dispatcher) {
         val playbackRepository = FakeAnimePlaybackStateRepository(existingState = null)
         val historyRepository = FakeAnimeHistoryRepository()
@@ -331,6 +355,48 @@ class VideoPlayerViewModelTest {
     }
 
     @Test
+    fun `apply source selection uses latest persisted position`() = runTest(dispatcher) {
+        val playbackRepository = FakeAnimePlaybackStateRepository(
+            existingState = AnimePlaybackState(
+                episodeId = 2L,
+                positionMs = 12_345L,
+                durationMs = 60_000L,
+                completed = false,
+                lastWatchedAt = 500L,
+            ),
+        )
+        val historyRepository = FakeAnimeHistoryRepository()
+        val preferencesRepository = RecordingAnimePlaybackPreferencesRepository()
+        val resolver = RecordingVideoStreamResolver()
+        val viewModel = VideoPlayerViewModel(
+            savedState = SavedStateHandle(),
+            resolveVideoStream = resolver,
+            animePlaybackPreferencesRepository = preferencesRepository,
+            animeEpisodeRepository = FakeAnimeEpisodeRepository(episodes = emptyList()),
+            videoPlaybackStateRepository = playbackRepository,
+            videoHistoryRepository = historyRepository,
+            resolveDispatcher = dispatcher,
+            persistenceDispatcher = dispatcher,
+        )
+
+        viewModel.init(animeId = 1L, episodeId = 2L)
+        advanceUntilIdle()
+        viewModel.persistPlayback(positionMs = 45_000L, durationMs = 60_000L)
+        advanceUntilIdle()
+
+        viewModel.applySourceSelection(
+            VideoPlaybackSelection(
+                dubKey = "dub-2",
+                sourceQualityKey = "1080p",
+            ),
+        )
+        advanceUntilIdle()
+
+        val state = viewModel.state.value as VideoPlayerViewModel.State.Ready
+        state.resumePositionMs shouldBe 45_000L
+    }
+
+    @Test
     fun `preview source selection updates preview qualities without changing active playback`() = runTest(dispatcher) {
         val playbackRepository = FakeAnimePlaybackStateRepository(existingState = null)
         val historyRepository = FakeAnimeHistoryRepository()
@@ -486,6 +552,45 @@ class VideoPlayerViewModelTest {
         val state = viewModel.state.value as VideoPlayerViewModel.State.Ready
         state.playback.sourceSelection.dubKey shouldBe "dub-2"
         state.playback.preview.playbackData shouldBe null
+    }
+
+    @Test
+    fun `cached apply source selection uses latest persisted position`() = runTest(dispatcher) {
+        val playbackRepository = FakeAnimePlaybackStateRepository(
+            existingState = AnimePlaybackState(
+                episodeId = 2L,
+                positionMs = 12_345L,
+                durationMs = 60_000L,
+                completed = false,
+                lastWatchedAt = 500L,
+            ),
+        )
+        val historyRepository = FakeAnimeHistoryRepository()
+        val preferencesRepository = RecordingAnimePlaybackPreferencesRepository()
+        val resolver = PreviewAwareRecordingVideoStreamResolver()
+        val viewModel = VideoPlayerViewModel(
+            savedState = SavedStateHandle(),
+            resolveVideoStream = resolver,
+            animePlaybackPreferencesRepository = preferencesRepository,
+            animeEpisodeRepository = FakeAnimeEpisodeRepository(episodes = emptyList()),
+            videoPlaybackStateRepository = playbackRepository,
+            videoHistoryRepository = historyRepository,
+            resolveDispatcher = dispatcher,
+            persistenceDispatcher = dispatcher,
+        )
+
+        viewModel.init(animeId = 1L, episodeId = 2L)
+        advanceUntilIdle()
+        viewModel.previewSourceSelection(VideoPlaybackSelection(dubKey = "dub-2", sourceQualityKey = "720p"))
+        advanceUntilIdle()
+        viewModel.persistPlayback(positionMs = 45_000L, durationMs = 60_000L)
+        advanceUntilIdle()
+
+        viewModel.applySourceSelection(VideoPlaybackSelection(dubKey = "dub-2", sourceQualityKey = "720p"))
+        advanceUntilIdle()
+
+        val state = viewModel.state.value as VideoPlayerViewModel.State.Ready
+        state.resumePositionMs shouldBe 45_000L
     }
 
     @Test

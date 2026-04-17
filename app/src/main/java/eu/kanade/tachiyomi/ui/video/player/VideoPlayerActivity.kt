@@ -645,7 +645,10 @@ class VideoPlayerActivity : BaseActivity() {
                                 settingsVisible = false
                                 registerControllerInteraction(true)
                             },
-                            onApplySourceSelection = viewModel::applySourceSelection,
+                            onApplySourceSelection = { selection ->
+                                persistPlayback(currentPlayer)
+                                viewModel.applySourceSelection(selection)
+                            },
                             onPreviewSourceSelection = viewModel::previewSourceSelection,
                             onSelectAdaptiveQuality = viewModel::selectAdaptiveQuality,
                             onSelectSubtitle = viewModel::selectSubtitle,
