@@ -5,6 +5,7 @@ import androidx.annotation.OptIn
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
+import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.Tracks
@@ -16,6 +17,29 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.source.model.VideoStream
 import eu.kanade.tachiyomi.source.model.VideoStreamType
+import java.util.Locale
+
+internal data class VideoPlayerPlaybackSnapshot(
+    val positionMs: Long = 0L,
+    val durationMs: Long = 0L,
+    val bufferedPositionMs: Long = 0L,
+    val isPlaying: Boolean = false,
+    val isLoading: Boolean = false,
+    val playbackEnded: Boolean = false,
+)
+
+internal enum class VideoPlayerSeekDirection {
+    Backward,
+    Forward,
+}
+
+internal data class VideoPlayerSeekFeedbackState(
+    val direction: VideoPlayerSeekDirection,
+    val totalSeconds: Int,
+    val hidePlayerChrome: Boolean,
+    val sequence: Long,
+    val updatedAtMillis: Long,
+)
 
 @OptIn(markerClass = [UnstableApi::class])
 internal fun buildVideoPlayer(
@@ -71,6 +95,49 @@ internal fun ExoPlayer.availableAdaptiveQualities(): List<VideoAdaptiveQualityOp
                 ),
             )
         }
+    }
+}
+
+internal fun ExoPlayer.capturePlaybackSnapshot(): VideoPlayerPlaybackSnapshot {
+    val resolvedDurationMs = duration
+        .takeIf { it > 0L && it != C.TIME_UNSET }
+        ?: 0L
+    val resolvedPositionMs = currentPosition
+        .coerceAtLeast(0L)
+        .coerceToPlaybackDuration(resolvedDurationMs)
+    val resolvedBufferedPositionMs = bufferedPosition
+        .coerceAtLeast(resolvedPositionMs)
+        .coerceToPlaybackDuration(resolvedDurationMs)
+
+    return VideoPlayerPlaybackSnapshot(
+        positionMs = resolvedPositionMs,
+        durationMs = resolvedDurationMs,
+        bufferedPositionMs = resolvedBufferedPositionMs,
+        isPlaying = isPlaying,
+        isLoading = playbackState == Player.STATE_BUFFERING,
+        playbackEnded = playbackState == Player.STATE_ENDED,
+    )
+}
+
+internal fun formatPlaybackTimestamp(positionMs: Long): String {
+    val totalSeconds = (positionMs.coerceAtLeast(0L) / 1000L)
+    val seconds = totalSeconds % 60L
+    val totalMinutes = totalSeconds / 60L
+    val minutes = totalMinutes % 60L
+    val hours = totalMinutes / 60L
+
+    return if (hours > 0L) {
+        String.format(Locale.getDefault(), "%d:%02d:%02d", hours, minutes, seconds)
+    } else {
+        String.format(Locale.getDefault(), "%d:%02d", totalMinutes, seconds)
+    }
+}
+
+internal fun Long.coerceToPlaybackDuration(durationMs: Long): Long {
+    return if (durationMs > 0L) {
+        coerceIn(0L, durationMs)
+    } else {
+        coerceAtLeast(0L)
     }
 }
 

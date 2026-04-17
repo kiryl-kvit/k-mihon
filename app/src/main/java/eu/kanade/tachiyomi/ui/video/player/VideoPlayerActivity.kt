@@ -5,54 +5,36 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
-import android.widget.ImageButton
-import android.view.View
 import android.os.Build
 import android.os.Bundle
 import android.provider.Browser
+import android.view.GestureDetector
+import android.view.MotionEvent
 import android.view.ViewGroup
+import android.view.WindowManager
 import androidx.annotation.OptIn
 import androidx.activity.viewModels
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.outlined.OpenInNew
-import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Button
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.net.toUri
 import androidx.core.view.WindowCompat
@@ -66,8 +48,11 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.network.NetworkHelper
-import eu.kanade.tachiyomi.source.model.VideoPlaybackSelection
 import eu.kanade.tachiyomi.ui.base.activity.BaseActivity
+import eu.kanade.tachiyomi.ui.video.player.components.VideoPlayerLoadingOverlay
+import eu.kanade.tachiyomi.ui.video.player.components.VideoPlayerOverlay
+import eu.kanade.tachiyomi.ui.video.player.components.VideoPlayerSettingsSheet
+import eu.kanade.tachiyomi.ui.video.player.components.VideoPlayerSwitchingOverlay
 import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.view.setComposeContent
 import kotlinx.coroutines.Job
@@ -75,7 +60,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import tachiyomi.presentation.core.components.SettingsChipRow
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.i18n.MR
 import uy.kohesive.injekt.Injekt
@@ -109,6 +93,11 @@ class VideoPlayerActivity : BaseActivity() {
         enableEdgeToEdge()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isNavigationBarContrastEnforced = false
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
         }
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.decorView.setBackgroundColor(android.graphics.Color.BLACK)
@@ -188,11 +177,47 @@ class VideoPlayerActivity : BaseActivity() {
                         }
                     }
                 }
-                // Keep controller visibility state stable so the PlayerView listener stays in sync
-                // when the current stream changes after applying dub or quality selections.
-                var controlsVisible by remember { mutableStateOf(false) }
+
+                var controlsVisible by remember(current.episodeId, current.streamUrl) { mutableStateOf(true) }
                 var startupOverlayVisible by remember(current.episodeId, current.streamUrl) { mutableStateOf(true) }
                 var settingsVisible by remember(current.episodeId, current.streamUrl) { mutableStateOf(false) }
+                var isScrubbing by remember(current.episodeId, current.streamUrl) { mutableStateOf(false) }
+                var scrubPositionMs by remember(current.episodeId, current.streamUrl) {
+                    mutableStateOf(current.resumePositionMs.coerceAtLeast(0L))
+                }
+                var playbackSnapshot by remember(current.episodeId, current.streamUrl) {
+                    mutableStateOf(
+                        VideoPlayerPlaybackSnapshot(
+                            positionMs = current.resumePositionMs.coerceAtLeast(0L),
+                        ),
+                    )
+                }
+                var controllerInteractionSequence by remember(current.episodeId, current.streamUrl) { mutableStateOf(0L) }
+                var seekFeedbackSequence by remember(current.episodeId, current.streamUrl) { mutableStateOf(0L) }
+                var seekFeedbackState by remember(current.episodeId, current.streamUrl) {
+                    mutableStateOf<VideoPlayerSeekFeedbackState?>(null)
+                }
+                var ignoreNextGestureSeekTapUp by remember(current.episodeId, current.streamUrl) {
+                    mutableStateOf(false)
+                }
+                val shouldHideChromeForSeekFeedback = seekFeedbackState?.hidePlayerChrome == true
+
+                val onPreviousEpisode = {
+                    controlsVisible = true
+                    settingsVisible = false
+                    isScrubbing = false
+                    controllerInteractionSequence += 1L
+                    flushPlaybackState()
+                    viewModel.playPreviousEpisode()
+                }
+                val onNextEpisode = {
+                    controlsVisible = true
+                    settingsVisible = false
+                    isScrubbing = false
+                    controllerInteractionSequence += 1L
+                    flushPlaybackState()
+                    viewModel.playNextEpisode()
+                }
                 val currentPlayer = remember(current.episodeId, current.streamUrl) {
                     buildVideoPlayer(
                         context = context,
@@ -209,6 +234,8 @@ class VideoPlayerActivity : BaseActivity() {
                                     if (reason == Player.DISCONTINUITY_REASON_SEEK) {
                                         viewModel.resetPlaybackBaseline(newPosition.positionMs)
                                     }
+                                    scrubPositionMs = newPosition.positionMs.coerceAtLeast(0L)
+                                    playbackSnapshot = exoPlayer.capturePlaybackSnapshot()
                                 }
 
                                 override fun onRenderedFirstFrame() {
@@ -217,12 +244,18 @@ class VideoPlayerActivity : BaseActivity() {
 
                                 override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
                                     viewModel.updateAdaptiveQualities(exoPlayer.availableAdaptiveQualities())
+                                    playbackSnapshot = exoPlayer.capturePlaybackSnapshot()
+                                }
+
+                                override fun onEvents(player: Player, events: Player.Events) {
+                                    playbackSnapshot = exoPlayer.capturePlaybackSnapshot()
                                 }
                             },
                         )
                         if (current.resumePositionMs > 0L) {
                             exoPlayer.seekTo(current.resumePositionMs)
                         }
+                        playbackSnapshot = exoPlayer.capturePlaybackSnapshot()
                     }
                 }
                 val controllerPlayer = remember(
@@ -234,31 +267,155 @@ class VideoPlayerActivity : BaseActivity() {
                         player = currentPlayer,
                         hasPreviousEpisode = current.previousEpisodeId != null,
                         hasNextEpisode = current.nextEpisodeId != null,
-                        onPreviousEpisode = {
-                            flushPlaybackState()
-                            viewModel.playPreviousEpisode()
+                        onPreviousEpisode = onPreviousEpisode,
+                        onNextEpisode = onNextEpisode,
+                    )
+                }
+
+                val registerControllerInteraction: (Boolean) -> Unit = { shouldShowControls ->
+                    if (shouldShowControls) {
+                        controlsVisible = true
+                    }
+                    controllerInteractionSequence += 1L
+                }
+                val triggerSeekFeedback: (VideoPlayerSeekDirection, Boolean) -> Unit = { direction, hidePlayerChrome ->
+                    seekFeedbackSequence += 1L
+                    val now = System.currentTimeMillis()
+                    val previousState = seekFeedbackState
+                    val isBurstContinuation = previousState != null &&
+                        previousState.direction == direction &&
+                        now - previousState.updatedAtMillis <= SEEK_FEEDBACK_BURST_WINDOW_MS
+                    seekFeedbackState = VideoPlayerSeekFeedbackState(
+                        direction = direction,
+                        totalSeconds = if (isBurstContinuation) {
+                            previousState.totalSeconds + (SEEK_INCREMENT_MS / 1000L).toInt()
+                        } else {
+                            (SEEK_INCREMENT_MS / 1000L).toInt()
                         },
-                        onNextEpisode = {
-                            flushPlaybackState()
-                            viewModel.playNextEpisode()
+                        hidePlayerChrome = hidePlayerChrome,
+                        sequence = seekFeedbackSequence,
+                        updatedAtMillis = now,
+                    )
+                }
+                val seekBy: (Long) -> Unit = { deltaMs ->
+                    val durationMs = playbackSnapshot.durationMs.takeIf { it > 0L }
+                        ?: currentPlayer.duration.coerceAtLeast(0L)
+                    val basePositionMs = if (isScrubbing) scrubPositionMs else currentPlayer.currentPosition
+                    val targetPositionMs = (basePositionMs + deltaMs).coerceToPlaybackDuration(durationMs)
+
+                    isScrubbing = false
+                    scrubPositionMs = targetPositionMs
+                    playbackSnapshot = playbackSnapshot.copy(positionMs = targetPositionMs)
+                    currentPlayer.seekTo(targetPositionMs)
+                }
+                val resolveSeekDirectionFromTap: (Float, Int) -> VideoPlayerSeekDirection? = { tapX, width ->
+                    when {
+                        width <= 0 -> null
+                        tapX <= width / 3f -> VideoPlayerSeekDirection.Backward
+                        tapX >= width * 2f / 3f -> VideoPlayerSeekDirection.Forward
+                        else -> null
+                    }
+                }
+                val performGestureSeek: (VideoPlayerSeekDirection) -> Unit = { direction ->
+                    controlsVisible = false
+                    registerControllerInteraction(false)
+                    seekBy(
+                        if (direction == VideoPlayerSeekDirection.Backward) {
+                            -SEEK_INCREMENT_MS
+                        } else {
+                            SEEK_INCREMENT_MS
                         },
                     )
+                    triggerSeekFeedback(direction, true)
+                }
+                val togglePlayback = {
+                    registerControllerInteraction(true)
+                    if (playbackSnapshot.playbackEnded) {
+                        currentPlayer.seekTo(0L)
+                    }
+                    if (currentPlayer.isPlaying) {
+                        currentPlayer.pause()
+                    } else {
+                        currentPlayer.play()
+                    }
                 }
 
                 LaunchedEffect(current.episodeId, current.streamUrl) {
                     startupOverlayVisible = true
+                    settingsVisible = false
+                    controlsVisible = true
+                    isScrubbing = false
+                    ignoreNextGestureSeekTapUp = false
+                    seekFeedbackState = null
+                    scrubPositionMs = current.resumePositionMs.coerceAtLeast(0L)
+                    playbackSnapshot = VideoPlayerPlaybackSnapshot(positionMs = scrubPositionMs)
+                    controllerInteractionSequence += 1L
                     releasePlayer(persistState = false)
                     player = currentPlayer
                     startProgressSaves(currentPlayer)
                     currentPlayer.applyAdaptiveQuality(current.playback.currentAdaptiveQuality)
                     currentPlayer.playWhenReady = true
                     currentPlayer.prepare()
+                    playbackSnapshot = currentPlayer.capturePlaybackSnapshot()
                 }
 
                 LaunchedEffect(current.playback.currentAdaptiveQuality, currentPlayer) {
                     currentPlayer.applyAdaptiveQuality(current.playback.currentAdaptiveQuality)
                 }
 
+                LaunchedEffect(currentPlayer) {
+                    while (isActive) {
+                        playbackSnapshot = currentPlayer.capturePlaybackSnapshot()
+                        if (!isScrubbing) {
+                            scrubPositionMs = playbackSnapshot.positionMs
+                        }
+                        delay(
+                            if (playbackSnapshot.isPlaying || playbackSnapshot.isLoading || isScrubbing) {
+                                PLAYBACK_SNAPSHOT_INTERVAL_MS
+                            } else {
+                                PAUSED_PLAYBACK_SNAPSHOT_INTERVAL_MS
+                            },
+                        )
+                    }
+                }
+
+                LaunchedEffect(
+                    controlsVisible,
+                    controllerInteractionSequence,
+                    playbackSnapshot.isPlaying,
+                    playbackSnapshot.isLoading,
+                    isScrubbing,
+                    settingsVisible,
+                    startupOverlayVisible,
+                ) {
+                    if (
+                        !controlsVisible ||
+                        !playbackSnapshot.isPlaying ||
+                        playbackSnapshot.isLoading ||
+                        isScrubbing ||
+                        settingsVisible ||
+                        startupOverlayVisible
+                    ) {
+                        return@LaunchedEffect
+                    }
+
+                    delay(CONTROLS_AUTO_HIDE_DELAY_MS)
+                    controlsVisible = false
+                }
+
+                val displayedPositionMs = if (isScrubbing) {
+                    scrubPositionMs.coerceToPlaybackDuration(playbackSnapshot.durationMs)
+                } else {
+                    playbackSnapshot.positionMs
+                }
+                val latestSettingsVisible by rememberUpdatedState(settingsVisible)
+                val latestControlsVisible by rememberUpdatedState(controlsVisible)
+                val latestRegisterControllerInteraction by rememberUpdatedState(registerControllerInteraction)
+                val latestResolveSeekDirectionFromTap by rememberUpdatedState(resolveSeekDirectionFromTap)
+                val latestPerformGestureSeek by rememberUpdatedState(performGestureSeek)
+                val latestSeekBy by rememberUpdatedState(seekBy)
+                val latestSeekGestureModeActive by rememberUpdatedState(shouldHideChromeForSeekFeedback)
+                val latestTriggerSeekFeedback by rememberUpdatedState(triggerSeekFeedback)
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -272,45 +429,124 @@ class VideoPlayerActivity : BaseActivity() {
                             PlayerView(androidContext).apply {
                                 player = controllerPlayer
                                 setKeepContentOnPlayerReset(true)
-                                useController = true
-                                setControllerAutoShow(true)
-                                setShowPreviousButton(true)
-                                setShowNextButton(true)
-                                setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
-                                    controlsVisible = visibility == View.VISIBLE
-                                })
+                                useController = false
                                 setShutterBackgroundColor(android.graphics.Color.BLACK)
                                 setBackgroundColor(android.graphics.Color.BLACK)
                                 layoutParams = ViewGroup.LayoutParams(
                                     ViewGroup.LayoutParams.MATCH_PARENT,
                                     ViewGroup.LayoutParams.MATCH_PARENT,
                                 )
-                                findViewById<View?>(androidx.media3.ui.R.id.exo_settings)?.visibility = View.GONE
-                                findViewById<ImageButton?>(androidx.media3.ui.R.id.exo_prev)?.apply {
-                                    isEnabled = current.previousEpisodeId != null
-                                    alpha = if (current.previousEpisodeId != null) 1f else 0.38f
-                                }
-                                findViewById<ImageButton?>(androidx.media3.ui.R.id.exo_next)?.apply {
-                                    isEnabled = current.nextEpisodeId != null
-                                    alpha = if (current.nextEpisodeId != null) 1f else 0.38f
-                                }
+                                isClickable = true
+                                isFocusable = true
                             }
                         },
                         update = { playerView ->
                             playerView.player = controllerPlayer
                             playerView.setKeepContentOnPlayerReset(true)
-                            playerView.setShowPreviousButton(true)
-                            playerView.setShowNextButton(true)
-                            playerView.findViewById<View?>(androidx.media3.ui.R.id.exo_settings)?.visibility = View.GONE
-                            playerView.findViewById<ImageButton?>(androidx.media3.ui.R.id.exo_prev)?.apply {
-                                isEnabled = current.previousEpisodeId != null
-                                alpha = if (current.previousEpisodeId != null) 1f else 0.38f
-                            }
-                            playerView.findViewById<ImageButton?>(androidx.media3.ui.R.id.exo_next)?.apply {
-                                isEnabled = current.nextEpisodeId != null
-                                alpha = if (current.nextEpisodeId != null) 1f else 0.38f
+                            playerView.useController = false
+                            val gestureDetector = GestureDetector(
+                                playerView.context,
+                                object : GestureDetector.SimpleOnGestureListener() {
+                                    override fun onDown(e: MotionEvent): Boolean = true
+
+                                    override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                                        if (!latestSettingsVisible) {
+                                            if (latestSeekGestureModeActive) {
+                                                return true
+                                            }
+                                            if (latestControlsVisible) {
+                                                controlsVisible = false
+                                            } else {
+                                                latestRegisterControllerInteraction(true)
+                                            }
+                                        }
+                                        return true
+                                    }
+
+                                    override fun onDoubleTap(e: MotionEvent): Boolean {
+                                        if (!latestSettingsVisible) {
+                                            val direction = latestResolveSeekDirectionFromTap(e.x, playerView.width)
+                                            if (direction != null) {
+                                                ignoreNextGestureSeekTapUp = true
+                                                latestPerformGestureSeek(direction)
+                                                return true
+                                            }
+                                        }
+                                        return false
+                                    }
+                                },
+                            )
+                            playerView.setOnTouchListener { _, motionEvent ->
+                                val handled = gestureDetector.onTouchEvent(motionEvent)
+                                if (!latestSettingsVisible && latestSeekGestureModeActive && motionEvent.actionMasked == MotionEvent.ACTION_UP) {
+                                    val direction = latestResolveSeekDirectionFromTap(motionEvent.x, playerView.width)
+                                    if (direction != null) {
+                                        if (ignoreNextGestureSeekTapUp) {
+                                            ignoreNextGestureSeekTapUp = false
+                                        } else {
+                                            latestPerformGestureSeek(direction)
+                                        }
+                                        return@setOnTouchListener true
+                                    }
+                                }
+                                if (motionEvent.actionMasked == MotionEvent.ACTION_UP && !handled) {
+                                    playerView.performClick()
+                                }
+                                handled
                             }
                         },
+                    )
+
+                    VideoPlayerOverlay(
+                        visible = controlsVisible,
+                        videoTitle = current.videoTitle,
+                        episodeName = current.episodeName,
+                        playbackSnapshot = playbackSnapshot,
+                        displayedPositionMs = displayedPositionMs,
+                        isScrubbing = isScrubbing,
+                        hasPreviousEpisode = current.previousEpisodeId != null,
+                        hasNextEpisode = current.nextEpisodeId != null,
+                        seekFeedbackState = seekFeedbackState,
+                        hideChromeForSeekFeedback = shouldHideChromeForSeekFeedback,
+                        onSeekFeedbackDismissed = {
+                            ignoreNextGestureSeekTapUp = false
+                            seekFeedbackState = null
+                        },
+                        onBack = ::finish,
+                        onOpenSettings = {
+                            settingsVisible = true
+                            registerControllerInteraction(true)
+                        },
+                        onPreviousEpisode = onPreviousEpisode,
+                        onSeekBackward = {
+                            registerControllerInteraction(true)
+                            seekBy(-SEEK_INCREMENT_MS)
+                            triggerSeekFeedback(VideoPlayerSeekDirection.Backward, false)
+                        },
+                        onTogglePlayback = togglePlayback,
+                        onSeekForward = {
+                            registerControllerInteraction(true)
+                            seekBy(SEEK_INCREMENT_MS)
+                            triggerSeekFeedback(VideoPlayerSeekDirection.Forward, false)
+                        },
+                        onNextEpisode = onNextEpisode,
+                        onScrubStarted = {
+                            registerControllerInteraction(true)
+                            isScrubbing = true
+                            scrubPositionMs = playbackSnapshot.positionMs
+                        },
+                        onScrubPositionChange = { positionMs ->
+                            scrubPositionMs = positionMs.coerceToPlaybackDuration(playbackSnapshot.durationMs)
+                        },
+                        onScrubFinished = {
+                            val targetPositionMs = scrubPositionMs.coerceToPlaybackDuration(playbackSnapshot.durationMs)
+                            isScrubbing = false
+                            scrubPositionMs = targetPositionMs
+                            playbackSnapshot = playbackSnapshot.copy(positionMs = targetPositionMs)
+                            currentPlayer.seekTo(targetPositionMs)
+                            registerControllerInteraction(true)
+                        },
+                        modifier = Modifier.fillMaxSize(),
                     )
 
                     if (startupOverlayVisible) {
@@ -321,21 +557,13 @@ class VideoPlayerActivity : BaseActivity() {
                         VideoPlayerSwitchingOverlay(modifier = Modifier.align(Alignment.TopCenter))
                     }
 
-                    if (controlsVisible) {
-                        VideoPlayerInfoOverlay(
-                            modifier = Modifier.align(Alignment.TopStart),
-                            videoTitle = current.videoTitle,
-                            episodeName = current.episodeName,
-                            onBack = ::finish,
-                            onOpenSettings = { settingsVisible = true },
-                            onOpenExternal = { openInExternalPlayer(current.stream) },
-                        )
-                    }
-
                     if (settingsVisible) {
                         VideoPlayerSettingsSheet(
                             playback = current.playback,
-                            onDismissRequest = { settingsVisible = false },
+                            onDismissRequest = {
+                                settingsVisible = false
+                                registerControllerInteraction(true)
+                            },
                             onApplySourceSelection = viewModel::applySourceSelection,
                             onPreviewSourceSelection = viewModel::previewSourceSelection,
                             onSelectAdaptiveQuality = viewModel::selectAdaptiveQuality,
@@ -344,115 +572,22 @@ class VideoPlayerActivity : BaseActivity() {
                 }
             }
             is VideoPlayerViewModel.State.Error -> {
-                Column(
+                Box(
                     modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        text = "Unable to open video",
-                        style = MaterialTheme.typography.headlineSmall,
-                    )
-                    Text(
-                        text = current.message,
-                        modifier = Modifier.padding(top = 12.dp),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
+                    Column {
+                        Text(
+                            text = "Unable to open video",
+                            style = MaterialTheme.typography.headlineSmall,
+                        )
+                        Text(
+                            text = current.message,
+                            modifier = Modifier.padding(top = 12.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
                 }
-            }
-        }
-    }
-
-    @Composable
-    private fun VideoPlayerLoadingOverlay(modifier: Modifier = Modifier) {
-        Box(
-            modifier = modifier.background(Color.Black.copy(alpha = 0.84f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            CircularProgressIndicator(color = Color.White)
-        }
-    }
-
-    @Composable
-    private fun VideoPlayerSwitchingOverlay(modifier: Modifier = Modifier) {
-        Row(
-            modifier = modifier
-                .padding(top = 24.dp)
-                .background(Color.Black.copy(alpha = 0.72f), shape = MaterialTheme.shapes.small)
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(20.dp),
-                color = Color.White,
-                strokeWidth = 2.dp,
-            )
-            Text(
-                text = "Switching source...",
-                color = Color.White,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
-    }
-
-    @Composable
-    private fun VideoPlayerInfoOverlay(
-        modifier: Modifier = Modifier,
-        videoTitle: String,
-        episodeName: String,
-        onBack: () -> Unit,
-        onOpenSettings: () -> Unit,
-        onOpenExternal: () -> Unit,
-    ) {
-        Row(
-            modifier = modifier
-                .fillMaxWidth()
-                .background(Color.Black.copy(alpha = 0.72f))
-                .padding(horizontal = 8.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = Color.White,
-                )
-            }
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 8.dp),
-            ) {
-                Text(
-                    text = videoTitle,
-                    color = Color.White,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = episodeName,
-                    color = Color.White.copy(alpha = 0.82f),
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Spacer(modifier = Modifier.padding(horizontal = 4.dp))
-            IconButton(onClick = onOpenSettings) {
-                Icon(
-                    imageVector = Icons.Outlined.Settings,
-                    contentDescription = stringResource(MR.strings.label_settings),
-                    tint = Color.White,
-                )
-            }
-            IconButton(onClick = onOpenExternal) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Outlined.OpenInNew,
-                    contentDescription = "Open externally",
-                    tint = Color.White,
-                )
             }
         }
     }
@@ -511,193 +646,10 @@ class VideoPlayerActivity : BaseActivity() {
         }
     }
 
-    @Composable
-    private fun VideoPlayerSettingsSheet(
-        playback: VideoPlaybackUiState,
-        onDismissRequest: () -> Unit,
-        onApplySourceSelection: (VideoPlaybackSelection) -> Unit,
-        onPreviewSourceSelection: (VideoPlaybackSelection) -> Unit,
-        onSelectAdaptiveQuality: (VideoAdaptiveQualityPreference) -> Unit,
-    ) {
-        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        val originalSelection = remember(playback.sourceSelection, playback.preferredSourceQualityKey) {
-            playback.sourceSelection.copy(sourceQualityKey = playback.preferredSourceQualityKey ?: playback.sourceSelection.sourceQualityKey)
-        }
-        var draftSelection by remember(originalSelection) { mutableStateOf(originalSelection) }
-        val draftDubMatchesActive = draftSelection.dubKey == playback.sourceSelection.dubKey
-        val previewSelection = playback.preview.selection
-        val previewMatchesDraft = previewSelection?.dubKey == draftSelection.dubKey && !draftDubMatchesActive
-        val sourceQualityOptions = if (draftDubMatchesActive) {
-            playback.playbackData.sourceQualities
-        } else {
-            playback.preview.playbackData?.sourceQualities.orEmpty()
-        }
-        val qualityOptionsLoading = !draftDubMatchesActive &&
-            playback.isPreviewLoading &&
-            previewSelection?.dubKey == draftSelection.dubKey &&
-            sourceQualityOptions.isEmpty()
-        val hasPendingSourceChanges = draftSelection != originalSelection
-        val streamOptionsEnabled = draftDubMatchesActive &&
-            draftSelection.sourceQualityKey == playback.sourceSelection.sourceQualityKey
-
-        LaunchedEffect(draftSelection.dubKey) {
-            if (draftDubMatchesActive) {
-                onPreviewSourceSelection(playback.sourceSelection)
-            } else {
-                onPreviewSourceSelection(draftSelection)
-            }
-        }
-
-        ModalBottomSheet(
-            onDismissRequest = onDismissRequest,
-            sheetState = sheetState,
-        ) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 24.dp),
-            ) {
-                if (playback.playbackData.dubs.isNotEmpty()) {
-                    item {
-                        PlaybackOptionRow(
-                            options = playback.playbackData.dubs,
-                            titleRes = MR.strings.anime_playback_dub,
-                            selectedKey = draftSelection.dubKey,
-                            onSelect = { draftSelection = draftSelection.withSelectedDub(it, originalSelection) },
-                        )
-                    }
-                }
-
-                if (playback.streamOptions.size > 1) {
-                    item {
-                        PlaybackOptionRow(
-                            options = playback.streamOptions,
-                            titleRes = MR.strings.anime_playback_stream,
-                            selectedKey = draftSelection.streamKey,
-                            enabled = streamOptionsEnabled,
-                            onSelect = { draftSelection = draftSelection.withSelectedStream(it) },
-                        )
-                    }
-                }
-
-                if (qualityOptionsLoading || sourceQualityOptions.isNotEmpty()) {
-                    item {
-                        if (qualityOptionsLoading) {
-                            LoadingPlaybackOptionRow(titleRes = MR.strings.anime_playback_source_quality)
-                        } else {
-                            PlaybackOptionRow(
-                                options = sourceQualityOptions,
-                                titleRes = MR.strings.anime_playback_source_quality,
-                                selectedKey = draftSelection.sourceQualityKey,
-                                onSelect = { draftSelection = draftSelection.withSelectedSourceQuality(it, originalSelection) },
-                            )
-                        }
-                    }
-                }
-
-                if (playback.showsAdaptiveQualitySelector) {
-                    item {
-                        SettingsChipRow(MR.strings.anime_playback_quality) {
-                            playback.adaptiveQualities.forEach { option ->
-                                FilterChip(
-                                    selected = option.preference == playback.currentAdaptiveQuality,
-                                    onClick = { onSelectAdaptiveQuality(option.preference) },
-                                    label = { Text(option.label) },
-                                )
-                            }
-                        }
-                    }
-                }
-
-                item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 24.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.End,
-                    ) {
-                        TextButton(onClick = onDismissRequest) {
-                            Text(text = stringResource(MR.strings.action_cancel))
-                        }
-                        Spacer(modifier = Modifier.padding(horizontal = 4.dp))
-                        Button(
-                            enabled = hasPendingSourceChanges,
-                            onClick = {
-                                onApplySourceSelection(draftSelection)
-                                onDismissRequest()
-                            },
-                        ) {
-                            Text(text = stringResource(MR.strings.action_apply))
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun PlaybackOptionRow(
-        options: List<eu.kanade.tachiyomi.source.model.VideoPlaybackOption>,
-        titleRes: dev.icerock.moko.resources.StringResource,
-        selectedKey: String?,
-        enabled: Boolean = true,
-        onSelect: (String?) -> Unit,
-    ) {
-        SettingsChipRow(titleRes) {
-            options.forEach { option ->
-                FilterChip(
-                    enabled = enabled,
-                    selected = option.key == selectedKey,
-                    onClick = { onSelect(option.key) },
-                    label = { Text(option.label) },
-                )
-            }
-        }
-    }
-
-    @Composable
-    private fun LoadingPlaybackOptionRow(
-        titleRes: dev.icerock.moko.resources.StringResource,
-    ) {
-        SettingsChipRow(titleRes) {
-            Row(
-                modifier = Modifier.padding(vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                Text(text = "Loading qualities...")
-            }
-        }
-    }
-
     private fun hideSystemUi() {
         windowInsetsController.hide(
             WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
         )
-    }
-
-    private fun openInExternalPlayer(stream: eu.kanade.tachiyomi.source.model.VideoStream) {
-        val uri = stream.request.url.toUri()
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, stream.mimeType ?: stream.type.toExternalMimeType())
-            putExtra(
-                Browser.EXTRA_HEADERS,
-                android.os.Bundle().apply {
-                    stream.request.headers.forEach { (key, value) ->
-                        putString(key, value)
-                    }
-                },
-            )
-        }
-        try {
-            startActivity(Intent.createChooser(intent, null))
-        } catch (_: ActivityNotFoundException) {
-            toast(stringResource(MR.strings.anime_source_compatibility_note))
-        } catch (e: Throwable) {
-            toast(e.message ?: stringResource(MR.strings.anime_source_compatibility_note))
-        }
     }
 
     companion object {
@@ -707,6 +659,11 @@ class VideoPlayerActivity : BaseActivity() {
         private const val EXTRA_BYPASS_MERGE = "bypass_merge"
         private const val INVALID_ID = -1L
         private const val PROGRESS_SAVE_INTERVAL_MS = 10_000L
+        private const val CONTROLS_AUTO_HIDE_DELAY_MS = 3_000L
+        private const val PLAYBACK_SNAPSHOT_INTERVAL_MS = 250L
+        private const val PAUSED_PLAYBACK_SNAPSHOT_INTERVAL_MS = 750L
+        private const val SEEK_INCREMENT_MS = 5_000L
+        private const val SEEK_FEEDBACK_BURST_WINDOW_MS = 900L
 
         fun newIntent(
             context: Context,
@@ -723,15 +680,6 @@ class VideoPlayerActivity : BaseActivity() {
                 putExtra(EXTRA_BYPASS_MERGE, bypassMerge)
             }
         }
-    }
-}
-
-private fun eu.kanade.tachiyomi.source.model.VideoStreamType.toExternalMimeType(): String {
-    return when (this) {
-        eu.kanade.tachiyomi.source.model.VideoStreamType.HLS -> "application/vnd.apple.mpegurl"
-        eu.kanade.tachiyomi.source.model.VideoStreamType.DASH -> "application/dash+xml"
-        eu.kanade.tachiyomi.source.model.VideoStreamType.PROGRESSIVE -> "video/*"
-        eu.kanade.tachiyomi.source.model.VideoStreamType.UNKNOWN -> "video/*"
     }
 }
 
