@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -27,7 +28,7 @@ import tachiyomi.presentation.core.components.material.PullRefresh
 import kotlin.time.Duration.Companion.seconds
 
 @Composable
-fun LibraryContent(
+fun SharedLibraryContent(
     pages: List<LibraryPage>,
     searchQuery: String?,
     selection: Set<Long>,
@@ -36,17 +37,11 @@ fun LibraryContent(
     hasActiveFilters: Boolean,
     showPageTabs: Boolean,
     onChangeCurrentPage: (Int) -> Unit,
-    onClickManga: (Long) -> Unit,
-    onContinueReadingClicked: ((LibraryManga) -> Unit)?,
-    onToggleSelection: (LibraryPage, LibraryManga) -> Unit,
-    onToggleRangeSelection: (LibraryPage, LibraryManga) -> Unit,
     onRefresh: () -> Boolean,
     onGlobalSearchClicked: () -> Unit,
     getItemCountForPage: (LibraryPage) -> Int?,
     getItemCountForPrimaryTab: (LibraryPageTab) -> Int?,
-    getDisplayMode: (Int) -> PreferenceMutableState<LibraryDisplayMode>,
-    getColumnsForOrientation: (Boolean) -> PreferenceMutableState<Int>,
-    getItemsForPage: (LibraryPage) -> List<LibraryItem>,
+    pageContent: @Composable (pagerState: PagerState, page: Int, libraryPage: LibraryPage?) -> Unit,
 ) {
     Column(
         modifier = Modifier.padding(
@@ -132,31 +127,80 @@ fun LibraryContent(
                 }
             },
         ) {
-            LibraryPager(
-                state = pagerState,
-                contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
-                hasActiveFilters = hasActiveFilters,
-                selection = selection,
-                searchQuery = searchQuery,
-                onGlobalSearchClicked = onGlobalSearchClicked,
-                getPageForIndex = { page -> pages[page] },
-                getDisplayMode = getDisplayMode,
-                getColumnsForOrientation = getColumnsForOrientation,
-                getItemsForPage = getItemsForPage,
-                onClickManga = { page, manga ->
-                    if (selection.isNotEmpty()) {
-                        onToggleSelection(page, manga)
-                    } else {
-                        onClickManga(manga.manga.id)
-                    }
-                },
-                onLongClickManga = onToggleRangeSelection,
-                onClickContinueReading = onContinueReadingClicked,
-            )
+            if (pages.isEmpty()) {
+                LibraryPageEmptyScreen(
+                    searchQuery = searchQuery,
+                    hasActiveFilters = hasActiveFilters,
+                    contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
+                    onGlobalSearchClicked = onGlobalSearchClicked,
+                )
+                return@PullRefresh
+            }
+            pageContent(pagerState, pagerState.currentPage, pages.getOrNull(pagerState.currentPage))
         }
 
         LaunchedEffect(pagerState.currentPage) {
             onChangeCurrentPage(pagerState.currentPage)
         }
+    }
+}
+
+@Composable
+fun LibraryContent(
+    pages: List<LibraryPage>,
+    searchQuery: String?,
+    selection: Set<Long>,
+    contentPadding: PaddingValues,
+    currentPage: Int,
+    hasActiveFilters: Boolean,
+    showPageTabs: Boolean,
+    onChangeCurrentPage: (Int) -> Unit,
+    onClickManga: (Long) -> Unit,
+    onContinueReadingClicked: ((LibraryManga) -> Unit)?,
+    onToggleSelection: (LibraryPage, LibraryManga) -> Unit,
+    onToggleRangeSelection: (LibraryPage, LibraryManga) -> Unit,
+    onRefresh: () -> Boolean,
+    onGlobalSearchClicked: () -> Unit,
+    getItemCountForPage: (LibraryPage) -> Int?,
+    getItemCountForPrimaryTab: (LibraryPageTab) -> Int?,
+    getDisplayMode: (Int) -> PreferenceMutableState<LibraryDisplayMode>,
+    getColumnsForOrientation: (Boolean) -> PreferenceMutableState<Int>,
+    getItemsForPage: (LibraryPage) -> List<LibraryItem>,
+) {
+    SharedLibraryContent(
+        pages = pages,
+        searchQuery = searchQuery,
+        selection = selection,
+        contentPadding = contentPadding,
+        currentPage = currentPage,
+        hasActiveFilters = hasActiveFilters,
+        showPageTabs = showPageTabs,
+        onChangeCurrentPage = onChangeCurrentPage,
+        onRefresh = onRefresh,
+        onGlobalSearchClicked = onGlobalSearchClicked,
+        getItemCountForPage = getItemCountForPage,
+        getItemCountForPrimaryTab = getItemCountForPrimaryTab,
+    ) { pagerState, _, _ ->
+        LibraryPager(
+            state = pagerState,
+            contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
+            hasActiveFilters = hasActiveFilters,
+            selection = selection,
+            searchQuery = searchQuery,
+            onGlobalSearchClicked = onGlobalSearchClicked,
+            getPageForIndex = { page -> pages[page] },
+            getDisplayMode = getDisplayMode,
+            getColumnsForOrientation = getColumnsForOrientation,
+            getItemsForPage = getItemsForPage,
+            onClickManga = { page, manga ->
+                if (selection.isNotEmpty()) {
+                    onToggleSelection(page, manga)
+                } else {
+                    onClickManga(manga.manga.id)
+                }
+            },
+            onLongClickManga = onToggleRangeSelection,
+            onClickContinueReading = onContinueReadingClicked,
+        )
     }
 }

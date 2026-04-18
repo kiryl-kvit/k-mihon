@@ -9,7 +9,11 @@ import androidx.core.content.pm.PackageInfoCompat
 import eu.kanade.domain.extension.interactor.TrustExtension
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.extension.model.Extension
+import eu.kanade.tachiyomi.extension.model.ExtensionType
 import eu.kanade.tachiyomi.extension.model.LoadResult
+import eu.kanade.tachiyomi.source.AnimeCatalogueSource
+import eu.kanade.tachiyomi.source.AnimeSource
+import eu.kanade.tachiyomi.source.AnimeSourceFactory
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.SourceFactory
@@ -49,9 +53,10 @@ internal object ExtensionLoader {
     private const val EXTENSION_FEATURE = "tachiyomi.extension"
     private const val METADATA_SOURCE_CLASS = "tachiyomi.extension.class"
     private const val METADATA_SOURCE_FACTORY = "tachiyomi.extension.factory"
+    private const val METADATA_EXTENSION_TYPE = "tachiyomi.extension.type"
     private const val METADATA_NSFW = "tachiyomi.extension.nsfw"
     const val LIB_VERSION_MIN = 1.4
-    const val LIB_VERSION_MAX = 1.5
+    const val LIB_VERSION_MAX = 1.7
 
     @Suppress("DEPRECATION")
     private val PACKAGE_FLAGS = PackageManager.GET_CONFIGURATIONS or
@@ -229,7 +234,9 @@ internal object ExtensionLoader {
         val appInfo = pkgInfo.applicationInfo!!
         val pkgName = pkgInfo.packageName
 
-        val extName = pkgManager.getApplicationLabel(appInfo).toString().substringAfter("Tachiyomi: ")
+        val extName = pkgManager.getApplicationLabel(appInfo).toString()
+            .removePrefix("Tachiyomi: ")
+            .removePrefix("K-Mihon: ")
         val versionName = pkgInfo.versionName
         val versionCode = PackageInfoCompat.getLongVersionCode(pkgInfo)
 
@@ -253,6 +260,7 @@ internal object ExtensionLoader {
             logcat(LogPriority.WARN) { "Package $pkgName isn't signed" }
             return LoadResult.Error
         } else if (!trustExtension.isTrusted(pkgInfo, signatures)) {
+            val extensionType = appInfo.extensionType()
             val extension = Extension.Untrusted(
                 extName,
                 pkgName,
@@ -260,11 +268,13 @@ internal object ExtensionLoader {
                 versionCode,
                 libVersion,
                 signatures.last(),
+                type = extensionType,
             )
             logcat(LogPriority.WARN) { "Extension $pkgName isn't trusted" }
             return LoadResult.Untrusted(extension)
         }
 
+        val extensionType = appInfo.extensionType()
         val isNsfw = appInfo.metaData.getInt(METADATA_NSFW) == 1
         if (!loadNsfwSource && isNsfw) {
             logcat(LogPriority.WARN) { "NSFW extension $pkgName not allowed" }
@@ -278,7 +288,7 @@ internal object ExtensionLoader {
             return LoadResult.Error
         }
 
-        val sources = appInfo.metaData.getString(METADATA_SOURCE_CLASS)!!
+        val sourceClasses = appInfo.metaData.getString(METADATA_SOURCE_CLASS)!!
             .split(";")
             .map {
                 val sourceClass = it.trim()
@@ -288,41 +298,96 @@ internal object ExtensionLoader {
                     sourceClass
                 }
             }
-            .flatMap {
-                try {
-                    when (val obj = Class.forName(it, false, classLoader).getDeclaredConstructor().newInstance()) {
-                        is Source -> listOf(obj)
-                        is SourceFactory -> obj.createSources()
-                        else -> throw Exception("Unknown source class type: ${obj.javaClass}")
+
+        val extension = when (extensionType) {
+            ExtensionType.MANGA -> {
+                val sources = sourceClasses.flatMap { sourceClass ->
+                    try {
+                        when (
+                            val obj = Class.forName(
+                                sourceClass,
+                                false,
+                                classLoader,
+                            ).getDeclaredConstructor().newInstance()
+                        ) {
+                            is Source -> listOf(obj)
+                            is SourceFactory -> obj.createSources()
+                            else -> throw Exception("Unknown manga source class type: ${obj.javaClass}")
+                        }
+                    } catch (e: Throwable) {
+                        logcat(LogPriority.ERROR, e) { "Extension load error: $extName ($sourceClass)" }
+                        return LoadResult.Error
                     }
-                } catch (e: Throwable) {
-                    logcat(LogPriority.ERROR, e) { "Extension load error: $extName ($it)" }
-                    return LoadResult.Error
                 }
+
+                val langs = sources.filterIsInstance<CatalogueSource>()
+                    .map { it.lang }
+                    .toSet()
+                val lang = when (langs.size) {
+                    0 -> ""
+                    1 -> langs.first()
+                    else -> "all"
+                }
+
+                Extension.InstalledManga(
+                    name = extName,
+                    pkgName = pkgName,
+                    versionName = versionName,
+                    versionCode = versionCode,
+                    libVersion = libVersion,
+                    lang = lang,
+                    isNsfw = isNsfw,
+                    pkgFactory = appInfo.metaData.getString(METADATA_SOURCE_FACTORY),
+                    sources = sources,
+                    icon = appInfo.loadIcon(pkgManager),
+                    isShared = extensionInfo.isShared,
+                )
             }
 
-        val langs = sources.filterIsInstance<CatalogueSource>()
-            .map { it.lang }
-            .toSet()
-        val lang = when (langs.size) {
-            0 -> ""
-            1 -> langs.first()
-            else -> "all"
-        }
+            ExtensionType.ANIME -> {
+                val sources = sourceClasses.flatMap { sourceClass ->
+                    try {
+                        when (
+                            val obj = Class.forName(
+                                sourceClass,
+                                false,
+                                classLoader,
+                            ).getDeclaredConstructor().newInstance()
+                        ) {
+                            is AnimeSource -> listOf(obj)
+                            is AnimeSourceFactory -> obj.createSources()
+                            else -> throw Exception("Unknown video source class type: ${obj.javaClass}")
+                        }
+                    } catch (e: Throwable) {
+                        logcat(LogPriority.ERROR, e) { "Extension load error: $extName ($sourceClass)" }
+                        return LoadResult.Error
+                    }
+                }
 
-        val extension = Extension.Installed(
-            name = extName,
-            pkgName = pkgName,
-            versionName = versionName,
-            versionCode = versionCode,
-            libVersion = libVersion,
-            lang = lang,
-            isNsfw = isNsfw,
-            sources = sources,
-            pkgFactory = appInfo.metaData.getString(METADATA_SOURCE_FACTORY),
-            icon = appInfo.loadIcon(pkgManager),
-            isShared = extensionInfo.isShared,
-        )
+                val langs = sources.filterIsInstance<AnimeCatalogueSource>()
+                    .map { it.lang }
+                    .toSet()
+                val lang = when (langs.size) {
+                    0 -> ""
+                    1 -> langs.first()
+                    else -> "all"
+                }
+
+                Extension.InstalledAnime(
+                    name = extName,
+                    pkgName = pkgName,
+                    versionName = versionName,
+                    versionCode = versionCode,
+                    libVersion = libVersion,
+                    lang = lang,
+                    isNsfw = isNsfw,
+                    pkgFactory = appInfo.metaData.getString(METADATA_SOURCE_FACTORY),
+                    sources = sources,
+                    icon = appInfo.loadIcon(pkgManager),
+                    isShared = extensionInfo.isShared,
+                )
+            }
+        }
         return LoadResult.Success(extension)
     }
 
@@ -390,6 +455,11 @@ internal object ExtensionLoader {
         if (publicSourceDir == null) {
             publicSourceDir = apkPath
         }
+    }
+
+    private fun ApplicationInfo.extensionType(): ExtensionType {
+        return ExtensionType.fromMetadataValue(metaData.getString(METADATA_EXTENSION_TYPE))
+            ?: ExtensionType.MANGA
     }
 
     private data class ExtensionInfo(

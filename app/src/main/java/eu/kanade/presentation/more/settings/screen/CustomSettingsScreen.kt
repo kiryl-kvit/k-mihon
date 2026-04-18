@@ -41,6 +41,7 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableMap
 import mihon.core.common.CustomPreferences
 import mihon.core.common.GlobalCustomPreferences
@@ -50,11 +51,13 @@ import mihon.core.common.sanitizeHomeScreenTabOrder
 import mihon.core.common.sanitizeHomeScreenTabs
 import mihon.core.common.toHomeScreenTabPreferenceValue
 import mihon.core.common.toHomeScreenTabs
+import mihon.feature.profiles.core.ProfileManager
 import mihon.feature.profiles.core.ProfilesPreferences
 import mihon.feature.profiles.ui.ProfilesSettingsScreen
 import sh.calvin.reorderable.ReorderableCollectionItemScope
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
+import tachiyomi.domain.profile.model.ProfileType
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.LabeledCheckbox
 import tachiyomi.presentation.core.components.RadioItem
@@ -64,6 +67,28 @@ import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import androidx.compose.runtime.collectAsState as collectFlowAsState
+
+internal enum class CustomSettingsSection {
+    General,
+    Browse,
+    AutoScroll,
+    DuplicateDetection,
+    Profiles,
+    Advanced,
+}
+
+internal fun visibleCustomSettingsSectionsForProfileType(profileType: ProfileType): Set<CustomSettingsSection> {
+    return when (profileType) {
+        ProfileType.MANGA -> CustomSettingsSection.entries.toSet()
+        ProfileType.ANIME -> setOf(
+            CustomSettingsSection.General,
+            CustomSettingsSection.DuplicateDetection,
+            CustomSettingsSection.Profiles,
+            CustomSettingsSection.Advanced,
+        )
+    }
+}
 
 object CustomSettingsScreen : SearchableSettings {
     private fun readResolve(): Any = CustomSettingsScreen
@@ -74,10 +99,13 @@ object CustomSettingsScreen : SearchableSettings {
 
     @Composable
     override fun getPreferences(): List<Preference> {
+        val profileManager = remember { Injekt.get<ProfileManager>() }
         val customPreferences = remember { Injekt.get<CustomPreferences>() }
         val globalCustomPreferences = remember { Injekt.get<GlobalCustomPreferences>() }
         val profilesPreferences = remember { Injekt.get<ProfilesPreferences>() }
         val readerPreferences = remember { Injekt.get<ReaderPreferences>() }
+        val activeProfile by profileManager.activeProfile.collectFlowAsState()
+        val activeProfileType = activeProfile?.type ?: ProfileType.MANGA
         val browseLongPressAction by customPreferences.browseLongPressAction.collectAsState()
         val previewEnabled by customPreferences.enableMangaPreview.collectAsState()
         val previewPageCount by customPreferences.mangaPreviewPageCount.collectAsState()
@@ -91,6 +119,9 @@ object CustomSettingsScreen : SearchableSettings {
         val navigator = LocalNavigator.currentOrThrow
         var showProfilesInfo by rememberSaveable { mutableStateOf(false) }
         var showHomeTabsDialog by rememberSaveable { mutableStateOf(false) }
+        val visibleSections = remember(activeProfileType) {
+            visibleCustomSettingsSectionsForProfileType(activeProfileType)
+        }
         val homeTabEntries = rememberHomeTabEntries()
         val enabledHomeTabs = remember(homeScreenTabs, storedHomeTabOrder) {
             sanitizeHomeScreenTabs(homeScreenTabs.toHomeScreenTabs(), storedHomeTabOrder)
@@ -253,135 +284,183 @@ object CustomSettingsScreen : SearchableSettings {
             )
         }
 
-        return listOf(
-            Preference.PreferenceGroup(
-                title = stringResource(MR.strings.pref_category_general),
-                preferenceItems = persistentListOf(
-                    Preference.PreferenceItem.TextPreference(
-                        title = homeScreenTabsTitle,
-                        subtitle = homeTabsSubtitle,
-                        isProfileSpecific = true,
-                        onClick = { showHomeTabsDialog = true },
+        return buildList {
+            if (CustomSettingsSection.General in visibleSections) {
+                add(
+                    Preference.PreferenceGroup(
+                        title = stringResource(MR.strings.pref_category_general),
+                        preferenceItems = buildList {
+                            add(
+                                Preference.PreferenceItem.TextPreference(
+                                    title = homeScreenTabsTitle,
+                                    subtitle = homeTabsSubtitle,
+                                    isProfileSpecific = true,
+                                    onClick = { showHomeTabsDialog = true },
+                                ),
+                            )
+                            add(
+                                Preference.PreferenceItem.SwitchPreference(
+                                    preference = customPreferences.enableFeeds,
+                                    title = stringResource(MR.strings.pref_enable_feeds),
+                                    subtitle = stringResource(MR.strings.pref_enable_feeds_summary),
+                                ),
+                            )
+                        }.toImmutableList(),
                     ),
-                    Preference.PreferenceItem.SwitchPreference(
-                        preference = customPreferences.enableFeeds,
-                        title = stringResource(MR.strings.pref_enable_feeds),
-                        subtitle = stringResource(MR.strings.pref_enable_feeds_summary),
+                )
+            }
+
+            if (activeProfileType == ProfileType.ANIME) {
+                add(
+                    Preference.PreferenceGroup(
+                        title = stringResource(MR.strings.pref_category_player),
+                        preferenceItems = persistentListOf(
+                            Preference.PreferenceItem.SwitchPreference(
+                                preference = customPreferences.enableAnimePictureInPicture,
+                                title = stringResource(MR.strings.pref_enable_anime_picture_in_picture),
+                                subtitle = stringResource(MR.strings.pref_enable_anime_picture_in_picture_summary),
+                            ),
+                        ),
                     ),
-                ),
-            ),
-            Preference.PreferenceGroup(
-                title = stringResource(MR.strings.browse),
-                preferenceItems = persistentListOf(
-                    Preference.PreferenceItem.SwitchPreference(
-                        preference = customPreferences.enableMangaPreview,
-                        title = stringResource(MR.strings.pref_enable_manga_preview),
-                        subtitle = stringResource(MR.strings.pref_enable_manga_preview_summary),
+                )
+            }
+
+            if (CustomSettingsSection.Browse in visibleSections) {
+                add(
+                    Preference.PreferenceGroup(
+                        title = stringResource(MR.strings.browse),
+                        preferenceItems = persistentListOf(
+                            Preference.PreferenceItem.SwitchPreference(
+                                preference = customPreferences.enableMangaPreview,
+                                title = stringResource(MR.strings.pref_enable_manga_preview),
+                                subtitle = stringResource(MR.strings.pref_enable_manga_preview_summary),
+                            ),
+                            Preference.PreferenceItem.SliderPreference(
+                                value = previewPageCount,
+                                preference = customPreferences.mangaPreviewPageCount,
+                                valueRange = CustomPreferences.MANGA_PREVIEW_PAGE_COUNT_RANGE,
+                                title = stringResource(MR.strings.pref_manga_preview_page_count),
+                                valueString = previewPageCount.toString(),
+                                enabled = previewEnabled,
+                                onValueChanged = {
+                                    customPreferences.mangaPreviewPageCount.set(it)
+                                },
+                            ),
+                            Preference.PreferenceItem.ListPreference(
+                                preference = customPreferences.mangaPreviewSize,
+                                entries = CustomPreferences.MangaPreviewSize.entries
+                                    .associateWith { stringResource(it.titleRes) }
+                                    .toImmutableMap(),
+                                title = stringResource(MR.strings.pref_manga_preview_size),
+                                enabled = previewEnabled,
+                            ),
+                            Preference.PreferenceItem.ListPreference(
+                                preference = customPreferences.browseLongPressAction,
+                                entries = CustomPreferences.BrowseLongPressAction.entries
+                                    .associateWith { stringResource(it.titleRes) }
+                                    .toImmutableMap(),
+                                title = stringResource(MR.strings.pref_browse_long_press_action),
+                                entryEnabledProvider = {
+                                    previewEnabled || it != CustomPreferences.BrowseLongPressAction.MANGA_PREVIEW
+                                },
+                            ),
+                        ),
                     ),
-                    Preference.PreferenceItem.SliderPreference(
-                        value = previewPageCount,
-                        preference = customPreferences.mangaPreviewPageCount,
-                        valueRange = CustomPreferences.MANGA_PREVIEW_PAGE_COUNT_RANGE,
-                        title = stringResource(MR.strings.pref_manga_preview_page_count),
-                        valueString = previewPageCount.toString(),
-                        enabled = previewEnabled,
-                        onValueChanged = {
-                            customPreferences.mangaPreviewPageCount.set(it)
-                        },
+                )
+            }
+
+            if (CustomSettingsSection.AutoScroll in visibleSections) {
+                add(
+                    Preference.PreferenceGroup(
+                        title = stringResource(MR.strings.pref_auto_scroll),
+                        preferenceItems = persistentListOf(
+                            Preference.PreferenceItem.SwitchPreference(
+                                preference = readerPreferences.autoScrollEnabled,
+                                title = stringResource(MR.strings.pref_enable_auto_scroll),
+                                subtitle = stringResource(MR.strings.pref_auto_scroll_summary),
+                            ),
+                            Preference.PreferenceItem.SliderPreference(
+                                value = autoScrollSpeed,
+                                preference = readerPreferences.autoScrollSpeed,
+                                valueRange = ReaderPreferences.AUTO_SCROLL_SPEED_RANGE,
+                                title = stringResource(MR.strings.pref_auto_scroll_speed),
+                                valueString = stringResource(ReaderPreferences.AutoScrollLevelLabels[autoScrollSpeed]),
+                                enabled = autoScrollEnabled,
+                                onValueChanged = { readerPreferences.autoScrollSpeed.set(it) },
+                            ),
+                        ),
                     ),
-                    Preference.PreferenceItem.ListPreference(
-                        preference = customPreferences.mangaPreviewSize,
-                        entries = CustomPreferences.MangaPreviewSize.entries
-                            .associateWith { stringResource(it.titleRes) }
-                            .toImmutableMap(),
-                        title = stringResource(MR.strings.pref_manga_preview_size),
-                        enabled = previewEnabled,
-                    ),
-                    Preference.PreferenceItem.ListPreference(
-                        preference = customPreferences.browseLongPressAction,
-                        entries = CustomPreferences.BrowseLongPressAction.entries
-                            .associateWith { stringResource(it.titleRes) }
-                            .toImmutableMap(),
-                        title = stringResource(MR.strings.pref_browse_long_press_action),
-                        entryEnabledProvider = {
-                            previewEnabled || it != CustomPreferences.BrowseLongPressAction.MANGA_PREVIEW
-                        },
-                    ),
-                ),
-            ),
-            Preference.PreferenceGroup(
-                title = stringResource(MR.strings.pref_auto_scroll),
-                preferenceItems = persistentListOf(
-                    Preference.PreferenceItem.SwitchPreference(
-                        preference = readerPreferences.autoScrollEnabled,
-                        title = stringResource(MR.strings.pref_enable_auto_scroll),
-                        subtitle = stringResource(MR.strings.pref_auto_scroll_summary),
-                    ),
-                    Preference.PreferenceItem.SliderPreference(
-                        value = autoScrollSpeed,
-                        preference = readerPreferences.autoScrollSpeed,
-                        valueRange = ReaderPreferences.AUTO_SCROLL_SPEED_RANGE,
-                        title = stringResource(MR.strings.pref_auto_scroll_speed),
-                        valueString = stringResource(ReaderPreferences.AutoScrollLevelLabels[autoScrollSpeed]),
-                        enabled = autoScrollEnabled,
-                        onValueChanged = { readerPreferences.autoScrollSpeed.set(it) },
-                    ),
-                ),
-            ),
-            Preference.PreferenceGroup(
-                title = stringResource(MR.strings.pref_duplicate_detection),
-                preferenceItems = persistentListOf(
-                    Preference.PreferenceItem.TextPreference(
+                )
+            }
+
+            if (CustomSettingsSection.DuplicateDetection in visibleSections) {
+                add(
+                    Preference.PreferenceGroup(
                         title = stringResource(MR.strings.pref_duplicate_detection),
-                        subtitle = stringResource(MR.strings.pref_duplicate_detection_summary),
-                        isProfileSpecific = true,
-                        onClick = {
-                            navigator.push(DuplicateDetectionSettingsScreen)
-                        },
+                        preferenceItems = persistentListOf(
+                            Preference.PreferenceItem.TextPreference(
+                                title = stringResource(MR.strings.pref_duplicate_detection),
+                                subtitle = stringResource(MR.strings.pref_duplicate_detection_summary),
+                                isProfileSpecific = true,
+                                onClick = {
+                                    navigator.push(DuplicateDetectionSettingsScreen)
+                                },
+                            ),
+                        ),
                     ),
-                ),
-            ),
-            Preference.PreferenceGroup(
-                title = stringResource(MR.strings.profiles_user_profiles),
-                preferenceItems = persistentListOf(
-                    Preference.PreferenceItem.TextPreference(
-                        title = stringResource(MR.strings.profiles_manage_title),
-                        subtitle = stringResource(MR.strings.profiles_manage_summary),
-                        widget = {
-                            IconButton(onClick = { showProfilesInfo = true }) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Info,
-                                    contentDescription = stringResource(MR.strings.profiles_info_title),
-                                )
-                            }
-                        },
-                        onClick = {
-                            navigator.push(ProfilesSettingsScreen())
-                        },
+                )
+            }
+
+            if (CustomSettingsSection.Profiles in visibleSections) {
+                add(
+                    Preference.PreferenceGroup(
+                        title = stringResource(MR.strings.profiles_user_profiles),
+                        preferenceItems = persistentListOf(
+                            Preference.PreferenceItem.TextPreference(
+                                title = stringResource(MR.strings.profiles_manage_title),
+                                subtitle = stringResource(MR.strings.profiles_manage_summary),
+                                widget = {
+                                    IconButton(onClick = { showProfilesInfo = true }) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Info,
+                                            contentDescription = stringResource(MR.strings.profiles_info_title),
+                                        )
+                                    }
+                                },
+                                onClick = {
+                                    navigator.push(ProfilesSettingsScreen())
+                                },
+                            ),
+                            Preference.PreferenceItem.SwitchPreference(
+                                preference = profilesPreferences.pickerEnabled,
+                                title = stringResource(MR.strings.profiles_choose_on_launch),
+                            ),
+                        ),
                     ),
-                    Preference.PreferenceItem.SwitchPreference(
-                        preference = profilesPreferences.pickerEnabled,
-                        title = stringResource(MR.strings.profiles_choose_on_launch),
+                )
+            }
+
+            if (CustomSettingsSection.Advanced in visibleSections) {
+                add(
+                    Preference.PreferenceGroup(
+                        title = stringResource(MR.strings.pref_category_advanced),
+                        preferenceItems = persistentListOf(
+                            Preference.PreferenceItem.SwitchPreference(
+                                preference = globalCustomPreferences.extensionsAutoUpdates,
+                                title = stringResource(MR.strings.pref_extensions_auto_update),
+                            ),
+                            Preference.PreferenceItem.TextPreference(
+                                title = stringResource(MR.strings.pref_view_logs),
+                                subtitle = stringResource(MR.strings.pref_view_logs_summary),
+                                onClick = {
+                                    navigator.push(LogsScreen())
+                                },
+                            ),
+                        ),
                     ),
-                ),
-            ),
-            Preference.PreferenceGroup(
-                title = stringResource(MR.strings.pref_category_advanced),
-                preferenceItems = persistentListOf(
-                    Preference.PreferenceItem.SwitchPreference(
-                        preference = globalCustomPreferences.extensionsAutoUpdates,
-                        title = stringResource(MR.strings.pref_extensions_auto_update),
-                    ),
-                    Preference.PreferenceItem.TextPreference(
-                        title = stringResource(MR.strings.pref_view_logs),
-                        subtitle = stringResource(MR.strings.pref_view_logs_summary),
-                        onClick = {
-                            navigator.push(LogsScreen())
-                        },
-                    ),
-                ),
-            ),
-        )
+                )
+            }
+        }
     }
 
     @Composable

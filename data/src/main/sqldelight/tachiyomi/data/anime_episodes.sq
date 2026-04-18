@@ -1,0 +1,103 @@
+import kotlin.Boolean;
+
+CREATE TABLE anime_episodes(
+    _id INTEGER NOT NULL PRIMARY KEY,
+    profile_id INTEGER NOT NULL DEFAULT 1,
+    anime_id INTEGER NOT NULL,
+    url TEXT NOT NULL,
+    name TEXT NOT NULL,
+    watched INTEGER AS Boolean NOT NULL,
+    completed INTEGER AS Boolean NOT NULL,
+    episode_number REAL NOT NULL,
+    source_order INTEGER NOT NULL,
+    date_fetch INTEGER NOT NULL,
+    date_upload INTEGER NOT NULL,
+    last_modified_at INTEGER NOT NULL DEFAULT 0,
+    version INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY(anime_id) REFERENCES animes (_id)
+    ON DELETE CASCADE,
+    FOREIGN KEY(profile_id) REFERENCES profiles (_id)
+    ON DELETE CASCADE
+);
+
+CREATE INDEX idx_anime_episodes_anime_id ON anime_episodes(profile_id, anime_id);
+CREATE INDEX idx_anime_episodes_url ON anime_episodes(profile_id, url);
+CREATE UNIQUE INDEX idx_anime_episodes_profile_anime_url ON anime_episodes(profile_id, anime_id, url);
+
+CREATE TRIGGER update_last_modified_at_anime_episodes
+AFTER UPDATE ON anime_episodes
+FOR EACH ROW
+BEGIN
+  UPDATE anime_episodes
+  SET last_modified_at = strftime('%s', 'now')
+  WHERE _id = new._id;
+END;
+
+CREATE TRIGGER update_anime_episode_and_anime_version AFTER UPDATE ON anime_episodes
+WHEN (
+    new.watched != old.watched OR
+    new.completed != old.completed
+)
+BEGIN
+    UPDATE anime_episodes SET version = version + 1
+    WHERE _id = new._id;
+
+    UPDATE animes SET version = version + 1
+    WHERE _id = new.anime_id;
+END;
+
+getEpisodeById:
+SELECT *
+FROM anime_episodes
+WHERE _id = :id
+AND profile_id = :profileId;
+
+getEpisodesByAnimeId:
+SELECT *
+FROM anime_episodes
+WHERE profile_id = :profileId
+AND anime_id = :animeId;
+
+getEpisodesByAnimeIds:
+SELECT *
+FROM anime_episodes
+WHERE profile_id = :profileId
+AND anime_id IN :animeIds;
+
+getEpisodeByUrlAndAnimeId:
+SELECT *
+FROM anime_episodes
+WHERE profile_id = :profileId
+AND url = :episodeUrl
+AND anime_id = :animeId;
+
+deleteByProfile:
+DELETE FROM anime_episodes
+WHERE profile_id = :profileId;
+
+removeEpisodesWithIds:
+DELETE FROM anime_episodes
+WHERE profile_id = :profileId
+AND _id IN :episodeIds;
+
+insert:
+INSERT INTO anime_episodes(profile_id, anime_id, url, name, watched, completed, episode_number, source_order, date_fetch, date_upload, last_modified_at, version)
+VALUES (:profileId, :animeId, :url, :name, :watched, :completed, :episodeNumber, :sourceOrder, :dateFetch, :dateUpload, 0, :version);
+
+update:
+UPDATE anime_episodes
+SET anime_id = coalesce(:animeId, anime_id),
+    url = coalesce(:url, url),
+    name = coalesce(:name, name),
+    watched = coalesce(:watched, watched),
+    completed = coalesce(:completed, completed),
+    episode_number = coalesce(:episodeNumber, episode_number),
+    source_order = coalesce(:sourceOrder, source_order),
+    date_fetch = coalesce(:dateFetch, date_fetch),
+    date_upload = coalesce(:dateUpload, date_upload),
+    version = coalesce(:version, version)
+WHERE _id = :episodeId
+AND profile_id = :profileId;
+
+selectLastInsertedRowId:
+SELECT last_insert_rowid();

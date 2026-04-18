@@ -1,10 +1,8 @@
 package eu.kanade.tachiyomi.ui.browse.extension
 
 import android.app.Application
-import androidx.compose.runtime.Immutable
 import cafe.adriel.voyager.core.model.StateScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
-import dev.icerock.moko.resources.StringResource
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.extension.interactor.GetExtensionsByType
 import eu.kanade.domain.source.service.GlobalSourcePreferences
@@ -38,7 +36,7 @@ class ExtensionsScreenModel(
     basePreferences: BasePreferences = Injekt.get(),
     private val extensionManager: ExtensionManager = Injekt.get(),
     private val getExtensions: GetExtensionsByType = Injekt.get(),
-) : StateScreenModel<ExtensionsScreenModel.State>(State()) {
+) : StateScreenModel<ExtensionListState>(ExtensionListState()) {
 
     init {
         val context = Injekt.get<Application>()
@@ -120,13 +118,13 @@ class ExtensionsScreenModel(
                 if (extension.name.contains(subquery, ignoreCase = true)) return@any true
 
                 when (extension) {
-                    is Extension.Installed -> extension.sources.any { source ->
+                    is Extension.InstalledManga -> extension.sources.any { source ->
                         source.name.contains(subquery, ignoreCase = true) ||
                             (source as? HttpSource)?.baseUrl?.contains(subquery, ignoreCase = true) == true ||
                             source.id == subquery.toLongOrNull()
                     }
 
-                    is Extension.Available -> extension.sources.any {
+                    is Extension.AvailableManga -> extension.sources.any {
                         it.name.contains(subquery, ignoreCase = true) ||
                             it.baseUrl.contains(subquery, ignoreCase = true) ||
                             it.id == subquery.toLongOrNull()
@@ -148,19 +146,19 @@ class ExtensionsScreenModel(
         screenModelScope.launchIO {
             state.value.items.values.flatten()
                 .map { it.extension }
-                .filterIsInstance<Extension.Installed>()
+                .filterIsInstance<Extension.InstalledManga>()
                 .filter { it.hasUpdate }
                 .forEach(::updateExtension)
         }
     }
 
-    fun installExtension(extension: Extension.Available) {
+    fun installExtension(extension: Extension.AvailableManga) {
         screenModelScope.launchIO {
             extensionManager.installExtension(extension).collectToInstallUpdate(extension)
         }
     }
 
-    fun updateExtension(extension: Extension.Installed) {
+    fun updateExtension(extension: Extension.InstalledManga) {
         screenModelScope.launchIO {
             extensionManager.updateExtension(extension).collectToInstallUpdate(extension)
         }
@@ -196,30 +194,4 @@ class ExtensionsScreenModel(
             extensionManager.trust(extension)
         }
     }
-
-    @Immutable
-    data class State(
-        val isLoading: Boolean = true,
-        val isRefreshing: Boolean = false,
-        val items: ItemGroups = mutableMapOf(),
-        val updates: Int = 0,
-        val installer: BasePreferences.ExtensionInstaller? = null,
-        val searchQuery: String? = null,
-    ) {
-        val isEmpty = items.isEmpty()
-    }
-}
-
-typealias ItemGroups = Map<ExtensionUiModel.Header, List<ExtensionUiModel.Item>>
-
-object ExtensionUiModel {
-    sealed interface Header {
-        data class Resource(val textRes: StringResource) : Header
-        data class Text(val text: String) : Header
-    }
-
-    data class Item(
-        val extension: Extension,
-        val installStep: InstallStep,
-    )
 }

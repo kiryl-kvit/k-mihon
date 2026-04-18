@@ -20,6 +20,13 @@ class SourcePreferences(
     private val preferenceStore: PreferenceStore,
     private val json: Json,
 ) {
+    companion object {
+        const val LEGACY_HIDDEN_SOURCES_KEY = "hidden_catalogues"
+        const val MANGA_HIDDEN_SOURCES_KEY = "hidden_manga_catalogues"
+        const val ANIME_HIDDEN_SOURCES_KEY = "hidden_anime_catalogues"
+        const val MANGA_PINNED_SOURCES_KEY = "pinned_catalogues"
+        const val ANIME_PINNED_SOURCES_KEY = "pinned_anime_catalogues"
+    }
 
     val sourceDisplayMode: Preference<LibraryDisplayMode> = preferenceStore.getObjectFromString(
         "pref_display_mode_catalogue",
@@ -33,14 +40,26 @@ class SourcePreferences(
         LocaleHelper.getDefaultEnabledLanguages(),
     )
 
-    val disabledSources: Preference<Set<String>> = preferenceStore.getStringSet("hidden_catalogues", emptySet())
+    val disabledSources: Preference<Set<String>> = preferenceStore.getStringSet(MANGA_HIDDEN_SOURCES_KEY, emptySet())
+
+    val disabledAnimeSources: Preference<Set<String>> = preferenceStore.getStringSet(
+        ANIME_HIDDEN_SOURCES_KEY,
+        emptySet(),
+    )
 
     val incognitoExtensions: Preference<Set<String>> = preferenceStore.getStringSet("incognito_extensions", emptySet())
 
-    val pinnedSources: Preference<Set<String>> = preferenceStore.getStringSet("pinned_catalogues", emptySet())
+    val pinnedSources: Preference<Set<String>> = preferenceStore.getStringSet(MANGA_PINNED_SOURCES_KEY, emptySet())
+
+    val pinnedAnimeSources: Preference<Set<String>> = preferenceStore.getStringSet(ANIME_PINNED_SOURCES_KEY, emptySet())
 
     val lastUsedSource: Preference<Long> = preferenceStore.getLong(
         Preference.appStateKey("last_catalogue_source"),
+        -1,
+    )
+
+    val lastUsedAnimeSource: Preference<Long> = preferenceStore.getLong(
+        Preference.appStateKey("last_anime_catalogue_source"),
         -1,
     )
 

@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test
 import tachiyomi.core.common.preference.AndroidPreferenceStore
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.TriState
+import tachiyomi.domain.anime.model.AnimeTitle
 import tachiyomi.domain.library.model.LibraryDisplayMode
 import tachiyomi.domain.library.model.LibraryGroupType
 import tachiyomi.domain.library.model.LibrarySort
@@ -36,6 +37,7 @@ class ProfileAwareLibraryPreferencesTest {
             displayMode.set(LibraryDisplayMode.List)
             sortingMode.set(LibrarySort(LibrarySort.Type.DateAdded, LibrarySort.Direction.Descending))
             filterUnread.set(TriState.ENABLED_IS)
+            animeFilterUnwatched.set(TriState.ENABLED_IS)
             groupType.set(LibraryGroupType.Extension)
         }
 
@@ -46,12 +48,14 @@ class ProfileAwareLibraryPreferencesTest {
             displayMode.get() shouldBe LibraryDisplayMode.default
             sortingMode.get() shouldBe LibrarySort.default
             filterUnread.get() shouldBe TriState.DISABLED
+            animeFilterUnwatched.get() shouldBe TriState.DISABLED
             groupType.get() shouldBe LibraryGroupType.Category
 
             downloadedOnly.set(false)
             displayMode.set(LibraryDisplayMode.ComfortableGrid)
             sortingMode.set(LibrarySort(LibrarySort.Type.UnreadCount, LibrarySort.Direction.Ascending))
             filterUnread.set(TriState.ENABLED_NOT)
+            animeFilterUnwatched.set(TriState.ENABLED_NOT)
             groupType.set(LibraryGroupType.CategoryExtension)
         }
 
@@ -62,6 +66,7 @@ class ProfileAwareLibraryPreferencesTest {
             displayMode.get() shouldBe LibraryDisplayMode.List
             sortingMode.get() shouldBe LibrarySort(LibrarySort.Type.DateAdded, LibrarySort.Direction.Descending)
             filterUnread.get() shouldBe TriState.ENABLED_IS
+            animeFilterUnwatched.get() shouldBe TriState.ENABLED_IS
             groupType.get() shouldBe LibraryGroupType.Extension
         }
 
@@ -72,6 +77,7 @@ class ProfileAwareLibraryPreferencesTest {
             displayMode.get() shouldBe LibraryDisplayMode.ComfortableGrid
             sortingMode.get() shouldBe LibrarySort(LibrarySort.Type.UnreadCount, LibrarySort.Direction.Ascending)
             filterUnread.get() shouldBe TriState.ENABLED_NOT
+            animeFilterUnwatched.get() shouldBe TriState.ENABLED_NOT
             groupType.get() shouldBe LibraryGroupType.CategoryExtension
         }
     }
@@ -101,6 +107,55 @@ class ProfileAwareLibraryPreferencesTest {
     }
 
     @Test
+    fun `default episode settings stay isolated per profile`() {
+        val fixture = createFixture()
+
+        with(fixture.libraryPreferences) {
+            filterEpisodeByUnwatched.set(AnimeTitle.EPISODE_SHOW_UNWATCHED)
+            filterEpisodeByStarted.set(AnimeTitle.EPISODE_SHOW_STARTED)
+            sortEpisodeBySourceOrNumber.set(AnimeTitle.EPISODE_SORTING_ALPHABET)
+            displayEpisodeByNameOrNumber.set(AnimeTitle.EPISODE_DISPLAY_NUMBER)
+            sortEpisodeByAscendingOrDescending.set(AnimeTitle.EPISODE_SORT_ASC)
+        }
+
+        fixture.activeProfileId.value = 2L
+
+        with(fixture.libraryPreferences) {
+            filterEpisodeByUnwatched.get() shouldBe AnimeTitle.SHOW_ALL
+            filterEpisodeByStarted.get() shouldBe AnimeTitle.SHOW_ALL
+            sortEpisodeBySourceOrNumber.get() shouldBe AnimeTitle.EPISODE_SORTING_SOURCE
+            displayEpisodeByNameOrNumber.get() shouldBe AnimeTitle.EPISODE_DISPLAY_NAME
+            sortEpisodeByAscendingOrDescending.get() shouldBe AnimeTitle.EPISODE_SORT_DESC
+
+            filterEpisodeByUnwatched.set(AnimeTitle.EPISODE_SHOW_WATCHED)
+            filterEpisodeByStarted.set(AnimeTitle.EPISODE_SHOW_NOT_STARTED)
+            sortEpisodeBySourceOrNumber.set(AnimeTitle.EPISODE_SORTING_UPLOAD_DATE)
+            displayEpisodeByNameOrNumber.set(AnimeTitle.EPISODE_DISPLAY_NAME)
+            sortEpisodeByAscendingOrDescending.set(AnimeTitle.EPISODE_SORT_DESC)
+        }
+
+        fixture.activeProfileId.value = 1L
+
+        with(fixture.libraryPreferences) {
+            filterEpisodeByUnwatched.get() shouldBe AnimeTitle.EPISODE_SHOW_UNWATCHED
+            filterEpisodeByStarted.get() shouldBe AnimeTitle.EPISODE_SHOW_STARTED
+            sortEpisodeBySourceOrNumber.get() shouldBe AnimeTitle.EPISODE_SORTING_ALPHABET
+            displayEpisodeByNameOrNumber.get() shouldBe AnimeTitle.EPISODE_DISPLAY_NUMBER
+            sortEpisodeByAscendingOrDescending.get() shouldBe AnimeTitle.EPISODE_SORT_ASC
+        }
+
+        fixture.activeProfileId.value = 2L
+
+        with(fixture.libraryPreferences) {
+            filterEpisodeByUnwatched.get() shouldBe AnimeTitle.EPISODE_SHOW_WATCHED
+            filterEpisodeByStarted.get() shouldBe AnimeTitle.EPISODE_SHOW_NOT_STARTED
+            sortEpisodeBySourceOrNumber.get() shouldBe AnimeTitle.EPISODE_SORTING_UPLOAD_DATE
+            displayEpisodeByNameOrNumber.get() shouldBe AnimeTitle.EPISODE_DISPLAY_NAME
+            sortEpisodeByAscendingOrDescending.get() shouldBe AnimeTitle.EPISODE_SORT_DESC
+        }
+    }
+
+    @Test
     fun `all library settings flows follow active profile`() = runTest {
         val fixture = createFixture()
 
@@ -110,6 +165,8 @@ class ProfileAwareLibraryPreferencesTest {
             filterStarted.set(TriState.ENABLED_IS)
             filterBookmarked.set(TriState.ENABLED_NOT)
             filterCompleted.set(TriState.ENABLED_IS)
+            animeFilterUnwatched.set(TriState.ENABLED_NOT)
+            animeFilterStarted.set(TriState.ENABLED_IS)
             sortingMode.set(LibrarySort(LibrarySort.Type.LastRead, LibrarySort.Direction.Descending))
             displayMode.set(LibraryDisplayMode.List)
             groupType.set(LibraryGroupType.Extension)
@@ -120,6 +177,8 @@ class ProfileAwareLibraryPreferencesTest {
         val filterStartedValues = mutableListOf<TriState>()
         val filterBookmarkedValues = mutableListOf<TriState>()
         val filterCompletedValues = mutableListOf<TriState>()
+        val animeFilterUnwatchedValues = mutableListOf<TriState>()
+        val animeFilterStartedValues = mutableListOf<TriState>()
         val sortingValues = mutableListOf<LibrarySort>()
         val displayValues = mutableListOf<LibraryDisplayMode>()
         val groupValues = mutableListOf<LibraryGroupType>()
@@ -130,6 +189,10 @@ class ProfileAwareLibraryPreferencesTest {
             launch { fixture.libraryPreferences.filterStarted.changes().take(3).toList(filterStartedValues) },
             launch { fixture.libraryPreferences.filterBookmarked.changes().take(3).toList(filterBookmarkedValues) },
             launch { fixture.libraryPreferences.filterCompleted.changes().take(3).toList(filterCompletedValues) },
+            launch {
+                fixture.libraryPreferences.animeFilterUnwatched.changes().take(3).toList(animeFilterUnwatchedValues)
+            },
+            launch { fixture.libraryPreferences.animeFilterStarted.changes().take(3).toList(animeFilterStartedValues) },
             launch { fixture.libraryPreferences.sortingMode.changes().take(3).toList(sortingValues) },
             launch { fixture.libraryPreferences.displayMode.changes().take(3).toList(displayValues) },
             launch { fixture.libraryPreferences.groupType.changes().take(3).toList(groupValues) },
@@ -142,6 +205,8 @@ class ProfileAwareLibraryPreferencesTest {
         filterStartedValues.last() shouldBe TriState.ENABLED_IS
         filterBookmarkedValues.last() shouldBe TriState.ENABLED_NOT
         filterCompletedValues.last() shouldBe TriState.ENABLED_IS
+        animeFilterUnwatchedValues.last() shouldBe TriState.ENABLED_NOT
+        animeFilterStartedValues.last() shouldBe TriState.ENABLED_IS
         sortingValues.last() shouldBe LibrarySort(LibrarySort.Type.LastRead, LibrarySort.Direction.Descending)
         displayValues.last() shouldBe LibraryDisplayMode.List
         groupValues.last() shouldBe LibraryGroupType.Extension
@@ -154,6 +219,8 @@ class ProfileAwareLibraryPreferencesTest {
         filterStartedValues.last() shouldBe TriState.DISABLED
         filterBookmarkedValues.last() shouldBe TriState.DISABLED
         filterCompletedValues.last() shouldBe TriState.DISABLED
+        animeFilterUnwatchedValues.last() shouldBe TriState.DISABLED
+        animeFilterStartedValues.last() shouldBe TriState.DISABLED
         sortingValues.last() shouldBe LibrarySort.default
         displayValues.last() shouldBe LibraryDisplayMode.default
         groupValues.last() shouldBe LibraryGroupType.Category

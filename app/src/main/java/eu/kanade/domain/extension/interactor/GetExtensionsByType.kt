@@ -21,10 +21,13 @@ class GetExtensionsByType(
             extensionManager.untrustedExtensionsFlow,
             extensionManager.availableExtensionsFlow,
         ) { enabledLanguages, _installed, _untrusted, _available ->
-            val (updates, installed) = _installed
+            val mangaInstalled = _installed.filterIsInstance<Extension.InstalledManga>()
+            val mangaAvailable = _available.filterIsInstance<Extension.AvailableManga>()
+
+            val (updates, installed) = mangaInstalled
                 .filter { (showNsfwSources || !it.isNsfw) }
                 .sortedWith(
-                    compareBy<Extension.Installed> { !it.isObsolete }
+                    compareBy<Extension.InstalledManga> { !it.isObsolete }
                         .thenBy(String.CASE_INSENSITIVE_ORDER) { it.name },
                 )
                 .partition { it.hasUpdate }
@@ -32,9 +35,9 @@ class GetExtensionsByType(
             val untrusted = _untrusted
                 .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
 
-            val available = _available
+            val available = mangaAvailable
                 .filter { extension ->
-                    _installed.none { it.pkgName == extension.pkgName } &&
+                    mangaInstalled.none { it.pkgName == extension.pkgName } &&
                         _untrusted.none { it.pkgName == extension.pkgName } &&
                         (showNsfwSources || !extension.isNsfw)
                 }

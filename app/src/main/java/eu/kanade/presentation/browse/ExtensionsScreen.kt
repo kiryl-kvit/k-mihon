@@ -52,8 +52,8 @@ import eu.kanade.presentation.util.animateItemFastScroll
 import eu.kanade.presentation.util.rememberRequestPackageInstallsPermissionState
 import eu.kanade.tachiyomi.extension.model.Extension
 import eu.kanade.tachiyomi.extension.model.InstallStep
+import eu.kanade.tachiyomi.ui.browse.extension.ExtensionListState
 import eu.kanade.tachiyomi.ui.browse.extension.ExtensionUiModel
-import eu.kanade.tachiyomi.ui.browse.extension.ExtensionsScreenModel
 import eu.kanade.tachiyomi.util.system.LocaleHelper
 import eu.kanade.tachiyomi.util.system.launchRequestPackageInstallsPermission
 import kotlinx.collections.immutable.persistentListOf
@@ -72,7 +72,7 @@ import tachiyomi.presentation.core.util.secondaryItemAlpha
 
 @Composable
 fun ExtensionScreen(
-    state: ExtensionsScreenModel.State,
+    state: ExtensionListState,
     contentPadding: PaddingValues,
     searchQuery: String?,
     onLongClickItem: (Extension) -> Unit,
@@ -134,7 +134,7 @@ fun ExtensionScreen(
 
 @Composable
 private fun ExtensionContent(
-    state: ExtensionsScreenModel.State,
+    state: ExtensionListState,
     contentPadding: PaddingValues,
     onLongClickItem: (Extension) -> Unit,
     onClickItemCancel: (Extension) -> Unit,
@@ -354,7 +354,7 @@ private fun ExtensionItemContent(
         ) {
             ProvideTextStyle(value = MaterialTheme.typography.bodySmall) {
                 var hasAlreadyShownAnElement by remember { mutableStateOf(false) }
-                if (extension is Extension.Installed && extension.lang.isNotEmpty()) {
+                if (extension is Extension.Installed && !extension.lang.isNullOrEmpty()) {
                     hasAlreadyShownAnElement = true
                     Text(
                         text = LocaleHelper.getSourceDisplayName(extension.lang, LocalContext.current),
@@ -455,7 +455,24 @@ private fun ExtensionItemActions(
             }
             installStep == InstallStep.Idle -> {
                 when (extension) {
-                    is Extension.Installed -> {
+                    is Extension.InstalledManga -> {
+                        IconButton(onClick = { onClickItemSecondaryAction(extension) }) {
+                            Icon(
+                                imageVector = Icons.Outlined.Settings,
+                                contentDescription = stringResource(MR.strings.action_settings),
+                            )
+                        }
+
+                        if (extension.hasUpdate) {
+                            IconButton(onClick = { onClickItemAction(extension) }) {
+                                Icon(
+                                    imageVector = Icons.Outlined.GetApp,
+                                    contentDescription = stringResource(MR.strings.ext_update),
+                                )
+                            }
+                        }
+                    }
+                    is Extension.InstalledAnime -> {
                         IconButton(onClick = { onClickItemSecondaryAction(extension) }) {
                             Icon(
                                 imageVector = Icons.Outlined.Settings,
@@ -480,11 +497,28 @@ private fun ExtensionItemActions(
                             )
                         }
                     }
-                    is Extension.Available -> {
+                    is Extension.AvailableManga -> {
                         if (extension.sources.isNotEmpty()) {
                             IconButton(
                                 onClick = { onClickItemSecondaryAction(extension) },
                             ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Public,
+                                    contentDescription = stringResource(MR.strings.action_open_in_web_view),
+                                )
+                            }
+                        }
+
+                        IconButton(onClick = { onClickItemAction(extension) }) {
+                            Icon(
+                                imageVector = Icons.Outlined.GetApp,
+                                contentDescription = stringResource(MR.strings.ext_install),
+                            )
+                        }
+                    }
+                    is Extension.AvailableAnime -> {
+                        if (extension.sources.isNotEmpty()) {
+                            IconButton(onClick = { onClickItemSecondaryAction(extension) }) {
                                 Icon(
                                     imageVector = Icons.Outlined.Public,
                                     contentDescription = stringResource(MR.strings.action_open_in_web_view),

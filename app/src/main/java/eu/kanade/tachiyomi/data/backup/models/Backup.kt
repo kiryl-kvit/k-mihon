@@ -15,4 +15,5 @@ data class Backup(
     @ProtoNumber(106) var backupExtensionRepo: List<BackupExtensionRepos> = emptyList(),
     @ProtoNumber(200) var backupProfiles: List<ProfileScopedBackup> = emptyList(),
     @ProtoNumber(201) var activeProfileUuid: String? = null,
+    @ProtoNumber(202) var backupAnime: List<BackupAnime> = emptyList(),
 )

@@ -104,6 +104,7 @@ abstract class SearchScreenModel(
 
         return extensionManager.installedExtensionsFlow.value
             .filter { it.pkgName == filter }
+            .filterIsInstance<eu.kanade.tachiyomi.extension.model.Extension.InstalledManga>()
             .flatMap { it.sources }
             .filterIsInstance<CatalogueSource>()
             .filter { it in enabledSources }

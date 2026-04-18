@@ -19,11 +19,16 @@ import eu.kanade.tachiyomi.data.track.TrackerManager
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.network.JavaScriptEngine
 import eu.kanade.tachiyomi.network.NetworkHelper
+import eu.kanade.tachiyomi.source.AndroidAnimeSourceManager
 import eu.kanade.tachiyomi.source.AndroidSourceManager
+import eu.kanade.tachiyomi.source.AnimeSourcePreferenceProvider
 import eu.kanade.tachiyomi.source.SourcePreferenceProvider
+import eu.kanade.tachiyomi.ui.video.player.ResolveVideoStream
+import eu.kanade.tachiyomi.ui.video.player.VideoStreamResolver
 import eu.kanade.tachiyomi.util.logging.AppLogStore
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.protobuf.ProtoBuf
+import mihon.feature.profiles.core.ProfileAnimeSourcePreferenceProvider
 import mihon.feature.profiles.core.ProfileDatabase
 import mihon.feature.profiles.core.ProfileManager
 import mihon.feature.profiles.core.ProfileSourcePreferenceProvider
@@ -32,13 +37,18 @@ import nl.adaptivity.xmlutil.core.XmlVersion
 import nl.adaptivity.xmlutil.serialization.XML
 import tachiyomi.core.common.storage.AndroidStorageFolderProvider
 import tachiyomi.data.AndroidDatabaseHandler
+import tachiyomi.data.Anime_history
+import tachiyomi.data.Animes
 import tachiyomi.data.Database
 import tachiyomi.data.DatabaseHandler
 import tachiyomi.data.DateColumnAdapter
 import tachiyomi.data.History
 import tachiyomi.data.Mangas
+import tachiyomi.data.ProfileTypeColumnAdapter
+import tachiyomi.data.Profiles
 import tachiyomi.data.StringListColumnAdapter
 import tachiyomi.data.UpdateStrategyColumnAdapter
+import tachiyomi.domain.source.service.AnimeSourceManager
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.storage.service.StorageManager
 import tachiyomi.source.local.image.LocalCoverManager
@@ -80,9 +90,18 @@ class AppModule(val app: Application) : InjektModule {
                 historyAdapter = History.Adapter(
                     last_readAdapter = DateColumnAdapter,
                 ),
+                anime_historyAdapter = Anime_history.Adapter(
+                    last_watchedAdapter = DateColumnAdapter,
+                ),
                 mangasAdapter = Mangas.Adapter(
                     genreAdapter = StringListColumnAdapter,
                     update_strategyAdapter = UpdateStrategyColumnAdapter,
+                ),
+                animesAdapter = Animes.Adapter(
+                    genreAdapter = StringListColumnAdapter,
+                ),
+                profilesAdapter = Profiles.Adapter(
+                    typeAdapter = ProfileTypeColumnAdapter,
                 ),
             )
         }
@@ -90,6 +109,7 @@ class AppModule(val app: Application) : InjektModule {
         addSingletonFactory { ProfileDatabase(get()) }
         addSingletonFactory { ProfileManager(app, get(), get(), get()) }
         addSingletonFactory<SourcePreferenceProvider> { ProfileSourcePreferenceProvider(app, get()) }
+        addSingletonFactory<AnimeSourcePreferenceProvider> { ProfileAnimeSourcePreferenceProvider(app, get()) }
 
         addSingletonFactory {
             Json {
@@ -120,7 +140,10 @@ class AppModule(val app: Application) : InjektModule {
         addSingletonFactory { JavaScriptEngine(app) }
 
         addSingletonFactory<SourceManager> { AndroidSourceManager(app, get(), get()) }
+        addSingletonFactory<AnimeSourceManager> { AndroidAnimeSourceManager(get()) }
         addSingletonFactory { ExtensionManager(app) }
+        addSingletonFactory { ResolveVideoStream(get(), get(), get()) }
+        addSingletonFactory<VideoStreamResolver> { get<ResolveVideoStream>() }
 
         addSingletonFactory { DownloadProvider(app) }
         addSingletonFactory { DownloadManager(app) }
@@ -141,6 +164,7 @@ class AppModule(val app: Application) : InjektModule {
             get<NetworkHelper>()
 
             get<SourceManager>()
+            get<AnimeSourceManager>()
 
             get<Database>()
 

@@ -4,6 +4,8 @@ import eu.kanade.domain.chapter.interactor.GetAvailableScanlators
 import eu.kanade.domain.chapter.interactor.SetReadStatus
 import eu.kanade.domain.chapter.interactor.SyncChaptersWithSource
 import eu.kanade.domain.download.interactor.DeleteDownload
+import eu.kanade.domain.extension.interactor.GetAnimeExtensionSources
+import eu.kanade.domain.extension.interactor.GetAnimeExtensions
 import eu.kanade.domain.extension.interactor.GetExtensionLanguages
 import eu.kanade.domain.extension.interactor.GetExtensionSources
 import eu.kanade.domain.extension.interactor.GetExtensionsByType
@@ -14,16 +16,20 @@ import eu.kanade.domain.manga.interactor.GetExcludedScanlators
 import eu.kanade.domain.manga.interactor.SetExcludedScanlators
 import eu.kanade.domain.manga.interactor.SetMangaViewerFlags
 import eu.kanade.domain.manga.interactor.UpdateManga
+import eu.kanade.domain.source.interactor.GetEnabledAnimeSources
 import eu.kanade.domain.source.interactor.GetEnabledSources
 import eu.kanade.domain.source.interactor.GetIncognitoState
 import eu.kanade.domain.source.interactor.GetLanguagesWithSources
 import eu.kanade.domain.source.interactor.GetSourcesWithFavoriteCount
 import eu.kanade.domain.source.interactor.SetMigrateSorting
+import eu.kanade.domain.source.interactor.ToggleAnimeSource
+import eu.kanade.domain.source.interactor.ToggleAnimeSourcePin
 import eu.kanade.domain.source.interactor.ToggleIncognito
 import eu.kanade.domain.source.interactor.ToggleLanguage
 import eu.kanade.domain.source.interactor.ToggleSource
 import eu.kanade.domain.source.interactor.ToggleSourcePin
 import eu.kanade.domain.source.service.BrowseFeedService
+import eu.kanade.domain.source.service.ProfileHiddenAnimeSourceIds
 import eu.kanade.domain.source.service.ProfileHiddenSourceIds
 import eu.kanade.domain.track.interactor.AddTracks
 import eu.kanade.domain.track.interactor.RefreshTracks
@@ -42,22 +48,49 @@ import mihon.domain.extensionrepo.service.ExtensionRepoService
 import mihon.domain.migration.usecases.MigrateMangaUseCase
 import mihon.domain.upcoming.interactor.GetUpcomingManga
 import tachiyomi.data.ActiveProfileProvider
+import tachiyomi.data.anime.AnimeEpisodeRepositoryImpl
+import tachiyomi.data.anime.AnimeHistoryRepositoryImpl
+import tachiyomi.data.anime.AnimePlaybackPreferencesRepositoryImpl
+import tachiyomi.data.anime.AnimePlaybackStateRepositoryImpl
+import tachiyomi.data.anime.AnimeRepositoryImpl
+import tachiyomi.data.anime.AnimeUpdatesRepositoryImpl
+import tachiyomi.data.anime.MergedAnimeRepositoryImpl
 import tachiyomi.data.category.CategoryRepositoryImpl
 import tachiyomi.data.chapter.ChapterRepositoryImpl
 import tachiyomi.data.history.HistoryRepositoryImpl
 import tachiyomi.data.manga.MangaRepositoryImpl
 import tachiyomi.data.manga.MergedMangaRepositoryImpl
 import tachiyomi.data.release.ReleaseServiceImpl
+import tachiyomi.data.source.AnimeSourceRepositoryImpl
 import tachiyomi.data.source.SourceRepositoryImpl
 import tachiyomi.data.source.StubSourceRepositoryImpl
 import tachiyomi.data.track.TrackRepositoryImpl
 import tachiyomi.data.updates.UpdatesRepositoryImpl
+import tachiyomi.domain.anime.interactor.GetAnime
+import tachiyomi.domain.anime.interactor.GetAnimeUpdates
+import tachiyomi.domain.anime.interactor.GetAnimeWithEpisodes
+import tachiyomi.domain.anime.interactor.GetDuplicateLibraryAnime
+import tachiyomi.domain.anime.interactor.GetMergedAnime
+import tachiyomi.domain.anime.interactor.NetworkToLocalAnime
+import tachiyomi.domain.anime.interactor.SetAnimeDefaultEpisodeFlags
+import tachiyomi.domain.anime.interactor.SetAnimeEpisodeFlags
+import tachiyomi.domain.anime.interactor.SyncAnimeWithSource
+import tachiyomi.domain.anime.interactor.UpdateMergedAnime
+import tachiyomi.domain.anime.repository.AnimeEpisodeRepository
+import tachiyomi.domain.anime.repository.AnimeHistoryRepository
+import tachiyomi.domain.anime.repository.AnimePlaybackPreferencesRepository
+import tachiyomi.domain.anime.repository.AnimePlaybackStateRepository
+import tachiyomi.domain.anime.repository.AnimeRepository
+import tachiyomi.domain.anime.repository.AnimeUpdatesRepository
+import tachiyomi.domain.anime.repository.MergedAnimeRepository
 import tachiyomi.domain.category.interactor.CreateCategoryWithName
 import tachiyomi.domain.category.interactor.DeleteCategory
+import tachiyomi.domain.category.interactor.GetAnimeCategories
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.interactor.RenameCategory
 import tachiyomi.domain.category.interactor.ReorderCategory
 import tachiyomi.domain.category.interactor.ResetCategoryFlags
+import tachiyomi.domain.category.interactor.SetAnimeCategories
 import tachiyomi.domain.category.interactor.SetDisplayMode
 import tachiyomi.domain.category.interactor.SetMangaCategories
 import tachiyomi.domain.category.interactor.SetSortModeForCategory
@@ -94,10 +127,13 @@ import tachiyomi.domain.manga.repository.MangaRepository
 import tachiyomi.domain.manga.repository.MergedMangaRepository
 import tachiyomi.domain.release.interactor.GetApplicationRelease
 import tachiyomi.domain.release.service.ReleaseService
+import tachiyomi.domain.source.interactor.GetRemoteAnime
 import tachiyomi.domain.source.interactor.GetRemoteManga
 import tachiyomi.domain.source.interactor.GetSourcesWithNonLibraryManga
+import tachiyomi.domain.source.repository.AnimeSourceRepository
 import tachiyomi.domain.source.repository.SourceRepository
 import tachiyomi.domain.source.repository.StubSourceRepository
+import tachiyomi.domain.source.service.HiddenAnimeSourceIds
 import tachiyomi.domain.source.service.HiddenSourceIds
 import tachiyomi.domain.track.interactor.DeleteTrack
 import tachiyomi.domain.track.interactor.GetTracks
@@ -117,6 +153,7 @@ class DomainModule : InjektModule {
     override fun InjektRegistrar.registerInjectables() {
         addSingletonFactory<CategoryRepository> { CategoryRepositoryImpl(get(), get()) }
         addFactory { GetCategories(get()) }
+        addFactory { GetAnimeCategories(get()) }
         addFactory { ResetCategoryFlags(get(), get()) }
         addFactory { SetDisplayMode(get()) }
         addFactory { SetSortModeForCategory(get(), get()) }
@@ -126,8 +163,12 @@ class DomainModule : InjektModule {
         addFactory { UpdateCategory(get()) }
         addFactory { DeleteCategory(get(), get(), get()) }
 
+        addSingletonFactory<MergedAnimeRepository> { MergedAnimeRepositoryImpl(get(), get()) }
         addSingletonFactory<MangaRepository> { MangaRepositoryImpl(get(), get()) }
         addSingletonFactory<MergedMangaRepository> { MergedMangaRepositoryImpl(get(), get()) }
+        addFactory { GetAnimeWithEpisodes(get(), get(), get()) }
+        addFactory { GetMergedAnime(get()) }
+        addFactory { GetDuplicateLibraryAnime(get(), get(), get(), get()) }
         addFactory { GetDuplicateLibraryManga(get(), get(), get(), get()) }
         addFactory { EnhanceDuplicateLibraryManga(get(), get()) }
         addFactory { GetEnhancedDuplicateLibraryManga(get(), get(), get(), get()) }
@@ -146,9 +187,11 @@ class DomainModule : InjektModule {
         addFactory { SetMangaViewerFlags(get()) }
         addFactory { NetworkToLocalManga(get()) }
         addFactory { UpdateManga(get(), get()) }
+        addFactory { UpdateMergedAnime(get()) }
         addFactory { UpdateMergedManga(get()) }
         addFactory { UpdateMangaNotes(get()) }
         addFactory { SetMangaCategories(get()) }
+        addFactory { SetAnimeCategories(get()) }
         addFactory { GetExcludedScanlators(get(), get()) }
         addFactory { SetExcludedScanlators(get(), get()) }
         addFactory {
@@ -192,24 +235,45 @@ class DomainModule : InjektModule {
 
         addFactory { GetExtensionsByType(get(), get()) }
         addFactory { GetExtensionSources(get()) }
+        addFactory { GetAnimeExtensions(get()) }
+        addFactory { GetAnimeExtensionSources(get()) }
         addFactory { GetExtensionLanguages(get(), get()) }
 
         addSingletonFactory<UpdatesRepository> { UpdatesRepositoryImpl(get(), get()) }
         addFactory { GetUpdates(get(), get()) }
 
+        addSingletonFactory<AnimeRepository> { AnimeRepositoryImpl(get(), get()) }
+        addSingletonFactory<AnimeEpisodeRepository> { AnimeEpisodeRepositoryImpl(get(), get()) }
+        addSingletonFactory<AnimeHistoryRepository> { AnimeHistoryRepositoryImpl(get(), get()) }
+        addSingletonFactory<AnimePlaybackPreferencesRepository> { AnimePlaybackPreferencesRepositoryImpl(get(), get()) }
+        addSingletonFactory<AnimePlaybackStateRepository> { AnimePlaybackStateRepositoryImpl(get(), get()) }
+        addSingletonFactory<AnimeUpdatesRepository> { AnimeUpdatesRepositoryImpl(get(), get()) }
+        addFactory { GetAnime(get()) }
+        addFactory { SetAnimeEpisodeFlags(get()) }
+        addFactory { SetAnimeDefaultEpisodeFlags(get(), get()) }
+        addFactory { GetAnimeUpdates(get(), get()) }
+        addFactory { NetworkToLocalAnime(get()) }
+        addFactory { SyncAnimeWithSource(get(), get(), get()) }
+
         addSingletonFactory<HiddenSourceIds> { ProfileHiddenSourceIds(get()) }
+        addSingletonFactory<HiddenAnimeSourceIds> { ProfileHiddenAnimeSourceIds(get()) }
         addSingletonFactory<SourceRepository> { SourceRepositoryImpl(get(), get(), get()) }
+        addSingletonFactory<AnimeSourceRepository> { AnimeSourceRepositoryImpl(get()) }
         addSingletonFactory<StubSourceRepository> { StubSourceRepositoryImpl(get()) }
         addFactory { GetEnabledSources(get(), get()) }
+        addFactory { GetEnabledAnimeSources(get(), get()) }
         addSingletonFactory { BrowseFeedService(get()) }
         addFactory { GetLanguagesWithSources(get(), get()) }
         addFactory { GetRemoteManga(get()) }
+        addFactory { GetRemoteAnime(get()) }
         addFactory { GetSourcesWithFavoriteCount(get(), get()) }
         addFactory { GetSourcesWithNonLibraryManga(get(), get()) }
         addFactory { SetMigrateSorting(get()) }
         addFactory { ToggleLanguage(get()) }
         addFactory { ToggleSource(get()) }
+        addFactory { ToggleAnimeSource(get()) }
         addFactory { ToggleSourcePin(get()) }
+        addFactory { ToggleAnimeSourcePin(get()) }
         addFactory { TrustExtension(get(), get()) }
 
         addSingletonFactory<ExtensionRepoRepository> { ExtensionRepoRepositoryImpl(get()) }

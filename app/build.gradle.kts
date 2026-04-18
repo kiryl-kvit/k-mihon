@@ -26,8 +26,8 @@ android {
     defaultConfig {
         applicationId = "app.mihon"
 
-        versionCode = 49
-        versionName = "1.11.4"
+        versionCode = 50
+        versionName = "2.0.0"
 
         buildConfigField("String", "COMMIT_COUNT", "\"${getLatestCommitCount()}\"")
         buildConfigField("String", "COMMIT_SHA", "\"${getLatestCommitSha()}\"")
@@ -183,7 +183,7 @@ dependencies {
     implementation(projects.core.archive)
     implementation(projects.core.common)
     implementation(projects.coreMetadata)
-    implementation(projects.sourceApi)
+    implementation(projects.extensionsLib)
     implementation(projects.sourceLocal)
     implementation(projects.data)
     implementation(projects.domain)
@@ -221,6 +221,10 @@ dependencies {
     implementation(libs.androidx.constraintLayout)
     implementation(libs.androidx.core)
     implementation(libs.androidx.coreSplashScreen)
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.exoplayerHls)
+    implementation(libs.androidx.media3.ui)
+    implementation(libs.androidx.media3.datasourceOkhttp)
     implementation(libs.androidx.recyclerView)
     implementation(libs.androidx.viewPager)
     implementation(libs.androidx.profileInstaller)

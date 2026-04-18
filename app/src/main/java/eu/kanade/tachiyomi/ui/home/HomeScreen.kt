@@ -42,6 +42,12 @@ import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.util.Screen
 import eu.kanade.presentation.util.isTabletUi
 import eu.kanade.tachiyomi.extension.ExtensionManager
+import eu.kanade.tachiyomi.ui.anime.AnimeBrowseTab
+import eu.kanade.tachiyomi.ui.anime.AnimeHistoryTab
+import eu.kanade.tachiyomi.ui.anime.AnimeLibraryTab
+import eu.kanade.tachiyomi.ui.anime.AnimeMoreTab
+import eu.kanade.tachiyomi.ui.anime.AnimeScreen
+import eu.kanade.tachiyomi.ui.anime.AnimeUpdatesTab
 import eu.kanade.tachiyomi.ui.browse.BrowseTab
 import eu.kanade.tachiyomi.ui.download.DownloadQueueScreen
 import eu.kanade.tachiyomi.ui.history.HistoryTab
@@ -67,6 +73,7 @@ import mihon.feature.profiles.ui.handleProfileShortcut
 import soup.compose.material.motion.animation.materialFadeThroughIn
 import soup.compose.material.motion.animation.materialFadeThroughOut
 import tachiyomi.domain.library.service.LibraryPreferences
+import tachiyomi.domain.profile.model.ProfileType
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.NavigationBar
 import tachiyomi.presentation.core.components.material.NavigationRail
@@ -105,6 +112,7 @@ object HomeScreen : Screen() {
         val configuredTab by customPreferences.homeScreenStartupTab.collectAsState()
         val configuredTabs by customPreferences.homeScreenTabs.collectAsState()
         val configuredTabOrder by customPreferences.homeScreenTabOrder.collectAsState()
+        val activeProfileType = activeProfile?.type ?: ProfileType.MANGA
         val visibleProfiles by profileManager.visibleProfiles.collectFlowAsState()
         val enabledTabs = remember(configuredTabs, configuredTabOrder, visibleProfiles) {
             resolveVisibleHomeScreenTabs(
@@ -116,19 +124,29 @@ object HomeScreen : Screen() {
         val contentTabs = remember(enabledTabs) {
             enabledTabs.filter { it in homeScreenContentTabOrder }
         }
-        val launchTab = remember(configuredTab, configuredTabs, configuredTabOrder, visibleProfiles.size) {
+        val launchTab = remember(
+            configuredTab,
+            configuredTabs,
+            configuredTabOrder,
+            visibleProfiles.size,
+            activeProfileType,
+        ) {
             resolveLaunchTab(
                 configuredTab = configuredTab,
                 configuredTabs = configuredTabs,
                 configuredTabOrder = configuredTabOrder,
                 showProfilesTab = visibleProfiles.size > 1,
+                profileType = activeProfileType,
             )
         }
         val renderedTabs = remember(enabledTabs) {
             enabledTabs
         }
-        val fallbackTab = remember(contentTabs, configuredTabOrder) {
-            resolveContentTab(resolveHomeScreenTab(HomeScreenTabs.Library, contentTabs, configuredTabOrder))
+        val fallbackTab = remember(contentTabs, configuredTabOrder, activeProfileType) {
+            resolveContentTab(
+                resolveHomeScreenTab(HomeScreenTabs.Library, contentTabs, configuredTabOrder),
+                activeProfileType,
+            )
         }
         val navigator = LocalNavigator.currentOrThrow
         val scope = rememberCoroutineScope()
@@ -155,7 +173,7 @@ object HomeScreen : Screen() {
                                             }
                                         })
                                     } else {
-                                        TabNavigationRailItem(resolveContentTab(it))
+                                        TabNavigationRailItem(resolveContentTab(it, activeProfileType))
                                     }
                                 }
                             }
@@ -189,7 +207,7 @@ object HomeScreen : Screen() {
                                                 },
                                             )
                                         } else {
-                                            TabNavigationBarItem(resolveContentTab(it))
+                                            TabNavigationBarItem(resolveContentTab(it, activeProfileType))
                                         }
                                     }
                                 }
@@ -223,8 +241,13 @@ object HomeScreen : Screen() {
 
             BackHandler(enabled = tabNavigator.current != fallbackTab, onBack = goToFallbackTab)
 
-            LaunchedEffect(contentTabs, configuredTabOrder) {
-                val resolvedCurrentTab = resolveVisibleTab(tabNavigator.current, contentTabs, configuredTabOrder)
+            LaunchedEffect(contentTabs, configuredTabOrder, activeProfileType) {
+                val resolvedCurrentTab = resolveVisibleTab(
+                    tabNavigator.current,
+                    contentTabs,
+                    configuredTabOrder,
+                    activeProfileType,
+                )
                 if (resolvedCurrentTab::class != tabNavigator.current::class) {
                     tabNavigator.current = resolvedCurrentTab
                 }
@@ -234,12 +257,14 @@ object HomeScreen : Screen() {
                 }
             }
 
-            LaunchedEffect(Unit) {
+            LaunchedEffect(contentTabs, enabledTabs, configuredTabOrder, activeProfileType, fallbackTab) {
                 launch {
                     librarySearchEvent.receiveAsFlow().collectLatest {
                         if (HomeScreenTabs.Library in contentTabs) {
-                            tabNavigator.current = LibraryTab
-                            LibraryTab.search(it)
+                            tabNavigator.current = resolveContentTab(HomeScreenTabs.Library, activeProfileType)
+                            if (activeProfileType == ProfileType.MANGA) {
+                                LibraryTab.search(it)
+                            }
                         } else {
                             goToFallbackTab()
                         }
@@ -261,22 +286,30 @@ object HomeScreen : Screen() {
                             return@collectLatest
                         }
                         val requestedTab = when (it) {
-                            is Tab.Library -> LibraryTab
-                            Tab.Updates -> UpdatesTab
-                            Tab.History -> HistoryTab
-                            is Tab.Browse -> BrowseTab
-                            is Tab.More -> MoreTab
+                            is Tab.Library -> HomeScreenTabs.Library
+                            Tab.Updates -> HomeScreenTabs.Updates
+                            Tab.History -> HomeScreenTabs.History
+                            is Tab.Browse -> HomeScreenTabs.Browse
+                            is Tab.More -> HomeScreenTabs.More
                             Tab.Profiles -> error("Handled above")
                         }
-                        val resolvedTab = resolveVisibleTab(requestedTab, contentTabs, configuredTabOrder)
+                        val resolvedTab = resolveContentTab(
+                            resolveHomeScreenTab(requestedTab, contentTabs, configuredTabOrder),
+                            activeProfileType,
+                        )
                         tabNavigator.current = resolvedTab
 
                         if (it is Tab.Browse && resolvedTab::class == BrowseTab::class && it.toExtensions) {
                             BrowseTab.showExtension()
                         }
 
-                        if (it is Tab.Library && it.mangaIdToOpen != null) {
+                        if (it is Tab.Library && it.mangaIdToOpen != null && resolvedTab::class == LibraryTab::class) {
                             navigator.push(MangaScreen(it.mangaIdToOpen))
+                        }
+                        if (it is Tab.Library && it.animeIdToOpen != null &&
+                            resolvedTab::class == AnimeLibraryTab::class
+                        ) {
+                            navigator.push(AnimeScreen(it.animeIdToOpen))
                         }
                         if (it is Tab.More && resolvedTab::class == MoreTab::class && it.toDownloads) {
                             navigator.push(DownloadQueueScreen)
@@ -421,6 +454,26 @@ object HomeScreen : Screen() {
                             }
                         }
                     }
+                    tab is AnimeUpdatesTab -> {
+                        val count by produceState(initialValue = 0) {
+                            val pref = Injekt.get<LibraryPreferences>()
+                            combine(
+                                pref.newShowUpdatesCount.changes(),
+                                pref.newUpdatesCount.changes(),
+                            ) { show, count -> if (show) count else 0 }
+                                .collectLatest { value = it }
+                        }
+                        if (count > 0) {
+                            Badge {
+                                Text(
+                                    text = count.toString(),
+                                    modifier = Modifier.semantics {
+                                        contentDescription = "$count updates"
+                                    },
+                                )
+                            }
+                        }
+                    }
                     BrowseTab::class.isInstance(tab) -> {
                         val count by produceState(initialValue = 0) {
                             val preferences = Injekt.get<GlobalSourcePreferences>()
@@ -473,8 +526,9 @@ object HomeScreen : Screen() {
         tab: VoyagerTab,
         contentTabs: Collection<HomeScreenTabs>,
         tabOrder: Collection<HomeScreenTabs>,
+        profileType: ProfileType,
     ): eu.kanade.presentation.util.Tab {
-        return resolveContentTab(resolveHomeScreenTab(tab.toHomeScreenTab(), contentTabs, tabOrder))
+        return resolveContentTab(resolveHomeScreenTab(tab.toHomeScreenTab(), contentTabs, tabOrder), profileType)
     }
 
     private fun resolveLaunchTab(
@@ -482,6 +536,7 @@ object HomeScreen : Screen() {
         configuredTabs: Set<String>,
         configuredTabOrder: Collection<HomeScreenTabs>,
         showProfilesTab: Boolean,
+        profileType: ProfileType,
     ): eu.kanade.presentation.util.Tab {
         val enabledTabs = resolveVisibleHomeScreenTabs(
             tabs = configuredTabs.toHomeScreenTabs(),
@@ -489,33 +544,46 @@ object HomeScreen : Screen() {
             showProfilesTab = showProfilesTab,
         )
         val contentTabs = enabledTabs.filter { it in homeScreenContentTabOrder }
-        return resolveContentTab(resolveHomeScreenTab(configuredTab, contentTabs, configuredTabOrder))
+        return resolveContentTab(resolveHomeScreenTab(configuredTab, contentTabs, configuredTabOrder), profileType)
     }
 
-    private fun resolveContentTab(tab: HomeScreenTabs): eu.kanade.presentation.util.Tab {
-        return when (tab) {
-            HomeScreenTabs.Library -> LibraryTab
-            HomeScreenTabs.Updates -> UpdatesTab
-            HomeScreenTabs.History -> HistoryTab
-            HomeScreenTabs.Browse -> BrowseTab
-            HomeScreenTabs.More -> MoreTab
-            HomeScreenTabs.Profiles -> error("Profiles is a navigation item, not a content tab")
+    private fun resolveContentTab(tab: HomeScreenTabs, profileType: ProfileType): eu.kanade.presentation.util.Tab {
+        return when (profileType) {
+            ProfileType.MANGA -> when (tab) {
+                HomeScreenTabs.Library -> LibraryTab
+                HomeScreenTabs.Updates -> UpdatesTab
+                HomeScreenTabs.History -> HistoryTab
+                HomeScreenTabs.Browse -> BrowseTab
+                HomeScreenTabs.More -> MoreTab
+                HomeScreenTabs.Profiles -> error("Profiles is a navigation item, not a content tab")
+            }
+            ProfileType.ANIME -> when (tab) {
+                HomeScreenTabs.Library -> AnimeLibraryTab
+                HomeScreenTabs.Updates -> AnimeUpdatesTab
+                HomeScreenTabs.History -> AnimeHistoryTab
+                HomeScreenTabs.Browse -> AnimeBrowseTab
+                HomeScreenTabs.More -> AnimeMoreTab
+                HomeScreenTabs.Profiles -> error("Profiles is a navigation item, not a content tab")
+            }
         }
     }
 
     private fun VoyagerTab.toHomeScreenTab(): HomeScreenTabs {
         return when (this) {
-            is LibraryTab -> HomeScreenTabs.Library
-            is UpdatesTab -> HomeScreenTabs.Updates
-            is HistoryTab -> HomeScreenTabs.History
-            is BrowseTab -> HomeScreenTabs.Browse
-            is MoreTab -> HomeScreenTabs.More
+            is LibraryTab, is AnimeLibraryTab -> HomeScreenTabs.Library
+            is UpdatesTab, is AnimeUpdatesTab -> HomeScreenTabs.Updates
+            is HistoryTab, is AnimeHistoryTab -> HomeScreenTabs.History
+            is BrowseTab, is AnimeBrowseTab -> HomeScreenTabs.Browse
+            is MoreTab, is AnimeMoreTab -> HomeScreenTabs.More
             else -> HomeScreenTabs.More
         }
     }
 
     sealed interface Tab {
-        data class Library(val mangaIdToOpen: Long? = null) : Tab
+        data class Library(
+            val mangaIdToOpen: Long? = null,
+            val animeIdToOpen: Long? = null,
+        ) : Tab
         data object Updates : Tab
         data object History : Tab
         data class Browse(val toExtensions: Boolean = false) : Tab

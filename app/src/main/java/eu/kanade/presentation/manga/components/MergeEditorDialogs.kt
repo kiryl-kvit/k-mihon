@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -32,12 +33,18 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.collections.immutable.ImmutableList
@@ -144,6 +151,29 @@ fun MergeTargetPickerSheet(
     onSelectTarget: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val focusRequester = remember { FocusRequester() }
+    var textFieldValue by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(
+            TextFieldValue(
+                text = query,
+                selection = TextRange(query.length),
+            ),
+        )
+    }
+
+    LaunchedEffect(query) {
+        if (textFieldValue.text != query) {
+            textFieldValue = TextFieldValue(
+                text = query,
+                selection = TextRange(query.length),
+            )
+        }
+    }
+
+    LaunchedEffect(focusRequester) {
+        focusRequester.requestFocus()
+    }
+
     eu.kanade.presentation.components.AdaptiveSheet(
         onDismissRequest = onDismissRequest,
         modifier = modifier,
@@ -151,6 +181,7 @@ fun MergeTargetPickerSheet(
         Column(
             modifier = Modifier
                 .padding(vertical = 8.dp)
+                .imePadding()
                 .fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.medium),
         ) {
@@ -160,11 +191,15 @@ fun MergeTargetPickerSheet(
                 modifier = Modifier.padding(horizontal = 24.dp),
             )
             androidx.compose.material3.OutlinedTextField(
-                value = query,
-                onValueChange = onQueryChange,
+                value = textFieldValue,
+                onValueChange = {
+                    textFieldValue = it
+                    onQueryChange(it.text)
+                },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
+                    .padding(horizontal = 24.dp)
+                    .focusRequester(focusRequester),
                 label = { Text(text = stringResource(MR.strings.action_search)) },
                 singleLine = true,
             )
@@ -213,7 +248,7 @@ private fun StaticMergeEditorItem(
             horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
         ) {
             MangaCover.Square(
-                data = entry.manga,
+                data = entry.coverData,
                 modifier = Modifier.size(64.dp),
             )
             Column(
@@ -293,7 +328,7 @@ private fun ReorderableCollectionItemScope.MergeEditorItem(
                 horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
             ) {
                 MangaCover.Square(
-                    data = entry.manga,
+                    data = entry.coverData,
                     modifier = Modifier.size(64.dp),
                 )
 
@@ -477,7 +512,9 @@ data class MergeEditorEntry(
     val subtitle: String,
     val isRemovable: Boolean = false,
     val isMember: Boolean = false,
+    val titleOverride: String? = null,
+    val coverData: Any? = manga,
 ) {
     val title: String
-        get() = manga.presentationTitle()
+        get() = titleOverride ?: manga.presentationTitle()
 }

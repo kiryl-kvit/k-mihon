@@ -17,6 +17,14 @@ data class MergeTarget(
     val entry: MergeEditorEntry,
 )
 
+fun MergeTarget.matchesQuery(query: String): Boolean {
+    val trimmed = query.trim()
+    if (trimmed.isBlank()) return true
+
+    return entry.title.contains(trimmed, ignoreCase = true) ||
+        searchableTitle.contains(trimmed, ignoreCase = true)
+}
+
 internal fun buildMergeTargets(
     libraryManga: List<LibraryManga>,
     sourceManager: SourceManager,

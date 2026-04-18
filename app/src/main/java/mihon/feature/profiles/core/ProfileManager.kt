@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.content.edit
 import androidx.preference.PreferenceManager
+import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.core.security.SecurityPreferences
 import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
 import eu.kanade.tachiyomi.extension.ExtensionManager
@@ -25,6 +26,7 @@ import mihon.core.common.toHomeScreenTabPreferenceValue
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.domain.manga.service.DuplicatePreferences
 import tachiyomi.domain.manga.service.DuplicateTitleExclusions
+import tachiyomi.domain.profile.model.ProfileType
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.io.File
@@ -68,6 +70,7 @@ class ProfileManager(
             profileDatabase.insertProfile(
                 uuid = ProfileConstants.DEFAULT_PROFILE_UUID,
                 name = ProfileConstants.DEFAULT_PROFILE_NAME,
+                type = ProfileType.MANGA,
                 colorSeed = 0x4F6AF2,
                 position = 0,
                 requiresAuth = false,
@@ -99,11 +102,16 @@ class ProfileManager(
         }
     }
 
-    suspend fun createProfile(name: String): Profile {
+    suspend fun createProfile(name: String, type: ProfileType): Profile {
+        val trimmedName = name.trim()
+        require(trimmedName.isNotEmpty())
+        validateUniqueProfileName(trimmedName, type)
+
         val position = profiles.value.maxOfOrNull(Profile::position)?.plus(1) ?: 1L
         val id = profileDatabase.insertProfile(
             uuid = newUuid(),
-            name = name,
+            name = trimmedName,
+            type = type,
             colorSeed = Random.nextLong(0x00FFFFFF),
             position = position,
             requiresAuth = false,
@@ -111,20 +119,28 @@ class ProfileManager(
         )
         clearProfileState(id)
         val hiddenSourceIds = extensionManager.installedExtensionsFlow.value
+            .filterIsInstance<eu.kanade.tachiyomi.extension.model.Extension.InstalledManga>()
             .flatMap { extension -> extension.sources.map { source -> source.id.toString() } }
             .toSet()
         profileStore.profileStore(id)
-            .getStringSet(
-                "hidden_catalogues",
-                hiddenSourceIds,
-            )
+            .getStringSet(SourcePreferences.MANGA_HIDDEN_SOURCES_KEY, hiddenSourceIds)
             .set(hiddenSourceIds)
+        profileStore.profileStore(id)
+            .getStringSet(SourcePreferences.ANIME_HIDDEN_SOURCES_KEY, emptySet())
+            .set(emptySet())
+        val customPreferences = CustomPreferences(profileStore.appStateStore(id))
+        customPreferences.homeScreenTabs.set(defaultHomeScreenTabsFor(type))
+        customPreferences.homeScreenStartupTab.set(defaultHomeScreenStartupTabFor(type))
         seedDuplicateTitleExclusions(profileId = id)
         return requireNotNull(profileDatabase.getProfileById(id))
     }
 
     suspend fun renameProfile(profileId: Long, name: String) {
-        profileDatabase.updateProfile(id = profileId, name = name)
+        val profile = profileDatabase.getProfileById(profileId) ?: return
+        val trimmedName = name.trim()
+        require(trimmedName.isNotEmpty())
+        validateUniqueProfileName(trimmedName, profile.type, excludedProfileId = profileId)
+        profileDatabase.updateProfile(id = profileId, name = trimmedName)
     }
 
     suspend fun setProfileArchived(profileId: Long, archived: Boolean) {
@@ -347,6 +363,8 @@ class ProfileManager(
     }
 
     private fun migrateLegacySourcePreferences() {
+        migrateLegacyHiddenSources()
+
         val sharedPrefsDir = File(application.applicationInfo.dataDir, "shared_prefs")
         val sourceIds = sharedPrefsDir.listFiles()
             ?.asSequence()
@@ -392,6 +410,29 @@ class ProfileManager(
         }
     }
 
+    private fun migrateLegacyHiddenSources() {
+        val profiles = runCatching {
+            kotlinx.coroutines.runBlocking { profileDatabase.getProfiles(includeArchived = true) }
+        }.getOrDefault(emptyList())
+
+        profiles.forEach { profile ->
+            val store = profileStore.profileStore(profile.id)
+            val legacy = store.getStringSet(SourcePreferences.LEGACY_HIDDEN_SOURCES_KEY, emptySet())
+            val manga = store.getStringSet(SourcePreferences.MANGA_HIDDEN_SOURCES_KEY, emptySet())
+            val anime = store.getStringSet(SourcePreferences.ANIME_HIDDEN_SOURCES_KEY, emptySet())
+
+            if (!manga.isSet() && legacy.isSet()) {
+                manga.set(legacy.get())
+            }
+            if (!anime.isSet()) {
+                anime.set(emptySet())
+            }
+            if (legacy.isSet()) {
+                legacy.delete()
+            }
+        }
+    }
+
     suspend fun getProfileBundles(includeArchived: Boolean = true): List<ProfileBundle> {
         return profileDatabase.getProfiles(includeArchived).map { profile ->
             ProfileBundle(
@@ -423,6 +464,33 @@ class ProfileManager(
     @OptIn(ExperimentalUuidApi::class)
     private fun newUuid(): String {
         return Uuid.random().toString()
+    }
+
+    private fun defaultHomeScreenTabsFor(type: ProfileType): Set<String> {
+        return when (type) {
+            ProfileType.MANGA -> defaultHomeScreenTabs()
+            ProfileType.ANIME -> defaultHomeScreenTabs()
+        }
+    }
+
+    private fun defaultHomeScreenStartupTabFor(type: ProfileType): HomeScreenTabs {
+        return when (type) {
+            ProfileType.MANGA -> HomeScreenTabs.Library
+            ProfileType.ANIME -> HomeScreenTabs.Library
+        }
+    }
+
+    private suspend fun validateUniqueProfileName(
+        name: String,
+        type: ProfileType,
+        excludedProfileId: Long? = null,
+    ) {
+        require(
+            !profileDatabase.getProfiles(includeArchived = true)
+                .hasNameConflict(name = name, type = type, excludedProfileId = excludedProfileId),
+        ) {
+            "Profile name already exists for type $type"
+        }
     }
 
     companion object {

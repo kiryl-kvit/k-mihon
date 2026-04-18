@@ -29,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.NonRestartableComposable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -50,11 +51,15 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.presentation.components.UpIcon
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.util.Screen
+import mihon.feature.profiles.core.ProfileManager
+import tachiyomi.domain.profile.model.ProfileType
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.screens.EmptyScreen
 import tachiyomi.presentation.core.util.runOnEnterKeyPressed
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import cafe.adriel.voyager.core.screen.Screen as VoyagerScreen
 
 class SettingsSearchScreen : Screen() {
@@ -62,6 +67,9 @@ class SettingsSearchScreen : Screen() {
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
+        val profileManager = remember { Injekt.get<ProfileManager>() }
+        val activeProfile by profileManager.activeProfile.collectAsState()
+        val activeProfileType = activeProfile?.type ?: ProfileType.MANGA
         val softKeyboardController = LocalSoftwareKeyboardController.current
         val focusManager = LocalFocusManager.current
         val focusRequester = remember { FocusRequester() }
@@ -142,6 +150,7 @@ class SettingsSearchScreen : Screen() {
         ) { contentPadding ->
             SearchResult(
                 searchKey = textFieldState.text.toString(),
+                profileType = activeProfileType,
                 listState = listState,
                 contentPadding = contentPadding,
             ) { result ->
@@ -155,6 +164,7 @@ class SettingsSearchScreen : Screen() {
 @Composable
 private fun SearchResult(
     searchKey: String,
+    profileType: ProfileType,
     modifier: Modifier = Modifier,
     listState: LazyListState = rememberLazyListState(),
     contentPadding: PaddingValues = PaddingValues(),
@@ -164,8 +174,8 @@ private fun SearchResult(
 
     val isLtr = LocalLayoutDirection.current == LayoutDirection.Ltr
 
-    val index = getIndex()
-    val result by produceState<List<SearchResultItem>?>(initialValue = null, searchKey) {
+    val index = getIndex(profileType)
+    val result by produceState<List<SearchResultItem>?>(initialValue = null, searchKey, profileType) {
         value = index.asSequence()
             .flatMap { settingsData ->
                 settingsData.contents.asSequence()
@@ -262,7 +272,8 @@ private fun SearchResult(
 
 @Composable
 @NonRestartableComposable
-private fun getIndex() = settingScreens
+private fun getIndex(profileType: ProfileType) = settingScreens
+    .filter { isSettingsScreenVisibleForProfileType(it, profileType) }
     .map { screen ->
         SettingsData(
             title = stringResource(screen.getTitleRes()),

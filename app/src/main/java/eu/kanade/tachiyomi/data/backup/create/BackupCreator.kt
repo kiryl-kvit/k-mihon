@@ -5,12 +5,14 @@ import android.net.Uri
 import com.hippo.unifile.UniFile
 import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.data.backup.BackupFileValidator
+import eu.kanade.tachiyomi.data.backup.create.creators.AnimeBackupCreator
 import eu.kanade.tachiyomi.data.backup.create.creators.CategoriesBackupCreator
 import eu.kanade.tachiyomi.data.backup.create.creators.ExtensionRepoBackupCreator
 import eu.kanade.tachiyomi.data.backup.create.creators.MangaBackupCreator
 import eu.kanade.tachiyomi.data.backup.create.creators.PreferenceBackupCreator
 import eu.kanade.tachiyomi.data.backup.create.creators.SourcesBackupCreator
 import eu.kanade.tachiyomi.data.backup.models.Backup
+import eu.kanade.tachiyomi.data.backup.models.BackupAnime
 import eu.kanade.tachiyomi.data.backup.models.BackupCategory
 import eu.kanade.tachiyomi.data.backup.models.BackupExtensionRepos
 import eu.kanade.tachiyomi.data.backup.models.BackupManga
@@ -27,6 +29,7 @@ import okio.gzip
 import okio.sink
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.system.logcat
+import tachiyomi.domain.anime.repository.AnimeRepository
 import tachiyomi.domain.backup.service.BackupPreferences
 import tachiyomi.domain.manga.interactor.GetFavorites
 import tachiyomi.domain.manga.model.Manga
@@ -49,9 +52,11 @@ class BackupCreator(
     private val backupPreferences: BackupPreferences = Injekt.get(),
     private val profileManager: ProfileManager = Injekt.get(),
     private val mangaRepository: MangaRepository = Injekt.get(),
+    private val animeRepository: AnimeRepository = Injekt.get(),
 
     private val categoriesBackupCreator: CategoriesBackupCreator = CategoriesBackupCreator(),
     private val mangaBackupCreator: MangaBackupCreator = MangaBackupCreator(),
+    private val animeBackupCreator: AnimeBackupCreator = AnimeBackupCreator(),
     private val preferenceBackupCreator: PreferenceBackupCreator = PreferenceBackupCreator(),
     private val extensionRepoBackupCreator: ExtensionRepoBackupCreator = ExtensionRepoBackupCreator(),
     private val sourcesBackupCreator: SourcesBackupCreator = SourcesBackupCreator(),
@@ -84,6 +89,7 @@ class BackupCreator(
             val nonFavoriteManga = if (options.readEntries) mangaRepository.getReadMangaNotInLibrary() else emptyList()
             val activeProfile = profileManager.activeProfile.value
             val backupManga = backupMangas(activeProfile?.id, getFavorites.await() + nonFavoriteManga, options)
+            val backupAnime = backupAnimeEntries(activeProfile?.id, options)
             val backupProfiles = backupProfiles(options)
             val backupSources = backupSources(
                 mangas = backupManga + backupProfiles.flatMap(ProfileScopedBackup::manga),
@@ -98,6 +104,7 @@ class BackupCreator(
                 backupSourcePreferences = backupSourcePreferences(options),
                 backupProfiles = backupProfiles,
                 activeProfileUuid = activeProfile?.uuid,
+                backupAnime = backupAnime,
             )
 
             val byteArray = parser.encodeToByteArray(Backup.serializer(), backup)
@@ -159,6 +166,26 @@ class BackupCreator(
         return sourcesBackupCreator(mangas)
     }
 
+    private suspend fun backupAnimeEntries(profileId: Long?, options: BackupOptions): List<BackupAnime> {
+        if (!options.libraryEntries) return emptyList()
+
+        val animes = if (profileId != null) {
+            animeRepository.getAllAnimeByProfile(profileId)
+        } else {
+            val activeProfileId = profileManager.activeProfile.value?.id
+            if (activeProfileId != null) {
+                animeRepository.getAllAnimeByProfile(activeProfileId)
+            } else {
+                emptyList()
+            }
+        }
+        return if (profileId != null) {
+            animeBackupCreator(profileId, animes, options)
+        } else {
+            animeBackupCreator(animes, options)
+        }
+    }
+
     private fun backupAppPreferences(options: BackupOptions): List<BackupPreference> {
         if (!options.appSettings) return emptyList()
 
@@ -195,6 +222,12 @@ class BackupCreator(
                 emptyList()
             }
 
+            val anime = if (options.libraryEntries) {
+                backupAnimeEntries(profileId, options)
+            } else {
+                emptyList()
+            }
+
             val categories = if (options.categories) {
                 categoriesBackupCreator(profileId)
             } else {
@@ -227,9 +260,11 @@ class BackupCreator(
                     position = bundle.profile.position,
                     requiresAuth = bundle.profile.requiresAuth,
                     isArchived = bundle.profile.isArchived,
+                    type = bundle.profile.type,
                 ),
                 categories = categories,
                 manga = manga,
+                anime = anime,
                 preferences = appPreferences,
                 sourcePreferences = sourcePreferences,
             )

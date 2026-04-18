@@ -6,11 +6,13 @@ import eu.kanade.tachiyomi.core.security.SecurityPreferences
 import eu.kanade.tachiyomi.data.backup.BackupDecoder
 import eu.kanade.tachiyomi.data.backup.BackupNotifier
 import eu.kanade.tachiyomi.data.backup.create.BackupCreateJob
+import eu.kanade.tachiyomi.data.backup.models.BackupAnime
 import eu.kanade.tachiyomi.data.backup.models.BackupCategory
 import eu.kanade.tachiyomi.data.backup.models.BackupExtensionRepos
 import eu.kanade.tachiyomi.data.backup.models.BackupManga
 import eu.kanade.tachiyomi.data.backup.models.BackupPreference
 import eu.kanade.tachiyomi.data.backup.models.BackupSourcePreferences
+import eu.kanade.tachiyomi.data.backup.restore.restorers.AnimeRestorer
 import eu.kanade.tachiyomi.data.backup.restore.restorers.CategoriesRestorer
 import eu.kanade.tachiyomi.data.backup.restore.restorers.ExtensionRepoRestorer
 import eu.kanade.tachiyomi.data.backup.restore.restorers.MangaRestorer
@@ -46,6 +48,7 @@ class BackupRestorer(
     private val preferenceRestorer: PreferenceRestorer = PreferenceRestorer(context),
     private val extensionRepoRestorer: ExtensionRepoRestorer = ExtensionRepoRestorer(),
     private val mangaRestorer: MangaRestorer = MangaRestorer(),
+    private val animeRestorer: AnimeRestorer = AnimeRestorer(),
     private val profileDatabase: ProfileDatabase = Injekt.get(),
     private val profileManager: ProfileManager = Injekt.get(),
     private val profileStore: ProfileStore = Injekt.get(),
@@ -99,6 +102,7 @@ class BackupRestorer(
 
         if (options.libraryEntries) {
             restoreAmount += backup.backupManga.size
+            restoreAmount += backup.backupAnime.size
         }
         if (options.categories) {
             restoreAmount += 1
@@ -125,6 +129,7 @@ class BackupRestorer(
             }
             if (options.libraryEntries) {
                 restoreManga(backup.backupManga, if (options.categories) backup.backupCategories else emptyList())
+                restoreAnime(backup.backupAnime, if (options.categories) backup.backupCategories else emptyList())
             }
             if (options.extensionRepoSettings) {
                 restoreExtensionRepos(backup.backupExtensionRepo)
@@ -144,7 +149,7 @@ class BackupRestorer(
         val previousProfileId = profileManager.activeProfileId
 
         if (options.libraryEntries) {
-            restoreAmount += backupProfiles.sumOf { it.manga.size }
+            restoreAmount += backupProfiles.sumOf { it.manga.size + it.anime.size }
         }
         if (options.categories) {
             restoreAmount += backupProfiles.size
@@ -228,6 +233,29 @@ class BackupRestorer(
                     }
 
                 mangaRestorer.restorePendingMerges()
+
+                animeRestorer.sortByNew(profileBackup.anime)
+                    .forEach {
+                        try {
+                            animeRestorer.restore(
+                                it,
+                                if (options.categories) profileBackup.categories else emptyList(),
+                            )
+                        } catch (e: Exception) {
+                            val sourceName = sourceMapping[it.source] ?: it.source.toString()
+                            errors.add(Date() to "${it.title} [$sourceName]: ${e.message}")
+                        }
+
+                        restoreProgress += 1
+                        notifier.showRestoreProgress(
+                            "${profile.name}: ${it.title}",
+                            restoreProgress,
+                            restoreAmount,
+                            isSync,
+                        )
+                    }
+
+                animeRestorer.restorePendingMerges()
             }
         }
 
@@ -282,6 +310,13 @@ class BackupRestorer(
     private suspend fun upsertProfile(bundle: ProfileScopedBackup): mihon.feature.profiles.core.Profile {
         val existing = profileDatabase.getProfileByUuid(bundle.profile.uuid)
         if (existing != null) {
+            if (existing.type != bundle.profile.type) {
+                errors.add(
+                    Date() to
+                        "Profile type conflict for ${bundle.profile.name}: existing=${existing.type} backup=${bundle.profile.type}",
+                )
+                return existing
+            }
             profileDatabase.updateProfile(
                 id = existing.id,
                 name = bundle.profile.name,
@@ -299,6 +334,7 @@ class BackupRestorer(
         val id = profileDatabase.insertProfile(
             uuid = bundle.profile.uuid,
             name = bundle.profile.name,
+            type = bundle.profile.type,
             colorSeed = bundle.profile.colorSeed,
             position = bundle.profile.position,
             requiresAuth = false,
@@ -343,6 +379,28 @@ class BackupRestorer(
             }
 
         mangaRestorer.restorePendingMerges()
+    }
+
+    private fun CoroutineScope.restoreAnime(
+        backupAnime: List<BackupAnime>,
+        backupCategories: List<BackupCategory>,
+    ) = launch {
+        animeRestorer.sortByNew(backupAnime)
+            .forEach {
+                ensureActive()
+
+                try {
+                    animeRestorer.restore(it, backupCategories)
+                } catch (e: Exception) {
+                    val sourceName = sourceMapping[it.source] ?: it.source.toString()
+                    errors.add(Date() to "${it.title} [$sourceName]: ${e.message}")
+                }
+
+                restoreProgress += 1
+                notifier.showRestoreProgress(it.title, restoreProgress, restoreAmount, isSync)
+            }
+
+        animeRestorer.restorePendingMerges()
     }
 
     private fun CoroutineScope.restoreAppPreferences(

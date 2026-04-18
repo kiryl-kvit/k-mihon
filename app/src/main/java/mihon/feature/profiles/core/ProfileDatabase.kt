@@ -3,6 +3,7 @@ package mihon.feature.profiles.core
 import kotlinx.coroutines.flow.Flow
 import tachiyomi.data.DatabaseHandler
 import tachiyomi.domain.category.model.Category
+import tachiyomi.domain.profile.model.ProfileType
 
 class ProfileDatabase(
     private val handler: DatabaseHandler,
@@ -34,6 +35,7 @@ class ProfileDatabase(
     suspend fun insertProfile(
         uuid: String,
         name: String,
+        type: ProfileType,
         colorSeed: Long,
         position: Long,
         requiresAuth: Boolean,
@@ -43,6 +45,7 @@ class ProfileDatabase(
             profilesQueries.insert(
                 uuid = uuid,
                 name = name,
+                type = type,
                 colorSeed = colorSeed,
                 position = position,
                 requiresAuth = requiresAuth,
@@ -80,6 +83,13 @@ class ProfileDatabase(
 
     suspend fun clearProfileData(profileId: Long) {
         handler.await(inTransaction = true) {
+            anime_playback_preferencesQueries.deleteByProfile(profileId)
+            anime_historyQueries.removeAllHistory(profileId)
+            anime_playback_stateQueries.deleteByProfile(profileId)
+            animes_categoriesQueries.deleteByProfile(profileId)
+            merged_animesQueries.deleteByProfile(profileId)
+            anime_episodesQueries.deleteByProfile(profileId)
+            animesQueries.deleteByProfile(profileId)
             historyQueries.removeAllHistory(profileId)
             excluded_scanlatorsQueries.deleteByProfile(profileId)
             manga_syncQueries.deleteByProfile(profileId)
@@ -113,6 +123,7 @@ class ProfileDatabase(
         id: Long,
         uuid: String,
         name: String,
+        type: ProfileType,
         colorSeed: Long,
         position: Long,
         requiresAuth: Boolean,
@@ -126,6 +137,7 @@ class ProfileDatabase(
             id = id,
             uuid = uuid,
             name = name,
+            type = type,
             colorSeed = colorSeed,
             position = position,
             requiresAuth = requiresAuth,

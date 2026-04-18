@@ -1,5 +1,6 @@
 package tachiyomi.data.category
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import tachiyomi.data.ActiveProfileProvider
@@ -9,6 +10,7 @@ import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.category.model.CategoryUpdate
 import tachiyomi.domain.category.repository.CategoryRepository
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class CategoryRepositoryImpl(
     private val handler: DatabaseHandler,
     private val profileProvider: ActiveProfileProvider,
@@ -43,6 +45,33 @@ class CategoryRepositoryImpl(
             handler.subscribeToList {
                 categoriesQueries.getCategoriesByMangaId(profileId, mangaId, ::mapCategory)
             }
+        }
+    }
+
+    override suspend fun getCategoriesByAnimeId(animeId: Long): List<Category> {
+        return handler.awaitList {
+            categoriesQueries.getCategoriesByAnimeId(profileProvider.activeProfileId, animeId, ::mapCategory)
+        }
+    }
+
+    override fun getCategoriesByAnimeIdAsFlow(animeId: Long): Flow<List<Category>> {
+        return profileProvider.activeProfileIdFlow.flatMapLatest { profileId ->
+            handler.subscribeToList {
+                categoriesQueries.getCategoriesByAnimeId(profileId, animeId, ::mapCategory)
+            }
+        }
+    }
+
+    override suspend fun getAnimeCategoryIds(animeIds: List<Long>): Map<Long, List<Long>> {
+        if (animeIds.isEmpty()) return emptyMap()
+
+        return handler.await {
+            categoriesQueries.getAnimeCategoryMappings(profileProvider.activeProfileId, animeIds)
+                .executeAsList()
+                .groupBy(
+                    keySelector = { it.anime_id },
+                    valueTransform = { it.category_id },
+                )
         }
     }
 

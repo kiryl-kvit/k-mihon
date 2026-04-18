@@ -11,6 +11,7 @@ import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import eu.kanade.domain.source.interactor.SourceListListing
 import eu.kanade.presentation.browse.SourceOptionsDialog
 import eu.kanade.presentation.browse.SourcesScreen
 import eu.kanade.presentation.components.AppBar
@@ -20,6 +21,7 @@ import eu.kanade.tachiyomi.ui.browse.source.globalsearch.GlobalSearchScreen
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import tachiyomi.domain.source.interactor.GetRemoteManga
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 
@@ -45,10 +47,14 @@ fun Screen.sourcesTab(): TabContent {
         ),
         content = { contentPadding, snackbarHostState ->
             SourcesScreen(
-                state = state,
+                state = state.listState,
                 contentPadding = contentPadding,
                 onClickItem = { source, listing ->
-                    navigator.push(BrowseSourceScreen(source.id, listing.query))
+                    val listingQuery = when (listing) {
+                        SourceListListing.Popular -> GetRemoteManga.QUERY_POPULAR
+                        SourceListListing.Latest -> GetRemoteManga.QUERY_LATEST
+                    }
+                    navigator.push(BrowseSourceScreen(source.id, listingQuery))
                 },
                 onClickPin = screenModel::togglePin,
                 onLongClickItem = screenModel::showSourceDialog,

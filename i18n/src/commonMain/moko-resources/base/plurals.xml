@@ -56,6 +56,26 @@
         <item quantity="other">%1$s chapters</item>
     </plurals>
 
+    <plurals name="anime_num_episodes">
+        <item quantity="one">%1$s episode</item>
+        <item quantity="other">%1$s episodes</item>
+    </plurals>
+
+    <plurals name="anime_num_scheduled_episodes">
+        <item quantity="one">%1$s scheduled</item>
+        <item quantity="other">%1$s scheduled</item>
+    </plurals>
+
+    <plurals name="anime_num_upcoming_episodes">
+        <item quantity="one">%1$s upcoming</item>
+        <item quantity="other">%1$s upcoming</item>
+    </plurals>
+
+    <plurals name="anime_num_seasons">
+        <item quantity="one">%1$s season</item>
+        <item quantity="other">%1$s seasons</item>
+    </plurals>
+
     <plurals name="download_amount">
         <item quantity="one">Next chapter</item>
         <item quantity="other">Next %d chapters</item>
@@ -75,9 +95,17 @@
         <item quantity="one">For %d entry</item>
         <item quantity="other">For %d entries</item>
     </plurals>
+    <plurals name="notification_new_episodes_summary">
+        <item quantity="one">For %d entry</item>
+        <item quantity="other">For %d entries</item>
+    </plurals>
     <plurals name="notification_chapters_generic">
         <item quantity="one">%1$d new chapter</item>
         <item quantity="other">%1$d new chapters</item>
+    </plurals>
+    <plurals name="notification_episodes_generic">
+        <item quantity="one">%1$d new episode</item>
+        <item quantity="other">%1$d new episodes</item>
     </plurals>
 
     <plurals name="browse_feed_new_items">
@@ -88,6 +116,10 @@
     <plurals name="notification_chapters_multiple_and_more">
         <item quantity="one">Chapters %1$s and 1 more</item>
         <item quantity="other">Chapters %1$s and %2$d more</item>
+    </plurals>
+    <plurals name="notification_episodes_multiple_and_more">
+        <item quantity="one">Episodes %1$s and 1 more</item>
+        <item quantity="other">Episodes %1$s and %2$d more</item>
     </plurals>
 
     <!--Extension Updates Notifications-->

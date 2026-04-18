@@ -51,6 +51,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -172,13 +173,25 @@ class MainActivity : BaseActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        val isLaunch = savedInstanceState == null
-        if (isLaunch) {
-            allowAppUnlockPrompt = !runBlocking { profileManager.shouldShowPickerOnLaunch() }
-        }
+        val isFreshLaunch = savedInstanceState == null
+        val savedStartupCompleted = savedInstanceState?.getBoolean(STATE_STARTUP_COMPLETED) == true
+        val savedAllowAppUnlockPrompt = savedInstanceState
+            ?.takeIf { it.containsKey(STATE_ALLOW_APP_UNLOCK_PROMPT) }
+            ?.getBoolean(STATE_ALLOW_APP_UNLOCK_PROMPT)
+        val startupRestorationDecision = resolveStartupRestorationDecision(
+            startupCompleted = savedStartupCompleted,
+            restoredAllowAppUnlockPrompt = savedAllowAppUnlockPrompt,
+            shouldShowPickerOnLaunch = if (!savedStartupCompleted && savedAllowAppUnlockPrompt == null) {
+                runBlocking { profileManager.shouldShowPickerOnLaunch() }
+            } else {
+                false
+            },
+        )
+        startupCompleted = savedStartupCompleted
+        allowAppUnlockPrompt = startupRestorationDecision.allowAppUnlockPrompt
 
         // Prevent splash screen showing up on configuration changes
-        val splashScreen = if (isLaunch) installSplashScreen() else null
+        val splashScreen = if (isFreshLaunch) installSplashScreen() else null
 
         super.onCreate(savedInstanceState)
 
@@ -200,16 +213,35 @@ class MainActivity : BaseActivity() {
             val indexing by downloadCache.isInitializing.collectAsState()
             val visibleProfiles by profileManager.visibleProfiles.collectAsState()
             val activeProfile by profileManager.activeProfile.collectAsState()
-            var startupGateState by remember(isLaunch) {
+            var startupGateState by rememberSaveable {
                 mutableStateOf<ProfileStartupGateState>(
-                    if (isLaunch) {
+                    if (startupRestorationDecision.shouldResumeStartup) {
                         ProfileStartupGateState.Loading
                     } else {
                         ProfileStartupGateState.Ready
                     },
                 )
             }
-            var pendingAuthProfile by remember(isLaunch) { mutableStateOf<Profile?>(null) }
+            var pendingAuthProfileId by rememberSaveable { mutableStateOf<Long?>(null) }
+            var pendingSelectedProfileId by rememberSaveable { mutableStateOf<Long?>(null) }
+            val pendingAuthProfile = remember(pendingAuthProfileId, activeProfile, visibleProfiles) {
+                when {
+                    pendingAuthProfileId == null -> null
+                    activeProfile?.id == pendingAuthProfileId -> activeProfile
+                    else -> visibleProfiles.firstOrNull { it.id == pendingAuthProfileId }
+                }
+            }
+
+            suspend fun completeStartupProfileSelection(profileId: Long) {
+                allowAppUnlockPrompt = true
+                profileManager.setActiveProfile(profileId)
+                setAppCompatDelegateThemeMode(uiPreferences.themeMode.get())
+                activity.intent = Intent(activity.intent).apply {
+                    action = Intent.ACTION_MAIN
+                    data = null
+                    replaceExtras(Bundle())
+                }
+            }
 
             val isSystemInDarkTheme = isSystemInDarkTheme()
             val statusBarBackgroundColor = when {
@@ -228,9 +260,10 @@ class MainActivity : BaseActivity() {
                 )
             }
 
-            LaunchedEffect(isLaunch) {
-                if (!isLaunch) {
-                    startupGateState = ProfileStartupGateState.Ready
+            LaunchedEffect(startupRestorationDecision.shouldResumeStartup, startupGateState) {
+                if (!startupRestorationDecision.shouldResumeStartup ||
+                    startupGateState != ProfileStartupGateState.Loading
+                ) {
                     return@LaunchedEffect
                 }
 
@@ -241,54 +274,61 @@ class MainActivity : BaseActivity() {
                 val shouldShowPicker =
                     profilesPreferences.pickerEnabled.get() &&
                         profileManager.shouldShowPicker.first()
-                if (shouldShowPicker) {
-                    allowAppUnlockPrompt = false
-                    startupGateState = ProfileStartupGateState.Picker
-                    pendingAuthProfile = null
-                } else if (initialProfile != null && profileManager.profileRequiresUnlock(initialProfile.id) &&
-                    !shouldSkipStartupProfileAuth()
-                ) {
-                    allowAppUnlockPrompt = true
-                    pendingAuthProfile = initialProfile
-                    startupGateState = ProfileStartupGateState.Authenticating
-                } else {
-                    allowAppUnlockPrompt = true
-                    pendingAuthProfile = null
-                    startupGateState = ProfileStartupGateState.Ready
-                }
+                val startupDecision = resolveInitialStartupGateDecision(
+                    shouldShowPicker = shouldShowPicker,
+                    initialProfile = initialProfile,
+                    requiresProfileUnlock = initialProfile?.let { profileManager.profileRequiresUnlock(it.id) } == true,
+                    shouldSkipProfileAuth = shouldSkipStartupProfileAuth(),
+                )
+                allowAppUnlockPrompt = startupDecision.allowAppUnlockPrompt
+                pendingAuthProfileId = startupDecision.pendingAuthProfile?.id
+                startupGateState = startupDecision.state
             }
 
             LaunchedEffect(startupGateState, visibleProfiles, activeProfile?.id) {
-                if (startupGateState == ProfileStartupGateState.Picker && visibleProfiles.size <= 1) {
+                if (
+                    startupGateState == ProfileStartupGateState.Picker &&
+                    visibleProfiles.size == 1
+                ) {
                     val profile = activeProfile ?: visibleProfiles.firstOrNull()
-                    if (profile != null && profileManager.profileRequiresUnlock(profile.id) &&
-                        !shouldSkipStartupProfileAuth()
-                    ) {
-                        allowAppUnlockPrompt = true
-                        pendingAuthProfile = profile
-                        startupGateState = ProfileStartupGateState.Authenticating
-                    } else {
-                        allowAppUnlockPrompt = true
-                        pendingAuthProfile = null
+                    val startupDecision = resolvePickerCollapseStartupGateDecision(
+                        profile = profile,
+                        requiresProfileUnlock = profile?.let { profileManager.profileRequiresUnlock(it.id) } == true,
+                        shouldSkipProfileAuth = shouldSkipStartupProfileAuth(),
+                    )
+                    allowAppUnlockPrompt = startupDecision.allowAppUnlockPrompt
+                    pendingAuthProfileId = startupDecision.pendingAuthProfile?.id
+                    if (startupDecision.state == ProfileStartupGateState.Ready) {
                         setAppCompatDelegateThemeMode(uiPreferences.themeMode.get())
-                        startupGateState = ProfileStartupGateState.Ready
                     }
+                    startupGateState = startupDecision.state
                 }
             }
 
-            LaunchedEffect(startupGateState, pendingAuthProfile?.id) {
+            LaunchedEffect(startupGateState, pendingAuthProfileId, pendingAuthProfile?.id) {
                 if (startupGateState != ProfileStartupGateState.Authenticating) return@LaunchedEffect
 
-                val profile = pendingAuthProfile
-                if (profile == null) {
+                if (pendingAuthProfileId == null) {
                     startupGateState = ProfileStartupGateState.Ready
                     return@LaunchedEffect
                 }
+                val profile = pendingAuthProfile ?: return@LaunchedEffect
 
                 if (authenticateProfile(profile)) {
                     SecureActivityDelegate.unlock()
-                    allowAppUnlockPrompt = true
+                    val selectedProfileId = pendingSelectedProfileId
+                    if (selectedProfileId != null) {
+                        completeStartupProfileSelection(selectedProfileId)
+                    } else {
+                        allowAppUnlockPrompt = true
+                    }
+                    pendingAuthProfileId = null
+                    pendingSelectedProfileId = null
                     startupGateState = ProfileStartupGateState.Ready
+                } else if (pendingSelectedProfileId != null) {
+                    pendingAuthProfileId = null
+                    pendingSelectedProfileId = null
+                    startupGateState = ProfileStartupGateState.Picker
                 } else {
                     finishAffinity()
                 }
@@ -307,7 +347,7 @@ class MainActivity : BaseActivity() {
                 ) { navigator ->
                     LaunchedEffect(navigator, startupGateState) {
                         this@MainActivity.navigator = navigator
-                        completeStartup(isLaunch, navigator)
+                        completeStartup(startupRestorationDecision.shouldResumeStartup, navigator)
                     }
                     LaunchedEffect(navigator.lastItem) {
                         (navigator.lastItem as? BrowseSourceScreen)?.sourceId
@@ -380,21 +420,16 @@ class MainActivity : BaseActivity() {
                     activeProfileId = activeProfile?.id,
                     authProfileName = pendingAuthProfile?.name,
                     onProfileSelected = { profile ->
-                        scope.launch {
-                            if (profileManager.profileRequiresUnlock(profile.id) && !authenticateProfile(profile)) {
-                                return@launch
-                            }
-                            if (profileManager.profileRequiresUnlock(profile.id)) {
-                                SecureActivityDelegate.unlock()
-                            }
-                            allowAppUnlockPrompt = true
-                            profileManager.setActiveProfile(profile.id)
-                            setAppCompatDelegateThemeMode(uiPreferences.themeMode.get())
-                            startupGateState = ProfileStartupGateState.Ready
-                            activity.intent = Intent(activity.intent).apply {
-                                action = Intent.ACTION_MAIN
-                                data = null
-                                replaceExtras(Bundle())
+                        if (profileManager.profileRequiresUnlock(profile.id)) {
+                            pendingSelectedProfileId = profile.id
+                            pendingAuthProfileId = profile.id
+                            startupGateState = ProfileStartupGateState.Authenticating
+                        } else {
+                            scope.launch {
+                                completeStartupProfileSelection(profile.id)
+                                pendingAuthProfileId = null
+                                pendingSelectedProfileId = null
+                                startupGateState = ProfileStartupGateState.Ready
                             }
                         }
                     },
@@ -408,6 +443,12 @@ class MainActivity : BaseActivity() {
             elapsed <= SPLASH_MIN_DURATION || (!ready && elapsed <= SPLASH_MAX_DURATION)
         }
         setSplashScreenExitAnimation(splashScreen)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(STATE_STARTUP_COMPLETED, startupCompleted)
+        outState.putBoolean(STATE_ALLOW_APP_UNLOCK_PROMPT, allowAppUnlockPrompt)
     }
 
     override fun onProvideAssistContent(outContent: AssistContent) {
@@ -661,19 +702,28 @@ class MainActivity : BaseActivity() {
         }
 
         val tabToOpen = when (intent.action) {
-            Constants.SHORTCUT_LIBRARY -> HomeScreen.Tab.Library()
-            Constants.SHORTCUT_MANGA -> {
-                val idToOpen = intent.extras?.getLong(Constants.MANGA_EXTRA) ?: return false
-                navigator.popUntilRoot()
-                HomeScreen.Tab.Library(idToOpen)
-            }
-            Constants.SHORTCUT_UPDATES -> HomeScreen.Tab.Updates
-            Constants.SHORTCUT_HISTORY -> HomeScreen.Tab.History
-            Constants.SHORTCUT_SOURCES -> HomeScreen.Tab.Browse(false)
-            Constants.SHORTCUT_EXTENSIONS -> HomeScreen.Tab.Browse(true)
-            Constants.SHORTCUT_DOWNLOADS -> {
-                navigator.popUntilRoot()
-                HomeScreen.Tab.More(toDownloads = true)
+            Constants.SHORTCUT_LIBRARY,
+            Constants.SHORTCUT_MANGA,
+            Constants.SHORTCUT_ANIME,
+            Constants.SHORTCUT_UPDATES,
+            Constants.SHORTCUT_HISTORY,
+            Constants.SHORTCUT_SOURCES,
+            Constants.SHORTCUT_EXTENSIONS,
+            Constants.SHORTCUT_DOWNLOADS,
+            -> {
+                val tab = resolveShortcutTab(
+                    action = intent.action,
+                    mangaIdToOpen = intent.extras
+                        ?.takeIf { it.containsKey(Constants.MANGA_EXTRA) }
+                        ?.getLong(Constants.MANGA_EXTRA),
+                    animeIdToOpen = intent.extras
+                        ?.takeIf { it.containsKey(Constants.ANIME_EXTRA) }
+                        ?.getLong(Constants.ANIME_EXTRA),
+                ) ?: return false
+                if (intent.action != Constants.SHORTCUT_LIBRARY) {
+                    navigator.popUntilRoot()
+                }
+                tab
             }
             Intent.ACTION_SEARCH, Intent.ACTION_SEND, "com.google.android.gms.actions.SEARCH_ACTION" -> {
                 // If the intent match the "standard" Android search intent
@@ -774,10 +824,108 @@ class MainActivity : BaseActivity() {
         const val INTENT_SEARCH = "eu.kanade.tachiyomi.SEARCH"
         const val INTENT_SEARCH_QUERY = "query"
         const val INTENT_SEARCH_FILTER = "filter"
+
+        private const val STATE_STARTUP_COMPLETED = "startup_completed"
+        private const val STATE_ALLOW_APP_UNLOCK_PROMPT = "allow_app_unlock_prompt"
     }
 }
 
-private enum class ProfileStartupGateState {
+internal fun resolveShortcutTab(
+    action: String?,
+    mangaIdToOpen: Long? = null,
+    animeIdToOpen: Long? = null,
+): HomeScreen.Tab? {
+    return when (action) {
+        Constants.SHORTCUT_LIBRARY -> HomeScreen.Tab.Library()
+        Constants.SHORTCUT_MANGA -> {
+            val idToOpen = mangaIdToOpen ?: return null
+            HomeScreen.Tab.Library(mangaIdToOpen = idToOpen)
+        }
+        Constants.SHORTCUT_ANIME -> {
+            val idToOpen = animeIdToOpen ?: return null
+            HomeScreen.Tab.Library(animeIdToOpen = idToOpen)
+        }
+        Constants.SHORTCUT_UPDATES -> HomeScreen.Tab.Updates
+        Constants.SHORTCUT_HISTORY -> HomeScreen.Tab.History
+        Constants.SHORTCUT_SOURCES -> HomeScreen.Tab.Browse(false)
+        Constants.SHORTCUT_EXTENSIONS -> HomeScreen.Tab.Browse(true)
+        Constants.SHORTCUT_DOWNLOADS -> HomeScreen.Tab.More(toDownloads = true)
+        else -> null
+    }
+}
+
+internal data class ProfileStartupDecision(
+    val allowAppUnlockPrompt: Boolean,
+    val state: ProfileStartupGateState,
+    val pendingAuthProfile: Profile?,
+)
+
+internal data class StartupRestorationDecision(
+    val shouldResumeStartup: Boolean,
+    val allowAppUnlockPrompt: Boolean,
+)
+
+internal fun resolveStartupRestorationDecision(
+    startupCompleted: Boolean,
+    restoredAllowAppUnlockPrompt: Boolean?,
+    shouldShowPickerOnLaunch: Boolean,
+): StartupRestorationDecision {
+    return StartupRestorationDecision(
+        shouldResumeStartup = !startupCompleted,
+        allowAppUnlockPrompt = when {
+            startupCompleted -> true
+            restoredAllowAppUnlockPrompt != null -> restoredAllowAppUnlockPrompt
+            else -> !shouldShowPickerOnLaunch
+        },
+    )
+}
+
+internal fun resolveInitialStartupGateDecision(
+    shouldShowPicker: Boolean,
+    initialProfile: Profile?,
+    requiresProfileUnlock: Boolean,
+    shouldSkipProfileAuth: Boolean,
+): ProfileStartupDecision {
+    return when {
+        shouldShowPicker -> ProfileStartupDecision(
+            allowAppUnlockPrompt = false,
+            state = ProfileStartupGateState.Picker,
+            pendingAuthProfile = null,
+        )
+        initialProfile != null && requiresProfileUnlock && !shouldSkipProfileAuth -> ProfileStartupDecision(
+            allowAppUnlockPrompt = true,
+            state = ProfileStartupGateState.Authenticating,
+            pendingAuthProfile = initialProfile,
+        )
+        else -> ProfileStartupDecision(
+            allowAppUnlockPrompt = true,
+            state = ProfileStartupGateState.Ready,
+            pendingAuthProfile = null,
+        )
+    }
+}
+
+internal fun resolvePickerCollapseStartupGateDecision(
+    profile: Profile?,
+    requiresProfileUnlock: Boolean,
+    shouldSkipProfileAuth: Boolean,
+): ProfileStartupDecision {
+    return if (profile != null && requiresProfileUnlock && !shouldSkipProfileAuth) {
+        ProfileStartupDecision(
+            allowAppUnlockPrompt = true,
+            state = ProfileStartupGateState.Authenticating,
+            pendingAuthProfile = profile,
+        )
+    } else {
+        ProfileStartupDecision(
+            allowAppUnlockPrompt = true,
+            state = ProfileStartupGateState.Ready,
+            pendingAuthProfile = null,
+        )
+    }
+}
+
+internal enum class ProfileStartupGateState {
     Loading,
     Picker,
     Authenticating,

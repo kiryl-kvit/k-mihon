@@ -16,6 +16,7 @@ class GetExtensionLanguages(
             extensionManager.availableExtensionsFlow,
         ) { enabledLanguage, availableExtensions ->
             availableExtensions
+                .filterIsInstance<eu.kanade.tachiyomi.extension.model.Extension.AvailableManga>()
                 .flatMap { ext ->
                     if (ext.sources.isEmpty()) {
                         listOf(ext.lang)
