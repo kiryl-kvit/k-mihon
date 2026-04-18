@@ -14,3 +14,18 @@ data class Profile(
     val requiresAuth: Boolean,
     val isArchived: Boolean,
 )
+
+internal fun List<Profile>.hasNameConflict(
+    name: String,
+    type: ProfileType,
+    excludedProfileId: Long? = null,
+): Boolean {
+    val normalizedName = name.trim()
+    if (normalizedName.isEmpty()) return false
+
+    return any { profile ->
+        profile.type == type &&
+            profile.id != excludedProfileId &&
+            profile.name.trim().equals(normalizedName, ignoreCase = true)
+    }
+}

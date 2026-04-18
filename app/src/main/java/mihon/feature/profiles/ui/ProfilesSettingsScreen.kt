@@ -38,6 +38,7 @@ import kotlinx.coroutines.launch
 import mihon.feature.profiles.core.Profile
 import mihon.feature.profiles.core.ProfileConstants
 import mihon.feature.profiles.core.ProfileManager
+import mihon.feature.profiles.core.hasNameConflict
 import tachiyomi.domain.profile.model.ProfileType
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.Scaffold
@@ -124,12 +125,15 @@ class ProfilesSettingsScreen : Screen() {
                 ProfileNameDialog(
                     title = stringResource(MR.strings.profiles_add_profile),
                     initialValue = "",
-                    existingNames = profiles.map(Profile::name),
+                    existingProfiles = profiles,
                     onDismissRequest = { dialog = null },
                     onConfirm = { name, type ->
                         scope.launch {
-                            profileManager.createProfile(name, type)
-                            dialog = null
+                            runCatching {
+                                profileManager.createProfile(name, type)
+                            }.onSuccess {
+                                dialog = null
+                            }
                         }
                     },
                 )
@@ -138,13 +142,17 @@ class ProfilesSettingsScreen : Screen() {
                 ProfileNameDialog(
                     title = stringResource(MR.strings.profiles_rename_profile),
                     initialValue = currentDialog.profile.name,
-                    existingNames = profiles.map(Profile::name),
-                    originalValue = currentDialog.profile.name,
+                    existingProfiles = profiles,
+                    initialType = currentDialog.profile.type,
+                    originalProfileId = currentDialog.profile.id,
                     onDismissRequest = { dialog = null },
                     onConfirm = { name, _ ->
                         scope.launch {
-                            profileManager.renameProfile(currentDialog.profile.id, name)
-                            dialog = null
+                            runCatching {
+                                profileManager.renameProfile(currentDialog.profile.id, name)
+                            }.onSuccess {
+                                dialog = null
+                            }
                         }
                     },
                 )
@@ -270,16 +278,21 @@ private fun StatusLabel(text: String) {
 private fun ProfileNameDialog(
     title: String,
     initialValue: String,
-    existingNames: List<String>,
+    existingProfiles: List<Profile>,
     onDismissRequest: () -> Unit,
     onConfirm: (String, ProfileType) -> Unit,
-    originalValue: String? = null,
+    initialType: ProfileType = ProfileType.MANGA,
+    originalProfileId: Long? = null,
 ) {
     var value by remember(initialValue) { mutableStateOf(initialValue) }
-    var selectedType by remember { mutableStateOf(ProfileType.MANGA) }
+    var selectedType by remember(initialType) { mutableStateOf(initialType) }
     val trimmedValue = value.trim()
-    val duplicate = remember(trimmedValue, existingNames, originalValue) {
-        existingNames.any { it.equals(trimmedValue, ignoreCase = true) && it != originalValue }
+    val duplicate = remember(trimmedValue, existingProfiles, selectedType, originalProfileId) {
+        existingProfiles.hasNameConflict(
+            name = trimmedValue,
+            type = selectedType,
+            excludedProfileId = originalProfileId,
+        )
     }
 
     AlertDialog(
@@ -307,7 +320,7 @@ private fun ProfileNameDialog(
                     singleLine = true,
                 )
 
-                if (originalValue == null) {
+                if (originalProfileId == null) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
                             text = stringResource(MR.strings.profiles_type_title),

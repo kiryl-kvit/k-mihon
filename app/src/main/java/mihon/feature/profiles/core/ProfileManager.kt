@@ -103,10 +103,14 @@ class ProfileManager(
     }
 
     suspend fun createProfile(name: String, type: ProfileType): Profile {
+        val trimmedName = name.trim()
+        require(trimmedName.isNotEmpty())
+        validateUniqueProfileName(trimmedName, type)
+
         val position = profiles.value.maxOfOrNull(Profile::position)?.plus(1) ?: 1L
         val id = profileDatabase.insertProfile(
             uuid = newUuid(),
-            name = name,
+            name = trimmedName,
             type = type,
             colorSeed = Random.nextLong(0x00FFFFFF),
             position = position,
@@ -132,7 +136,11 @@ class ProfileManager(
     }
 
     suspend fun renameProfile(profileId: Long, name: String) {
-        profileDatabase.updateProfile(id = profileId, name = name)
+        val profile = profileDatabase.getProfileById(profileId) ?: return
+        val trimmedName = name.trim()
+        require(trimmedName.isNotEmpty())
+        validateUniqueProfileName(trimmedName, profile.type, excludedProfileId = profileId)
+        profileDatabase.updateProfile(id = profileId, name = trimmedName)
     }
 
     suspend fun setProfileArchived(profileId: Long, archived: Boolean) {
@@ -469,6 +477,19 @@ class ProfileManager(
         return when (type) {
             ProfileType.MANGA -> HomeScreenTabs.Library
             ProfileType.ANIME -> HomeScreenTabs.Library
+        }
+    }
+
+    private suspend fun validateUniqueProfileName(
+        name: String,
+        type: ProfileType,
+        excludedProfileId: Long? = null,
+    ) {
+        require(
+            !profileDatabase.getProfiles(includeArchived = true)
+                .hasNameConflict(name = name, type = type, excludedProfileId = excludedProfileId),
+        ) {
+            "Profile name already exists for type $type"
         }
     }
 
