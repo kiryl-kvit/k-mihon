@@ -87,7 +87,7 @@ jobs:
         uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2.6.1
         with:
           tag_name: ${{ needs.get_tag.outputs.tag }}
-          name: Mihon ${{ needs.get_tag.outputs.tag }}
+          name: ${{ needs.get_tag.outputs.tag }}
           body: |
             Release ${{ needs.get_tag.outputs.tag }}
           files: mihon-${{ needs.get_tag.outputs.tag }}-foss.apk
