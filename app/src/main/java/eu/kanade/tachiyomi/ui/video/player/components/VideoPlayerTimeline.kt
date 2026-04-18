@@ -22,7 +22,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -146,44 +147,57 @@ private fun VideoPlayerTimelineBar(
     onScrubFinished: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val latestOnScrubStarted by rememberUpdatedState(onScrubStarted)
-    val latestOnScrubPositionChange by rememberUpdatedState(onScrubPositionChange)
-    val latestOnScrubFinished by rememberUpdatedState(onScrubFinished)
     val clampedPlayedFraction = playedFraction.coerceIn(0f, 1f)
     val clampedBufferedFraction = bufferedFraction.coerceIn(clampedPlayedFraction, 1f)
     val maxThumbSize = if (thumbHaloSize > thumbSize) thumbHaloSize else thumbSize
+    val latestOnScrubStarted by rememberUpdatedState(onScrubStarted)
+    val latestOnScrubPositionChange by rememberUpdatedState(onScrubPositionChange)
+    val latestOnScrubFinished by rememberUpdatedState(onScrubFinished)
+    val latestDurationMs by rememberUpdatedState(durationMs)
+    val latestMaxThumbSize by rememberUpdatedState(maxThumbSize)
     val activeTrackColor = MaterialTheme.colorScheme.primary
 
     Canvas(
-        modifier = modifier.pointerInput(durationMs, maxThumbSize) {
-            if (durationMs <= 0L) return@pointerInput
+        modifier = modifier.pointerInput(Unit) {
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false)
+                val durationMs = latestDurationMs
+                if (durationMs <= 0L) {
+                    down.consume()
+                    return@awaitEachGesture
+                }
 
-            val thumbInsetPx = maxThumbSize.toPx() / 2f
-            detectDragGestures(
-                onDragStart = { offset ->
-                    latestOnScrubStarted()
+                val pointerId = down.id
+
+                fun updateScrubPosition(touchX: Float) {
                     latestOnScrubPositionChange(
                         timelinePositionFromTouch(
-                            touchX = offset.x,
+                            touchX = touchX,
                             widthPx = size.width,
-                            thumbInsetPx = thumbInsetPx,
-                            durationMs = durationMs,
+                            thumbInsetPx = latestMaxThumbSize.toPx() / 2f,
+                            durationMs = latestDurationMs,
                         ),
                     )
-                },
-                onDrag = { change, _ ->
-                    latestOnScrubPositionChange(
-                        timelinePositionFromTouch(
-                            touchX = change.position.x,
-                            widthPx = size.width,
-                            thumbInsetPx = thumbInsetPx,
-                            durationMs = durationMs,
-                        ),
-                    )
-                },
-                onDragEnd = latestOnScrubFinished,
-                onDragCancel = latestOnScrubFinished,
-            )
+                }
+
+                latestOnScrubStarted()
+                updateScrubPosition(down.position.x)
+                down.consume()
+
+                try {
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == pointerId } ?: break
+                        updateScrubPosition(change.position.x)
+                        change.consume()
+                        if (!change.pressed) {
+                            break
+                        }
+                    }
+                } finally {
+                    latestOnScrubFinished()
+                }
+            }
         },
     ) {
         val thumbInsetPx = maxThumbSize.toPx() / 2f
