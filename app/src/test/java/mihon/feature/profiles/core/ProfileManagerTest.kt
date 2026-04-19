@@ -64,8 +64,14 @@ class ProfileManagerTest {
         )
         every { extensionManager.installedExtensionsFlow } returns MutableStateFlow(
             listOf(
-                installedMangaExtension("manga", listOf(FakeMangaSource(10L, "Manga A"), FakeMangaSource(11L, "Manga B"))),
-                installedAnimeExtension("anime", listOf(FakeAnimeSource(20L, "Anime A"), FakeAnimeSource(21L, "Anime B"))),
+                installedMangaExtension(
+                    "manga",
+                    listOf(FakeMangaSource(10L, "Manga A"), FakeMangaSource(11L, "Manga B")),
+                ),
+                installedAnimeExtension(
+                    "anime",
+                    listOf(FakeAnimeSource(20L, "Anime A"), FakeAnimeSource(21L, "Anime B")),
+                ),
             ),
         )
         every { profileStore.currentProfileId } returns ProfileConstants.DEFAULT_PROFILE_ID
@@ -190,7 +196,10 @@ private class TestPreferenceStore : PreferenceStore {
 
     override fun getBoolean(key: String, defaultValue: Boolean): Preference<Boolean> = TestPreference(key, defaultValue)
 
-    override fun getStringSet(key: String, defaultValue: Set<String>): Preference<Set<String>> = TestPreference(key, defaultValue)
+    override fun getStringSet(key: String, defaultValue: Set<String>): Preference<Set<String>> = TestPreference(
+        key,
+        defaultValue,
+    )
 
     override fun <T> getObjectFromString(
         key: String,

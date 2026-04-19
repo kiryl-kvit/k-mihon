@@ -38,5 +38,4 @@ class GetEnabledAnimeSources(
         }
             .distinctUntilChanged()
     }
-
 }
