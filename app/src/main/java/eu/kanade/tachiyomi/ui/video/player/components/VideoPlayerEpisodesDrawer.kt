@@ -36,11 +36,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import eu.kanade.presentation.anime.animeEpisodeItems
 import eu.kanade.tachiyomi.ui.anime.AnimeEpisodeListEntry
-import tachiyomi.presentation.core.components.OverlayActionButton
 import tachiyomi.domain.anime.model.AnimeEpisode
 import tachiyomi.domain.anime.model.AnimePlaybackState
 import tachiyomi.domain.anime.model.AnimeTitle
 import tachiyomi.i18n.MR
+import tachiyomi.presentation.core.components.OverlayActionButton
 import tachiyomi.presentation.core.i18n.stringResource
 
 @Composable

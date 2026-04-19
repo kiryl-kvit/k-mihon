@@ -109,12 +109,12 @@ import com.mikepenz.markdown.model.markdownAnnotatorConfig
 import com.mikepenz.markdown.utils.getUnescapedTextInNode
 import eu.kanade.domain.anime.model.toMangaCover
 import eu.kanade.domain.ui.UiPreferences
+import eu.kanade.presentation.anime.animeEpisodeItems
 import eu.kanade.presentation.components.AdaptiveSheet
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.components.AppBarTitle
 import eu.kanade.presentation.components.DropdownMenu
-import eu.kanade.presentation.anime.animeEpisodeItems
 import eu.kanade.presentation.components.relativeDateText
 import eu.kanade.presentation.manga.components.DISALLOWED_MARKDOWN_TYPES
 import eu.kanade.presentation.manga.components.DotSeparatorText
