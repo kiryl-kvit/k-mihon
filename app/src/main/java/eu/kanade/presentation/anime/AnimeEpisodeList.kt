@@ -49,6 +49,7 @@ fun LazyListScope.animeEpisodeItems(
     selectionMode: Boolean,
     playbackStateByEpisodeId: Map<Long, AnimePlaybackState>,
     sourceAvailable: Boolean,
+    showPlaybackStatus: Boolean = true,
     onEpisodeClick: (AnimeEpisode) -> Unit,
     onEpisodeSelected: ((AnimeEpisode, Boolean, Boolean) -> Unit)? = null,
 ) {
@@ -86,6 +87,7 @@ fun LazyListScope.animeEpisodeItems(
                     selectionMode = selectionMode,
                     playbackState = playbackStateByEpisodeId[episode.id],
                     sourceAvailable = sourceAvailable,
+                    showPlaybackStatus = showPlaybackStatus,
                     onClick = {
                         if (selectionMode && onEpisodeSelected != null) {
                             onEpisodeSelected(episode, episode.id !in selectedEpisodeIds, false)
@@ -112,13 +114,14 @@ private fun AnimeEpisodeListItem(
     selectionMode: Boolean,
     playbackState: AnimePlaybackState?,
     sourceAvailable: Boolean,
+    showPlaybackStatus: Boolean,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)?,
 ) {
     val context = LocalContext.current
-    val progress = playbackState.progressFraction()
+    val progress = playbackState.progressFraction(takeIf = showPlaybackStatus)
     val resumeText = playbackState
-        ?.takeIf { !it.completed && it.positionMs > 0L }
+        ?.takeIf { showPlaybackStatus && !it.completed && it.positionMs > 0L }
         ?.positionMs
         ?.milliseconds
         ?.toDurationString(context, fallback = stringResource(MR.strings.not_applicable))
@@ -126,6 +129,7 @@ private fun AnimeEpisodeListItem(
         .takeIf { it > 0L }
         ?.let { relativeDateText(it) }
     val subtitleStatus = when {
+        !showPlaybackStatus -> null
         episode.completed || playbackState?.completed == true -> stringResource(MR.strings.completed)
         resumeText != null -> stringResource(MR.strings.action_resume) + " " + resumeText
         episode.watched -> stringResource(MR.strings.anime_watched)
@@ -246,7 +250,8 @@ private fun AnimeEpisode.displayTitle(anime: AnimeTitle): String {
     }
 }
 
-private fun AnimePlaybackState?.progressFraction(): Float? {
+private fun AnimePlaybackState?.progressFraction(takeIf: Boolean): Float? {
+    if (!takeIf) return null
     if (this == null || durationMs <= 0L || positionMs <= 0L || completed) return null
     return (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
 }

@@ -146,6 +146,7 @@ internal fun VideoPlayerEpisodesDrawer(
                                 selectionMode = false,
                                 playbackStateByEpisodeId = playbackStateByEpisodeId,
                                 sourceAvailable = sourceAvailable,
+                                showPlaybackStatus = false,
                                 onEpisodeClick = onEpisodeClick,
                             )
                         }
