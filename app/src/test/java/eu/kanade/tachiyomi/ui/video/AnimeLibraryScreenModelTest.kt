@@ -1224,16 +1224,19 @@ class AnimeLibraryScreenModelTest {
         advanceUntilIdle()
 
         eventually(2.seconds) {
-            val page = model.state.value.pages.single()
-            val firstItem = model.state.value.getItemsForPage(page).first { it.animeId == first.id }
-            model.toggleSelection(page, firstItem)
-            model.state.value.selection shouldBe setOf(first.id)
-            model.state.value.selectionMode shouldBe true
-
-            model.toggleSelection(page, firstItem)
-            model.state.value.selection shouldBe emptySet()
-            model.state.value.selectionMode shouldBe false
+            model.state.value.pages.single().itemIds shouldBe listOf(first.id, second.id)
         }
+
+        val page = model.state.value.pages.single()
+        val firstItem = model.state.value.getItemsForPage(page).first { it.animeId == first.id }
+
+        model.toggleSelection(page, firstItem)
+        model.state.value.selection shouldBe setOf(first.id)
+        model.state.value.selectionMode shouldBe true
+
+        model.toggleSelection(page, firstItem)
+        model.state.value.selection shouldBe emptySet()
+        model.state.value.selectionMode shouldBe false
     }
 
     @Test
@@ -1282,12 +1285,16 @@ class AnimeLibraryScreenModelTest {
         advanceUntilIdle()
 
         eventually(2.seconds) {
-            val page = model.state.value.pages.single()
-            val items = model.state.value.getItemsForPage(page)
-            model.toggleRangeSelection(page, items.first { it.animeId == first.id })
-            model.toggleRangeSelection(page, items.first { it.animeId == third.id })
-            model.state.value.selection shouldBe setOf(first.id, second.id, third.id)
+            model.state.value.pages.single().itemIds shouldBe listOf(first.id, second.id, third.id)
         }
+
+        val page = model.state.value.pages.single()
+        val items = model.state.value.getItemsForPage(page)
+
+        model.toggleRangeSelection(page, items.first { it.animeId == first.id })
+        model.toggleRangeSelection(page, items.first { it.animeId == third.id })
+
+        model.state.value.selection shouldBe setOf(first.id, second.id, third.id)
     }
 
     @Test
@@ -1331,16 +1338,19 @@ class AnimeLibraryScreenModelTest {
         advanceUntilIdle()
 
         eventually(2.seconds) {
-            val firstPage = model.state.value.pages.first { it.sourceId == 99L }
-            val secondPage = model.state.value.pages.first { it.sourceId == 100L }
-            val firstItem = model.state.value.getItemsForPage(firstPage).single()
-            val secondItem = model.state.value.getItemsForPage(secondPage).single()
-
-            model.toggleRangeSelection(firstPage, firstItem)
-            model.toggleRangeSelection(secondPage, secondItem)
-
-            model.state.value.selection shouldBe setOf(first.id, second.id)
+            model.state.value.pages.first { it.sourceId == 99L }.itemIds shouldBe listOf(first.id)
+            model.state.value.pages.first { it.sourceId == 100L }.itemIds shouldBe listOf(second.id)
         }
+
+        val firstPage = model.state.value.pages.first { it.sourceId == 99L }
+        val secondPage = model.state.value.pages.first { it.sourceId == 100L }
+        val firstItem = model.state.value.getItemsForPage(firstPage).single()
+        val secondItem = model.state.value.getItemsForPage(secondPage).single()
+
+        model.toggleRangeSelection(firstPage, firstItem)
+        model.toggleRangeSelection(secondPage, secondItem)
+
+        model.state.value.selection shouldBe setOf(first.id, second.id)
     }
 
     @Test
@@ -1392,10 +1402,14 @@ class AnimeLibraryScreenModelTest {
         advanceUntilIdle()
 
         eventually(2.seconds) {
-            model.updateActivePageIndex(0)
-            model.selectAll()
-            model.state.value.selection shouldBe setOf(first.id, second.id)
+            model.state.value.pages.first { it.sourceId == 99L }.itemIds shouldBe listOf(first.id, second.id)
+            model.state.value.pages.first { it.sourceId == 100L }.itemIds shouldBe listOf(third.id)
         }
+
+        model.updateActivePageIndex(0)
+        model.selectAll()
+
+        model.state.value.selection shouldBe setOf(first.id, second.id)
     }
 
     @Test
@@ -1447,24 +1461,87 @@ class AnimeLibraryScreenModelTest {
         advanceUntilIdle()
 
         eventually(2.seconds) {
-            val secondPage = model.state.value.pages.first { it.sourceId == 100L }
-            val secondPageItem = model.state.value.getItemsForPage(secondPage).single()
-            model.toggleSelection(secondPage, secondPageItem)
-
-            model.updateActivePageIndex(0)
-            val firstPage = model.state.value.activePage!!
-            val firstPageItem = model.state.value.getItemsForPage(firstPage).first { it.animeId == first.id }
-            model.toggleSelection(firstPage, firstPageItem)
-
-            model.invertSelection()
-            model.state.value.selection shouldBe setOf(second.id, third.id)
+            model.state.value.pages.first { it.sourceId == 99L }.itemIds shouldBe listOf(first.id, second.id)
+            model.state.value.pages.first { it.sourceId == 100L }.itemIds shouldBe listOf(third.id)
         }
+
+        val secondPage = model.state.value.pages.first { it.sourceId == 100L }
+        val secondPageItem = model.state.value.getItemsForPage(secondPage).single()
+        model.toggleSelection(secondPage, secondPageItem)
+
+        model.updateActivePageIndex(0)
+        val firstPage = model.state.value.activePage!!
+        val firstPageItem = model.state.value.getItemsForPage(firstPage).first { it.animeId == first.id }
+        model.toggleSelection(firstPage, firstPageItem)
+
+        model.invertSelection()
+        model.state.value.selection shouldBe setOf(second.id, third.id)
     }
 
     @Test
     fun `selection survives state rebuilds for visible items`() = runTest(dispatcher) {
         val store = InMemoryPreferenceStore()
         val prefs = LibraryPreferences(store)
+        val first = AnimeTitle.create().copy(
+            id = 1L,
+            source = 99L,
+            title = "First",
+            favorite = true,
+            initialized = true,
+            url = "/video/1",
+        )
+        val second = AnimeTitle.create().copy(
+            id = 2L,
+            source = 99L,
+            title = "Second",
+            favorite = true,
+            initialized = true,
+            url = "/video/2",
+        )
+
+        val model = AnimeLibraryScreenModel(
+            animeRepository = FakeAnimeRepository(listOf(first, second)),
+            animeEpisodeRepository = FakeAnimeEpisodeRepository(
+                listOf(
+                    AnimeEpisode.create().copy(id = 10L, animeId = first.id, watched = true, completed = false),
+                ),
+            ),
+            animePlaybackStateRepository = FakeAnimePlaybackStateRepository(emptyMap()),
+            animeHistoryRepository = FakeAnimeHistoryRepository(),
+            animeSourceManager = FakeAnimeSourceManager(),
+            getAnimeCategories = fakeGetAnimeCategories(),
+            getCategories = GetCategories(FakeCategoryRepository()),
+            setAnimeCategories = fakeSetAnimeCategories(),
+            categoryRepository = FakeCategoryRepository(),
+            libraryPreferences = prefs,
+            setSortModeForCategory = fakeSetSortModeForCategory(),
+            profileStore = FakeProfileAwareStore(),
+            application = mockk<Application>(relaxed = true),
+        )
+
+        advanceUntilIdle()
+
+        eventually(2.seconds) {
+            model.state.value.pages.single().itemIds shouldBe listOf(first.id, second.id)
+        }
+
+        val page = model.state.value.pages.single()
+        val firstItem = model.state.value.getItemsForPage(page).first { it.animeId == first.id }
+
+        model.toggleSelection(page, firstItem)
+        prefs.animeFilterStarted.set(TriState.ENABLED_IS)
+
+        eventually(2.seconds) {
+            val state = model.state.value
+            state.libraryItems.map { it.animeId } shouldBe listOf(first.id)
+            state.selection shouldBe setOf(first.id)
+            state.dialog shouldBe null
+        }
+    }
+
+    @Test
+    fun `selection clears when rebuild hides selected items`() = runTest(dispatcher) {
+        val prefs = LibraryPreferences(InMemoryPreferenceStore())
         val first = AnimeTitle.create().copy(
             id = 1L,
             source = 99L,
@@ -1501,14 +1578,20 @@ class AnimeLibraryScreenModelTest {
         advanceUntilIdle()
 
         eventually(2.seconds) {
-            val page = model.state.value.pages.single()
-            val firstItem = model.state.value.getItemsForPage(page).first { it.animeId == first.id }
-            model.toggleSelection(page, firstItem)
+            model.state.value.pages.single().itemIds shouldBe listOf(first.id, second.id)
+        }
 
-            prefs.animeFilterStarted.set(TriState.ENABLED_IS)
+        val page = model.state.value.pages.single()
+        val firstItem = model.state.value.getItemsForPage(page).first { it.animeId == first.id }
 
-            model.state.value.selection shouldBe setOf(first.id)
-            model.state.value.dialog shouldBe null
+        model.toggleSelection(page, firstItem)
+        prefs.animeFilterStarted.set(TriState.ENABLED_IS)
+
+        eventually(2.seconds) {
+            val state = model.state.value
+            state.libraryItems shouldBe emptyList()
+            state.selection shouldBe emptySet()
+            state.dialog shouldBe null
         }
     }
 
