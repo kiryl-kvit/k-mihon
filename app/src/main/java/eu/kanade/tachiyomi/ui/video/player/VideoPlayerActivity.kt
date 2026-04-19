@@ -86,6 +86,11 @@ import uy.kohesive.injekt.api.get
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+private const val SIDE_GESTURE_VERTICAL_RATIO = 1.35f
+private const val SIDE_GESTURE_ZONE_HORIZONTAL_INSET_FRACTION = 0.1f
+private const val SIDE_GESTURE_ZONE_WIDTH_FRACTION = 0.16f
+private const val SIDE_GESTURE_ZONE_HEIGHT_FRACTION = 0.58f
+
 class VideoPlayerActivity : BaseActivity() {
 
     private val viewModel by viewModels<VideoPlayerViewModel>()
@@ -789,24 +794,25 @@ class VideoPlayerActivity : BaseActivity() {
                                                 abs(deltaY) > touchSlop &&
                                                 abs(deltaY) > abs(deltaX) * SIDE_GESTURE_VERTICAL_RATIO
                                             ) {
-                                                val gestureType = if (currentSideGestureState.startX <
-                                                    playerView.width / 2f
-                                                ) {
-                                                    VideoPlayerSideGestureType.Brightness
-                                                } else {
-                                                    VideoPlayerSideGestureType.Volume
-                                                }
-                                                sideGestureState = currentSideGestureState.copy(
-                                                    type = gestureType,
-                                                    initialLevel = if (gestureType ==
-                                                        VideoPlayerSideGestureType.Brightness
-                                                    ) {
-                                                        playbackBrightnessLevel
-                                                    } else {
-                                                        playbackVolumeLevel
-                                                    },
-                                                    active = true,
+                                                val gestureType = resolveSideGestureType(
+                                                    startX = currentSideGestureState.startX,
+                                                    startY = currentSideGestureState.startY,
+                                                    playerWidth = playerView.width,
+                                                    playerHeight = playerView.height,
                                                 )
+                                                if (gestureType != null) {
+                                                    sideGestureState = currentSideGestureState.copy(
+                                                        type = gestureType,
+                                                        initialLevel = if (gestureType ==
+                                                            VideoPlayerSideGestureType.Brightness
+                                                        ) {
+                                                            playbackBrightnessLevel
+                                                        } else {
+                                                            playbackVolumeLevel
+                                                        },
+                                                        active = true,
+                                                    )
+                                                }
                                             }
 
                                             val activeSideGestureState = sideGestureState
@@ -1406,7 +1412,6 @@ class VideoPlayerActivity : BaseActivity() {
         private const val DEFAULT_SYSTEM_BRIGHTNESS = 127
         private const val SYSTEM_BRIGHTNESS_MAX = 255
         private const val MIN_POSITIVE_BRIGHTNESS = 0.01f
-        private const val SIDE_GESTURE_VERTICAL_RATIO = 1.35f
         private val DEFAULT_PICTURE_IN_PICTURE_ASPECT_RATIO = Rational(16, 9)
 
         fun newIntent(
@@ -1437,6 +1442,38 @@ private data class SideGestureState(
 
 private fun brightnessOverlayLevelFor(level: Int): Int {
     return if (level <= 0) -75 else 0
+}
+
+private fun resolveSideGestureType(
+    startX: Float,
+    startY: Float,
+    playerWidth: Int,
+    playerHeight: Int,
+): VideoPlayerSideGestureType? {
+    if (playerWidth <= 0 || playerHeight <= 0) {
+        return null
+    }
+
+    val width = playerWidth.toFloat()
+    val height = playerHeight.toFloat()
+    val zoneTop = (height * (1f - SIDE_GESTURE_ZONE_HEIGHT_FRACTION)) / 2f
+    val zoneBottom = height - zoneTop
+    if (startY !in zoneTop..zoneBottom) {
+        return null
+    }
+
+    val zoneWidth = width * SIDE_GESTURE_ZONE_WIDTH_FRACTION
+    val leftZoneStart = width * SIDE_GESTURE_ZONE_HORIZONTAL_INSET_FRACTION
+    if (startX in leftZoneStart..(leftZoneStart + zoneWidth)) {
+        return VideoPlayerSideGestureType.Brightness
+    }
+
+    val rightZoneEnd = width * (1f - SIDE_GESTURE_ZONE_HORIZONTAL_INSET_FRACTION)
+    if (startX in (rightZoneEnd - zoneWidth)..rightZoneEnd) {
+        return VideoPlayerSideGestureType.Volume
+    }
+
+    return null
 }
 
 private fun AudioManager.safeMusicStreamMaxVolume(): Int =
