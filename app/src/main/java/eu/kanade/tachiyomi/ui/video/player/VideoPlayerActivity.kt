@@ -663,7 +663,6 @@ class VideoPlayerActivity : BaseActivity() {
                 }
                 LaunchedEffect(isInPictureInPictureMode) {
                     if (isInPictureInPictureMode) {
-                        controlsLocked = false
                         controlsVisible = false
                         settingsVisible = false
                         episodesDrawerVisible = false
