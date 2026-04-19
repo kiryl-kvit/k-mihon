@@ -72,6 +72,8 @@ class VideoPlayerViewModel @JvmOverloads constructor(
     private var applySelectionJob: Job? = null
     private var previewSelectionJob: Job? = null
     private val selectionResultCache = LinkedHashMap<SelectionCacheKey, ResolveVideoStream.Result.Success>()
+    private var nextEpisodePreloadJob: Job? = null
+    private var nextEpisodePreload: PreloadedEpisode? = null
 
     fun init(
         animeId: Long,
@@ -311,6 +313,50 @@ class VideoPlayerViewModel @JvmOverloads constructor(
         }
     }
 
+    fun preloadNextEpisode() {
+        val current = mutableState.value as? State.Ready ?: return
+        val nextEpisodeId = current.nextEpisodeId ?: return
+        val selection = current.playback.persistedSourceSelection
+        if (
+            nextEpisodePreload?.key?.visibleAnimeId == current.visibleAnimeId &&
+            nextEpisodePreload?.key?.episodeId == nextEpisodeId &&
+            nextEpisodePreload?.key?.selection == selection.normalized()
+        ) {
+            return
+        }
+
+        nextEpisodePreloadJob?.cancel()
+        nextEpisodePreload = null
+        nextEpisodePreloadJob = viewModelScope.launch {
+            val nextOwnerAnimeId = animeEpisodeRepository.getEpisodeById(nextEpisodeId)?.animeId ?: current.ownerAnimeId
+            val preloadKey = PreloadedEpisodeKey(
+                visibleAnimeId = current.visibleAnimeId,
+                ownerAnimeId = nextOwnerAnimeId,
+                episodeId = nextEpisodeId,
+                selection = selection.normalized(),
+            )
+            if (nextEpisodePreload?.key == preloadKey) {
+                return@launch
+            }
+            val result = runCatching {
+                withContext(resolveDispatcher) {
+                    resolveVideoStream(
+                        animeId = current.visibleAnimeId,
+                        episodeId = nextEpisodeId,
+                        ownerAnimeId = nextOwnerAnimeId,
+                        selection = selection,
+                    )
+                }
+            }.getOrNull() as? ResolveVideoStream.Result.Success ?: return@launch
+
+            nextEpisodePreload = PreloadedEpisode(
+                key = preloadKey,
+                result = result,
+            )
+            cacheSelectionResult(nextEpisodeId, result.playbackData.selection, result)
+        }
+    }
+
     fun playEpisode(
         visibleAnimeId: Long,
         ownerAnimeId: Long,
@@ -334,19 +380,26 @@ class VideoPlayerViewModel @JvmOverloads constructor(
     ) {
         val previousReady = mutableState.value as? State.Ready
         previewSelectionJob?.cancel()
+        nextEpisodePreloadJob?.cancel()
         mutableState.value = if (showLoading || previousReady == null) {
             State.Loading
         } else {
             previousReady.copy(isSourceSwitching = true)
         }
 
+        val targetSelection = selection ?: previousReady?.playback?.persistedSourceSelection
         mutableState.value = when (
-            val result = withContext(resolveDispatcher) {
+            val result = consumeMatchingPreload(
+                visibleAnimeId = visibleAnimeId,
+                ownerAnimeId = ownerAnimeId,
+                episodeId = episodeId,
+                selection = targetSelection,
+            ) ?: withContext(resolveDispatcher) {
                 resolveVideoStream(
                     animeId = visibleAnimeId,
                     episodeId = episodeId,
                     ownerAnimeId = ownerAnimeId,
-                    selection = selection,
+                    selection = targetSelection,
                 )
             }
         ) {
@@ -440,7 +493,8 @@ class VideoPlayerViewModel @JvmOverloads constructor(
         mutableState.value as? State.Ready ?: return
         applySelectionJob?.cancel()
         previewSelectionJob?.cancel()
-        clearSelectionResultCache()
+        nextEpisodePreloadJob?.cancel()
+        clearSelectionResultCache(preserveNextEpisodeId = targetEpisodeId)
         ownerAnimeId = animeEpisodeRepository.getEpisodeById(targetEpisodeId)?.animeId ?: ownerAnimeId
         savedState[OWNER_VIDEO_ID_KEY] = ownerAnimeId
         savedState[EPISODE_ID_KEY] = targetEpisodeId
@@ -548,8 +602,36 @@ class VideoPlayerViewModel @JvmOverloads constructor(
         }
     }
 
-    private fun clearSelectionResultCache() {
+    private fun clearSelectionResultCache(preserveNextEpisodeId: Long? = null) {
+        if (preserveNextEpisodeId == null) {
+            selectionResultCache.clear()
+            return
+        }
+
+        val preservedEntries = selectionResultCache.filterKeys { it.episodeId == preserveNextEpisodeId }
         selectionResultCache.clear()
+        selectionResultCache.putAll(preservedEntries)
+    }
+
+    private fun consumeMatchingPreload(
+        visibleAnimeId: Long,
+        ownerAnimeId: Long,
+        episodeId: Long,
+        selection: VideoPlaybackSelection?,
+    ): ResolveVideoStream.Result.Success? {
+        val preload = nextEpisodePreload ?: return null
+        val selectionKey = selection?.normalized() ?: preload.key.selection
+        return preload
+            .takeIf {
+                it.key.visibleAnimeId == visibleAnimeId &&
+                    it.key.ownerAnimeId == ownerAnimeId &&
+                    it.key.episodeId == episodeId &&
+                    it.key.selection == selectionKey
+            }
+            ?.also {
+                nextEpisodePreload = null
+            }
+            ?.result
     }
 
     private suspend fun persistPlaybackPreferences(
@@ -676,6 +758,18 @@ private data class EpisodeDrawerData(
 )
 
 private data class SelectionCacheKey(
+    val episodeId: Long,
+    val selection: VideoPlaybackSelection,
+)
+
+private data class PreloadedEpisode(
+    val key: PreloadedEpisodeKey,
+    val result: ResolveVideoStream.Result.Success,
+)
+
+private data class PreloadedEpisodeKey(
+    val visibleAnimeId: Long,
+    val ownerAnimeId: Long,
     val episodeId: Long,
     val selection: VideoPlaybackSelection,
 )

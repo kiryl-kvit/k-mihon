@@ -19,6 +19,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.os.SystemClock
 import android.util.Rational
 import android.view.GestureDetector
 import android.view.MotionEvent
@@ -67,6 +68,7 @@ import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.ui.base.activity.BaseActivity
 import eu.kanade.tachiyomi.ui.video.player.components.VideoPlayerLoadingOverlay
+import eu.kanade.tachiyomi.ui.video.player.components.VideoPlayerNextEpisodeOverlay
 import eu.kanade.tachiyomi.ui.video.player.components.VideoPlayerOverlay
 import eu.kanade.tachiyomi.ui.video.player.components.VideoPlayerSettingsSheet
 import eu.kanade.tachiyomi.ui.video.player.components.VideoPlayerSwitchingOverlay
@@ -98,6 +100,9 @@ private const val DEFAULT_SYSTEM_BRIGHTNESS = 127
 private const val SYSTEM_BRIGHTNESS_MAX = 255
 private const val MIN_POSITIVE_BRIGHTNESS = 0.01f
 private const val BRIGHTNESS_RESPONSE_GAMMA = 2.2f
+private const val NEXT_EPISODE_COUNTDOWN_VISIBLE_BEFORE_END_MS = 5_000L
+private const val NEXT_EPISODE_COUNTDOWN_DURATION_MS = 8_000L
+private const val NEXT_EPISODE_COUNTDOWN_TICK_MS = 33L
 
 class VideoPlayerActivity : BaseActivity() {
 
@@ -119,6 +124,7 @@ class VideoPlayerActivity : BaseActivity() {
     private var playbackBrightnessOverlayValue by mutableStateOf(0)
     private var playbackVolumeLevel by mutableStateOf(0)
     private var playbackVolumeMaxLevel by mutableStateOf(1)
+    private var controlsLocked by mutableStateOf(false)
     private var pictureInPictureActionReceiverRegistered = false
     private var brightnessObserverRegistered = false
     private val brightnessObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
@@ -325,9 +331,6 @@ class VideoPlayerActivity : BaseActivity() {
                 var ignoreNextGestureSeekTapUp by remember(current.episodeId, current.streamUrl, subtitlePayloadKey) {
                     mutableStateOf(false)
                 }
-                var controlsLocked by remember(current.episodeId, current.streamUrl, subtitlePayloadKey) {
-                    mutableStateOf(false)
-                }
                 var sideGestureFeedbackSequence by remember(
                     current.episodeId,
                     current.streamUrl,
@@ -336,31 +339,53 @@ class VideoPlayerActivity : BaseActivity() {
                 var sideGestureFeedbackState by remember(current.episodeId, current.streamUrl, subtitlePayloadKey) {
                     mutableStateOf<VideoPlayerSideGestureFeedbackState?>(null)
                 }
+                var nextEpisodeCountdownProgress by remember { mutableStateOf(0f) }
+                var nextEpisodeCountdownStartedAtMs by remember { mutableStateOf<Long?>(null) }
+                var nextEpisodeAdvanceInFlight by remember { mutableStateOf(false) }
                 val isInPictureInPictureMode = isInPictureInPictureModeState
                 val shouldHideChromeForSeekFeedback = seekFeedbackState?.hidePlayerChrome == true
                 val hidePlayerChrome = shouldHideChromeForSeekFeedback || isInPictureInPictureMode
+                val nextEpisodeAvailable = current.nextEpisodeId != null
+                val playbackRemainingMs = (playbackSnapshot.durationMs - playbackSnapshot.positionMs).coerceAtLeast(0L)
+                val shouldShowNextEpisodeCountdown =
+                    playbackSnapshot.durationMs > 0L &&
+                        playbackRemainingMs <= NEXT_EPISODE_COUNTDOWN_VISIBLE_BEFORE_END_MS
+                val showNextEpisodeCta = nextEpisodeCountdownStartedAtMs != null &&
+                    nextEpisodeAvailable &&
+                    !nextEpisodeAdvanceInFlight &&
+                    !controlsVisible &&
+                    !isInPictureInPictureMode &&
+                    !subtitleEditorVisible
                 val showPictureInPictureButton =
                     pictureInPictureEnabled && supportsPictureInPicture &&
                         Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                 val onPreviousEpisode = {
-                    controlsVisible = true
+                    controlsVisible = !controlsLocked
                     settingsVisible = false
                     episodesDrawerVisible = false
                     subtitleEditorVisible = false
                     isScrubbing = false
+                    nextEpisodeCountdownStartedAtMs = null
+                    nextEpisodeAdvanceInFlight = true
+                    nextEpisodeCountdownProgress = 0f
                     controllerInteractionSequence += 1L
                     flushPlaybackState()
                     viewModel.playPreviousEpisode()
                 }
                 val onNextEpisode = {
-                    controlsVisible = true
-                    settingsVisible = false
-                    episodesDrawerVisible = false
-                    subtitleEditorVisible = false
-                    isScrubbing = false
-                    controllerInteractionSequence += 1L
-                    flushPlaybackState()
-                    viewModel.playNextEpisode()
+                    if (!nextEpisodeAdvanceInFlight && nextEpisodeAvailable) {
+                        nextEpisodeCountdownStartedAtMs = null
+                        nextEpisodeAdvanceInFlight = true
+                        nextEpisodeCountdownProgress = 0f
+                        controlsVisible = !controlsLocked
+                        settingsVisible = false
+                        episodesDrawerVisible = false
+                        subtitleEditorVisible = false
+                        isScrubbing = false
+                        controllerInteractionSequence += 1L
+                        flushPlaybackState()
+                        viewModel.playNextEpisode()
+                    }
                 }
                 val latestPlayback by rememberUpdatedState(current.playback)
                 val currentPlayer = remember(current.episodeId, current.streamUrl, subtitlePayloadKey) {
@@ -575,8 +600,10 @@ class VideoPlayerActivity : BaseActivity() {
                     subtitleEditorVisible = false
                     subtitleEditorDraft = current.playback.subtitleAppearance
                     resumePlaybackAfterSubtitleEditor = false
-                    controlsLocked = false
-                    controlsVisible = !isInPictureInPictureMode
+                    nextEpisodeCountdownStartedAtMs = null
+                    nextEpisodeCountdownProgress = 0f
+                    nextEpisodeAdvanceInFlight = false
+                    controlsVisible = !isInPictureInPictureMode && !controlsLocked
                     isScrubbing = false
                     ignoreNextGestureSeekTapUp = false
                     seekFeedbackState = null
@@ -681,6 +708,75 @@ class VideoPlayerActivity : BaseActivity() {
                         sideGestureFeedbackState = null
                     } else {
                         hideSystemUi()
+                    }
+                }
+                LaunchedEffect(
+                    shouldShowNextEpisodeCountdown,
+                    nextEpisodeAvailable,
+                    playbackSnapshot.playbackEnded,
+                    playbackRemainingMs,
+                    subtitleEditorVisible,
+                    isInPictureInPictureMode,
+                    nextEpisodeAdvanceInFlight,
+                ) {
+                    if (!nextEpisodeAvailable || nextEpisodeAdvanceInFlight || subtitleEditorVisible) {
+                        nextEpisodeCountdownStartedAtMs = null
+                        nextEpisodeCountdownProgress = 0f
+                        return@LaunchedEffect
+                    }
+
+                    if (
+                        nextEpisodeCountdownStartedAtMs != null &&
+                        !playbackSnapshot.playbackEnded &&
+                        playbackRemainingMs > NEXT_EPISODE_COUNTDOWN_VISIBLE_BEFORE_END_MS
+                    ) {
+                        nextEpisodeCountdownStartedAtMs = null
+                        nextEpisodeCountdownProgress = 0f
+                        return@LaunchedEffect
+                    }
+
+                    if (
+                        nextEpisodeCountdownStartedAtMs == null &&
+                        shouldShowNextEpisodeCountdown &&
+                        !isInPictureInPictureMode
+                    ) {
+                        nextEpisodeCountdownStartedAtMs = SystemClock.elapsedRealtime()
+                        viewModel.preloadNextEpisode()
+                    }
+                }
+
+                LaunchedEffect(nextEpisodeCountdownStartedAtMs, current.nextEpisodeId) {
+                    val startedAt = nextEpisodeCountdownStartedAtMs ?: run {
+                        nextEpisodeCountdownProgress = 0f
+                        return@LaunchedEffect
+                    }
+
+                    nextEpisodeCountdownProgress = 0f
+                    while (isActive && !nextEpisodeAdvanceInFlight && nextEpisodeCountdownStartedAtMs == startedAt) {
+                        val elapsed = SystemClock.elapsedRealtime() - startedAt
+                        val progress = (elapsed / NEXT_EPISODE_COUNTDOWN_DURATION_MS.toFloat()).coerceIn(0f, 1f)
+                        nextEpisodeCountdownProgress = progress
+                        if (progress >= 1f) {
+                            onNextEpisode()
+                            break
+                        }
+                        delay(NEXT_EPISODE_COUNTDOWN_TICK_MS)
+                    }
+                }
+                LaunchedEffect(
+                    playbackSnapshot.playbackEnded,
+                    current.nextEpisodeId,
+                    isInPictureInPictureMode,
+                    subtitleEditorVisible,
+                ) {
+                    if (
+                        playbackSnapshot.playbackEnded &&
+                        current.nextEpisodeId != null &&
+                        isInPictureInPictureMode &&
+                        !subtitleEditorVisible &&
+                        !nextEpisodeAdvanceInFlight
+                    ) {
+                        onNextEpisode()
                     }
                 }
                 Box(
@@ -954,7 +1050,7 @@ class VideoPlayerActivity : BaseActivity() {
                             onEpisodeSelected = { episode ->
                                 if (episode.id != current.episodeId) {
                                     episodesDrawerVisible = false
-                                    controlsVisible = true
+                                    controlsVisible = !controlsLocked
                                     flushPlaybackState()
                                     viewModel.playEpisode(
                                         visibleAnimeId = current.visibleAnimeId,
@@ -998,6 +1094,13 @@ class VideoPlayerActivity : BaseActivity() {
                             modifier = Modifier.fillMaxSize(),
                         )
                     }
+
+                    VideoPlayerNextEpisodeOverlay(
+                        visible = showNextEpisodeCta,
+                        progress = nextEpisodeCountdownProgress,
+                        onClick = onNextEpisode,
+                        modifier = Modifier.fillMaxSize(),
+                    )
 
                     if (startupOverlayVisible && !isInPictureInPictureMode && !subtitleEditorVisible) {
                         VideoPlayerLoadingOverlay(modifier = Modifier.fillMaxSize())

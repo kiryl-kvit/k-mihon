@@ -5,11 +5,15 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -19,6 +23,7 @@ import androidx.compose.material.icons.automirrored.outlined.VolumeOff
 import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.Brightness6
 import androidx.compose.material.icons.outlined.LockOpen
+import androidx.compose.material.icons.outlined.SkipNext
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -43,6 +48,11 @@ import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 
 private const val SIDE_GESTURE_FEEDBACK_VISIBLE_DURATION_MS = 900L
+private val nextEpisodeCardShape = RoundedCornerShape(18.dp)
+private val nextEpisodeCardMinWidth = 176.dp
+private val nextEpisodeCardMaxWidth = 220.dp
+private val nextEpisodeCardHeight = 44.dp
+private val nextEpisodeCardBottomOffset = 28.dp
 
 @Composable
 internal fun VideoPlayerLoadingOverlay(modifier: Modifier = Modifier) {
@@ -168,8 +178,91 @@ internal fun VideoPlayerLockedOverlay(
 }
 
 @Composable
+internal fun VideoPlayerNextEpisodeOverlay(
+    visible: Boolean,
+    progress: Float,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier = modifier) {
+        VideoPlayerChromeContainer(
+            modifier = Modifier.fillMaxSize(),
+            matchParentHeight = true,
+        ) {
+            AnimatedVisibility(
+                visible = visible,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 4.dp, bottom = nextEpisodeCardBottomOffset),
+                enter = fadeIn(animationSpec = tween(140)),
+                exit = fadeOut(animationSpec = tween(120)),
+            ) {
+                VideoPlayerNextEpisodeCard(
+                    progress = progress,
+                    onClick = onClick,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun SpacerButtonPlaceholder() {
     Box(modifier = Modifier.size(48.dp))
+}
+
+@Composable
+private fun VideoPlayerNextEpisodeCard(
+    progress: Float,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val fillProgress = progress.coerceIn(0f, 1f)
+    Box(
+        modifier = modifier
+            .widthIn(min = nextEpisodeCardMinWidth, max = nextEpisodeCardMaxWidth)
+            .height(nextEpisodeCardHeight)
+            .background(Color.Black.copy(alpha = 0.56f), shape = nextEpisodeCardShape)
+            .clickable(onClick = onClick),
+    ) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(Color.White.copy(alpha = 0.18f), shape = nextEpisodeCardShape),
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(fillProgress)
+                .height(nextEpisodeCardHeight)
+                .background(Color.White.copy(alpha = 0.22f), shape = nextEpisodeCardShape),
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(nextEpisodeCardHeight)
+                .padding(horizontal = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.SkipNext,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(18.dp),
+            )
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    text = stringResource(MR.strings.anime_playback_next_episode),
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                )
+            }
+        }
+    }
 }
 
 private val sideGestureIndicatorHeight = 122.dp
