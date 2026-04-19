@@ -6,6 +6,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -110,12 +111,21 @@ internal fun VideoPlayerTimeline(
                 .fillMaxWidth()
                 .padding(top = if (isScrubbing) 8.dp else 0.dp),
         ) {
-            Text(
-                text = timeLabel,
-                modifier = Modifier.padding(bottom = 8.dp),
-                color = Color.White.copy(alpha = 0.92f),
-                style = MaterialTheme.typography.labelSmall,
-            )
+            Box(modifier = Modifier.padding(bottom = 8.dp)) {
+                Surface(
+                    color = Color.Black.copy(alpha = 0.34f),
+                    shape = CircleShape,
+                    tonalElevation = 0.dp,
+                    shadowElevation = 0.dp,
+                ) {
+                    Text(
+                        text = timeLabel,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                        color = Color.White.copy(alpha = 0.94f),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
+            }
 
             VideoPlayerTimelineBar(
                 playedFraction = playedFraction,
