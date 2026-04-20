@@ -15,14 +15,12 @@ data class MergeTarget(
     val memberMangas: ImmutableList<Manga>,
     val categoryIds: List<Long>,
     val entry: MergeEditorEntry,
-)
+): MergeSearchTarget {
+    override val mergeSearchTitle: String
+        get() = entry.title
 
-fun MergeTarget.matchesQuery(query: String): Boolean {
-    val trimmed = query.trim()
-    if (trimmed.isBlank()) return true
-
-    return entry.title.contains(trimmed, ignoreCase = true) ||
-        searchableTitle.contains(trimmed, ignoreCase = true)
+    override val mergeSearchableTitle: String
+        get() = searchableTitle
 }
 
 internal fun buildMergeTargets(
@@ -36,7 +34,11 @@ internal fun buildMergeTargets(
         }
         MergeTarget(
             id = item.id,
-            searchableTitle = listOfNotNull(item.manga.title, item.manga.displayName).joinToString(" "),
+            searchableTitle = item.memberMangas.flatMap { memberManga ->
+                listOfNotNull(memberManga.title, memberManga.displayName)
+            }
+                .distinct()
+                .joinToString(" "),
             isMerged = item.isMerged,
             memberMangas = item.memberMangas.toImmutableList(),
             categoryIds = item.categories,

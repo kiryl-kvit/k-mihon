@@ -931,12 +931,12 @@ class AnimeScreenModelTest {
     }
 
     @Test
-    fun `show merge target picker seeds query from visible title and prefilters targets`() = runTest(dispatcher) {
+    fun `show merge target picker strips duplicate patterns from visible title and prefilters targets`() = runTest(dispatcher) {
         val anime = AnimeTitle.create().copy(
             id = 1L,
             source = 99L,
             title = "Source Title",
-            displayName = "Custom Title",
+            displayName = "Custom Title [1080p] Season 2",
             favorite = true,
             initialized = true,
             url = "/anime/1",
@@ -962,6 +962,9 @@ class AnimeScreenModelTest {
             anime = anime,
             episodes = emptyList(),
             animeRepository = FakeAnimeRepository(listOf(anime, matchingTarget, otherTarget)),
+            duplicatePreferences = DuplicatePreferences(InMemoryPreferenceStore()).apply {
+                titleExclusionPatterns.set(listOf("[*]", "Season *"))
+            },
         )
 
         advanceUntilIdle()
@@ -1044,6 +1047,7 @@ class AnimeScreenModelTest {
         animeSourceManager: AnimeSourceManager = FakeAnimeSourceManager(),
         libraryPreferences: LibraryPreferences = testLibraryPreferences(),
         mergedRepository: MergedAnimeRepository = FakeMergedAnimeRepository(emptyList()),
+        duplicatePreferences: DuplicatePreferences = DuplicatePreferences(InMemoryPreferenceStore()),
     ): AnimeScreenModel {
         val setAnimeEpisodeFlags = SetAnimeEpisodeFlags(animeRepository)
         val getAnimeWithEpisodes = GetAnimeWithEpisodes(animeRepository, episodeRepository, mergedRepository)
@@ -1071,6 +1075,7 @@ class AnimeScreenModelTest {
             setAnimeEpisodeFlags = setAnimeEpisodeFlags,
             setAnimeDefaultEpisodeFlags = SetAnimeDefaultEpisodeFlags(libraryPreferences, setAnimeEpisodeFlags),
             libraryPreferences = libraryPreferences,
+            duplicatePreferences = duplicatePreferences,
             syncAnimeWithSource = SyncAnimeWithSource(
                 animeRepository = animeRepository,
                 animeEpisodeRepository = episodeRepository,

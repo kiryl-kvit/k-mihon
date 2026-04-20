@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import eu.kanade.domain.anime.model.toMangaCover
 import eu.kanade.presentation.manga.components.MergeEditorEntry
+import eu.kanade.presentation.manga.components.MergeSearchTarget
 import eu.kanade.presentation.manga.components.MergeTargetPickerSheet
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
@@ -19,14 +20,12 @@ data class AnimeMergeTarget(
     val memberAnimes: ImmutableList<AnimeTitle>,
     val categoryIds: List<Long>,
     val entry: MergeEditorEntry,
-)
+): MergeSearchTarget {
+    override val mergeSearchTitle: String
+        get() = entry.title
 
-fun AnimeMergeTarget.matchesQuery(query: String): Boolean {
-    val trimmed = query.trim()
-    if (trimmed.isBlank()) return true
-
-    return entry.title.contains(trimmed, ignoreCase = true) ||
-        searchableTitle.contains(trimmed, ignoreCase = true)
+    override val mergeSearchableTitle: String
+        get() = searchableTitle
 }
 
 fun buildAnimeMergeTargets(
