@@ -33,52 +33,72 @@ class ProfileAwareLibraryPreferencesTest {
         val fixture = createFixture()
 
         with(fixture.libraryPreferences) {
+            defaultCategory.set(3)
             downloadedOnly.set(true)
             displayMode.set(LibraryDisplayMode.List)
             sortingMode.set(LibrarySort(LibrarySort.Type.DateAdded, LibrarySort.Direction.Descending))
             filterUnread.set(TriState.ENABLED_IS)
             animeFilterUnwatched.set(TriState.ENABLED_IS)
             groupType.set(LibraryGroupType.Extension)
+            categoryTabs.set(false)
+            categoryNumberOfItems.set(true)
+            showContinueReadingButton.set(true)
         }
 
         fixture.activeProfileId.value = 2L
 
         with(fixture.libraryPreferences) {
+            defaultCategory.get() shouldBe -1
             downloadedOnly.get() shouldBe false
             displayMode.get() shouldBe LibraryDisplayMode.default
             sortingMode.get() shouldBe LibrarySort.default
             filterUnread.get() shouldBe TriState.DISABLED
             animeFilterUnwatched.get() shouldBe TriState.DISABLED
             groupType.get() shouldBe LibraryGroupType.Category
+            categoryTabs.get() shouldBe true
+            categoryNumberOfItems.get() shouldBe false
+            showContinueReadingButton.get() shouldBe false
 
+            defaultCategory.set(7)
             downloadedOnly.set(false)
             displayMode.set(LibraryDisplayMode.ComfortableGrid)
             sortingMode.set(LibrarySort(LibrarySort.Type.UnreadCount, LibrarySort.Direction.Ascending))
             filterUnread.set(TriState.ENABLED_NOT)
             animeFilterUnwatched.set(TriState.ENABLED_NOT)
             groupType.set(LibraryGroupType.CategoryExtension)
+            categoryTabs.set(true)
+            categoryNumberOfItems.set(true)
+            showContinueReadingButton.set(false)
         }
 
         fixture.activeProfileId.value = 1L
 
         with(fixture.libraryPreferences) {
+            defaultCategory.get() shouldBe 3
             downloadedOnly.get() shouldBe true
             displayMode.get() shouldBe LibraryDisplayMode.List
             sortingMode.get() shouldBe LibrarySort(LibrarySort.Type.DateAdded, LibrarySort.Direction.Descending)
             filterUnread.get() shouldBe TriState.ENABLED_IS
             animeFilterUnwatched.get() shouldBe TriState.ENABLED_IS
             groupType.get() shouldBe LibraryGroupType.Extension
+            categoryTabs.get() shouldBe false
+            categoryNumberOfItems.get() shouldBe true
+            showContinueReadingButton.get() shouldBe true
         }
 
         fixture.activeProfileId.value = 2L
 
         with(fixture.libraryPreferences) {
+            defaultCategory.get() shouldBe 7
             downloadedOnly.get() shouldBe false
             displayMode.get() shouldBe LibraryDisplayMode.ComfortableGrid
             sortingMode.get() shouldBe LibrarySort(LibrarySort.Type.UnreadCount, LibrarySort.Direction.Ascending)
             filterUnread.get() shouldBe TriState.ENABLED_NOT
             animeFilterUnwatched.get() shouldBe TriState.ENABLED_NOT
             groupType.get() shouldBe LibraryGroupType.CategoryExtension
+            categoryTabs.get() shouldBe true
+            categoryNumberOfItems.get() shouldBe true
+            showContinueReadingButton.get() shouldBe false
         }
     }
 
@@ -167,9 +187,13 @@ class ProfileAwareLibraryPreferencesTest {
             filterCompleted.set(TriState.ENABLED_IS)
             animeFilterUnwatched.set(TriState.ENABLED_NOT)
             animeFilterStarted.set(TriState.ENABLED_IS)
+            defaultCategory.set(4)
             sortingMode.set(LibrarySort(LibrarySort.Type.LastRead, LibrarySort.Direction.Descending))
             displayMode.set(LibraryDisplayMode.List)
             groupType.set(LibraryGroupType.Extension)
+            categoryTabs.set(false)
+            categoryNumberOfItems.set(true)
+            showContinueReadingButton.set(true)
         }
 
         val filterDownloadedValues = mutableListOf<TriState>()
@@ -179,9 +203,13 @@ class ProfileAwareLibraryPreferencesTest {
         val filterCompletedValues = mutableListOf<TriState>()
         val animeFilterUnwatchedValues = mutableListOf<TriState>()
         val animeFilterStartedValues = mutableListOf<TriState>()
+        val defaultCategoryValues = mutableListOf<Int>()
         val sortingValues = mutableListOf<LibrarySort>()
         val displayValues = mutableListOf<LibraryDisplayMode>()
         val groupValues = mutableListOf<LibraryGroupType>()
+        val categoryTabsValues = mutableListOf<Boolean>()
+        val categoryNumberOfItemsValues = mutableListOf<Boolean>()
+        val showContinueReadingButtonValues = mutableListOf<Boolean>()
 
         val jobs = listOf(
             launch { fixture.libraryPreferences.filterDownloaded.changes().take(3).toList(filterDownloadedValues) },
@@ -193,9 +221,19 @@ class ProfileAwareLibraryPreferencesTest {
                 fixture.libraryPreferences.animeFilterUnwatched.changes().take(3).toList(animeFilterUnwatchedValues)
             },
             launch { fixture.libraryPreferences.animeFilterStarted.changes().take(3).toList(animeFilterStartedValues) },
+            launch { fixture.libraryPreferences.defaultCategory.changes().take(3).toList(defaultCategoryValues) },
             launch { fixture.libraryPreferences.sortingMode.changes().take(3).toList(sortingValues) },
             launch { fixture.libraryPreferences.displayMode.changes().take(3).toList(displayValues) },
             launch { fixture.libraryPreferences.groupType.changes().take(3).toList(groupValues) },
+            launch { fixture.libraryPreferences.categoryTabs.changes().take(3).toList(categoryTabsValues) },
+            launch {
+                fixture.libraryPreferences.categoryNumberOfItems.changes().take(3).toList(categoryNumberOfItemsValues)
+            },
+            launch {
+                fixture.libraryPreferences.showContinueReadingButton.changes().take(
+                    3,
+                ).toList(showContinueReadingButtonValues)
+            },
         )
 
         advanceUntilIdle()
@@ -207,9 +245,13 @@ class ProfileAwareLibraryPreferencesTest {
         filterCompletedValues.last() shouldBe TriState.ENABLED_IS
         animeFilterUnwatchedValues.last() shouldBe TriState.ENABLED_NOT
         animeFilterStartedValues.last() shouldBe TriState.ENABLED_IS
+        defaultCategoryValues.last() shouldBe 4
         sortingValues.last() shouldBe LibrarySort(LibrarySort.Type.LastRead, LibrarySort.Direction.Descending)
         displayValues.last() shouldBe LibraryDisplayMode.List
         groupValues.last() shouldBe LibraryGroupType.Extension
+        categoryTabsValues.last() shouldBe false
+        categoryNumberOfItemsValues.last() shouldBe true
+        showContinueReadingButtonValues.last() shouldBe true
 
         fixture.activeProfileId.value = 2L
         advanceUntilIdle()
@@ -221,9 +263,13 @@ class ProfileAwareLibraryPreferencesTest {
         filterCompletedValues.last() shouldBe TriState.DISABLED
         animeFilterUnwatchedValues.last() shouldBe TriState.DISABLED
         animeFilterStartedValues.last() shouldBe TriState.DISABLED
+        defaultCategoryValues.last() shouldBe -1
         sortingValues.last() shouldBe LibrarySort.default
         displayValues.last() shouldBe LibraryDisplayMode.default
         groupValues.last() shouldBe LibraryGroupType.Category
+        categoryTabsValues.last() shouldBe true
+        categoryNumberOfItemsValues.last() shouldBe false
+        showContinueReadingButtonValues.last() shouldBe false
 
         jobs.forEach { it.cancel() }
     }
@@ -234,6 +280,28 @@ class ProfileAwareLibraryPreferencesTest {
 
         key shouldBe ProfileAwarePreferenceStore.Namespace.namespacedKey(
             Preference.appStateKey("pref_downloaded_only"),
+            1L,
+        )
+    }
+
+    @Test
+    fun `shared library settings are included in profile-owned library preferences`() {
+        val libraryPreferences = createFixture().libraryPreferences
+
+        libraryPreferences.defaultCategory.key() shouldBe ProfileAwarePreferenceStore.Namespace.namespacedKey(
+            LibraryPreferences.DEFAULT_CATEGORY_PREF_KEY,
+            1L,
+        )
+        libraryPreferences.categoryTabs.key() shouldBe ProfileAwarePreferenceStore.Namespace.namespacedKey(
+            "display_category_tabs",
+            1L,
+        )
+        libraryPreferences.categoryNumberOfItems.key() shouldBe ProfileAwarePreferenceStore.Namespace.namespacedKey(
+            "display_number_of_items",
+            1L,
+        )
+        libraryPreferences.showContinueReadingButton.key() shouldBe ProfileAwarePreferenceStore.Namespace.namespacedKey(
+            "display_continue_reading_button",
             1L,
         )
     }
