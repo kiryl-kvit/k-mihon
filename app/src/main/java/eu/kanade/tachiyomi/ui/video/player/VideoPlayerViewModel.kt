@@ -69,6 +69,7 @@ class VideoPlayerViewModel @JvmOverloads constructor(
     private var ownerAnimeId: Long = INVALID_ID
     private var episodeId: Long = INVALID_ID
     private var bypassMerge: Boolean = false
+    private var sessionPlaybackSpeed: Float = savedState[SESSION_PLAYBACK_SPEED_KEY] ?: DEFAULT_SESSION_PLAYBACK_SPEED
     private var applySelectionJob: Job? = null
     private var previewSelectionJob: Job? = null
     private val selectionResultCache = LinkedHashMap<SelectionCacheKey, ResolveVideoStream.Result.Success>()
@@ -249,6 +250,17 @@ class VideoPlayerViewModel @JvmOverloads constructor(
         val current = mutableState.value as? State.Ready ?: return
         mutableState.value = current.copy(
             playback = current.playback.copy(adaptiveQualities = options),
+        )
+    }
+
+    fun updateSessionPlaybackSpeed(speed: Float) {
+        val normalizedSpeed = speed.coerceIn(MIN_SESSION_PLAYBACK_SPEED, MAX_SESSION_PLAYBACK_SPEED)
+        if (sessionPlaybackSpeed == normalizedSpeed) return
+        sessionPlaybackSpeed = normalizedSpeed
+        savedState[SESSION_PLAYBACK_SPEED_KEY] = normalizedSpeed
+        val current = mutableState.value as? State.Ready ?: return
+        mutableState.value = current.copy(
+            playback = current.playback.copy(sessionPlaybackSpeed = normalizedSpeed),
         )
     }
 
@@ -569,6 +581,7 @@ class VideoPlayerViewModel @JvmOverloads constructor(
                 streamKey = currentStream.key.ifBlank { currentStream.label.ifBlank { currentStream.request.url } },
             ),
             preferredSourceQualityKey = savedPreferences.sourceQualityKey,
+            sessionPlaybackSpeed = sessionPlaybackSpeed,
             currentStream = currentStream,
             subtitles = emptyList(),
             currentStreamLabel = currentStream.label.ifBlank { currentStream.request.url },
@@ -744,8 +757,12 @@ class VideoPlayerViewModel @JvmOverloads constructor(
         private const val OWNER_VIDEO_ID_KEY = "owner_video_id"
         private const val EPISODE_ID_KEY = "episode_id"
         private const val BYPASS_MERGE_KEY = "bypass_merge"
+        private const val SESSION_PLAYBACK_SPEED_KEY = "session_playback_speed"
         private const val INVALID_ID = -1L
         private const val SELECTION_CACHE_LIMIT = 12
+        private const val DEFAULT_SESSION_PLAYBACK_SPEED = 1f
+        private const val MIN_SESSION_PLAYBACK_SPEED = 0.5f
+        private const val MAX_SESSION_PLAYBACK_SPEED = 2f
     }
 }
 

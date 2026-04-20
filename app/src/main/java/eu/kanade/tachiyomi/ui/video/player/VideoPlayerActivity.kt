@@ -103,6 +103,15 @@ private const val BRIGHTNESS_RESPONSE_GAMMA = 2.2f
 private const val NEXT_EPISODE_COUNTDOWN_VISIBLE_BEFORE_END_MS = 5_000L
 private const val NEXT_EPISODE_COUNTDOWN_DURATION_MS = 8_000L
 private const val NEXT_EPISODE_COUNTDOWN_TICK_MS = 33L
+private const val TEMPORARY_SPEED_BOOST = 2f
+private const val HOLD_SPEED_ZONE_START_FRACTION = 0.25f
+private const val HOLD_SPEED_ZONE_END_FRACTION = 0.75f
+private const val HOLD_SPEED_ZONE_TOP_FRACTION = 0.18f
+private const val HOLD_SPEED_ZONE_BOTTOM_FRACTION = 0.78f
+private const val HOLD_SPEED_TOP_ZONE_LEFT_FRACTION = 0.1f
+private const val HOLD_SPEED_TOP_ZONE_RIGHT_FRACTION = 0.9f
+private const val HOLD_SPEED_TOP_ZONE_TOP_FRACTION = 0f
+private const val HOLD_SPEED_TOP_ZONE_BOTTOM_FRACTION = 0.2f
 
 class VideoPlayerActivity : BaseActivity() {
 
@@ -342,6 +351,7 @@ class VideoPlayerActivity : BaseActivity() {
                 var nextEpisodeCountdownProgress by remember { mutableStateOf(0f) }
                 var nextEpisodeCountdownStartedAtMs by remember { mutableStateOf<Long?>(null) }
                 var nextEpisodeAdvanceInFlight by remember { mutableStateOf(false) }
+                var temporarySpeedBoostActive by remember { mutableStateOf(false) }
                 val isInPictureInPictureMode = isInPictureInPictureModeState
                 val shouldHideChromeForSeekFeedback = seekFeedbackState?.hidePlayerChrome == true
                 val hidePlayerChrome = shouldHideChromeForSeekFeedback || isInPictureInPictureMode
@@ -359,7 +369,13 @@ class VideoPlayerActivity : BaseActivity() {
                 val showPictureInPictureButton =
                     pictureInPictureEnabled && supportsPictureInPicture &&
                         Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                val effectivePlaybackSpeed = if (temporarySpeedBoostActive) {
+                    TEMPORARY_SPEED_BOOST
+                } else {
+                    current.playback.sessionPlaybackSpeed
+                }
                 val onPreviousEpisode = {
+                    temporarySpeedBoostActive = false
                     controlsVisible = !controlsLocked
                     settingsVisible = false
                     episodesDrawerVisible = false
@@ -374,6 +390,7 @@ class VideoPlayerActivity : BaseActivity() {
                 }
                 val onNextEpisode = {
                     if (!nextEpisodeAdvanceInFlight && nextEpisodeAvailable) {
+                        temporarySpeedBoostActive = false
                         nextEpisodeCountdownStartedAtMs = null
                         nextEpisodeAdvanceInFlight = true
                         nextEpisodeCountdownProgress = 0f
@@ -388,6 +405,8 @@ class VideoPlayerActivity : BaseActivity() {
                     }
                 }
                 val latestPlayback by rememberUpdatedState(current.playback)
+                val latestTemporarySpeedBoostActive by rememberUpdatedState(temporarySpeedBoostActive)
+                val initialSettingsDraft = remember(current.playback) { current.playback.toSettingsDraft() }
                 val currentPlayer = remember(current.episodeId, current.streamUrl, subtitlePayloadKey) {
                     buildVideoPlayer(
                         context = context,
@@ -600,6 +619,7 @@ class VideoPlayerActivity : BaseActivity() {
                     subtitleEditorVisible = false
                     subtitleEditorDraft = current.playback.subtitleAppearance
                     resumePlaybackAfterSubtitleEditor = false
+                    temporarySpeedBoostActive = false
                     nextEpisodeCountdownStartedAtMs = null
                     nextEpisodeCountdownProgress = 0f
                     nextEpisodeAdvanceInFlight = false
@@ -634,6 +654,10 @@ class VideoPlayerActivity : BaseActivity() {
 
                 LaunchedEffect(current.playback.currentSubtitle, currentPlayer) {
                     currentPlayer.applySubtitleSelection(current.playback.currentSubtitle)
+                }
+
+                LaunchedEffect(effectivePlaybackSpeed, currentPlayer) {
+                    currentPlayer.setPlaybackSpeed(effectivePlaybackSpeed)
                 }
 
                 LaunchedEffect(currentPlayer) {
@@ -692,12 +716,20 @@ class VideoPlayerActivity : BaseActivity() {
                 val latestResolveSeekDirectionFromTap by rememberUpdatedState(resolveSeekDirectionFromTap)
                 val latestPerformGestureSeek by rememberUpdatedState(performGestureSeek)
                 val latestSeekGestureModeActive by rememberUpdatedState(shouldHideChromeForSeekFeedback)
+                val latestSpeedBoostEligibility by rememberUpdatedState(
+                    !controlsVisible &&
+                        !controlsLocked &&
+                        !settingsVisible &&
+                        !subtitleEditorVisible &&
+                        !shouldHideChromeForSeekFeedback,
+                )
                 BackHandler(enabled = episodesDrawerVisible) {
                     episodesDrawerVisible = false
                     registerControllerInteraction(true)
                 }
                 LaunchedEffect(isInPictureInPictureMode) {
                     if (isInPictureInPictureMode) {
+                        temporarySpeedBoostActive = false
                         controlsVisible = false
                         settingsVisible = false
                         episodesDrawerVisible = false
@@ -818,12 +850,39 @@ class VideoPlayerActivity : BaseActivity() {
                             )
                             val touchSlop = ViewConfiguration.get(playerView.context).scaledTouchSlop
                             var sideGestureState: SideGestureState? = null
+                            var holdSpeedGestureState: HoldSpeedGestureState? = null
                             val gestureDetector = GestureDetector(
                                 playerView.context,
                                 object : GestureDetector.SimpleOnGestureListener() {
                                     override fun onDown(e: MotionEvent): Boolean = true
 
+                                    override fun onLongPress(e: MotionEvent) {
+                                        val currentHoldState = holdSpeedGestureState ?: return
+                                        if (
+                                            currentHoldState.cancelled ||
+                                            currentHoldState.longPressTriggered ||
+                                            !latestSpeedBoostEligibility
+                                        ) {
+                                            return
+                                        }
+                                        if (
+                                            isTouchInHoldSpeedZone(
+                                                touchX = currentHoldState.startX,
+                                                touchY = currentHoldState.startY,
+                                                playerWidth = playerView.width,
+                                                playerHeight = playerView.height,
+                                            )
+                                        ) {
+                                            holdSpeedGestureState = currentHoldState.copy(longPressTriggered = true)
+                                            temporarySpeedBoostActive = true
+                                            latestRegisterControllerInteraction(false)
+                                        }
+                                    }
+
                                     override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                                        if (latestTemporarySpeedBoostActive) {
+                                            return true
+                                        }
                                         if (latestControlsLocked) {
                                             if (latestControlsVisible) {
                                                 controlsVisible = false
@@ -846,6 +905,9 @@ class VideoPlayerActivity : BaseActivity() {
                                     }
 
                                     override fun onDoubleTap(e: MotionEvent): Boolean {
+                                        if (latestTemporarySpeedBoostActive) {
+                                            return true
+                                        }
                                         if (latestControlsLocked) {
                                             return true
                                         }
@@ -876,14 +938,41 @@ class VideoPlayerActivity : BaseActivity() {
 
                                 when (motionEvent.actionMasked) {
                                     MotionEvent.ACTION_DOWN -> {
+                                        temporarySpeedBoostActive = false
                                         sideGestureState = SideGestureState(
                                             startX = motionEvent.x,
                                             startY = motionEvent.y,
                                             initialLevel = 0,
                                         )
+                                        holdSpeedGestureState = HoldSpeedGestureState(
+                                            startX = motionEvent.x,
+                                            startY = motionEvent.y,
+                                        )
                                     }
 
                                     MotionEvent.ACTION_MOVE -> {
+                                        val currentHoldState = holdSpeedGestureState
+                                        if (currentHoldState != null) {
+                                            val movedBeyondSlop = abs(motionEvent.x - currentHoldState.startX) > touchSlop ||
+                                                abs(motionEvent.y - currentHoldState.startY) > touchSlop
+                                            if (
+                                                currentHoldState.longPressTriggered &&
+                                                !isTouchInHoldSpeedZone(
+                                                    touchX = motionEvent.x,
+                                                    touchY = motionEvent.y,
+                                                    playerWidth = playerView.width,
+                                                    playerHeight = playerView.height,
+                                                )
+                                            ) {
+                                                temporarySpeedBoostActive = false
+                                                holdSpeedGestureState = currentHoldState.copy(
+                                                    cancelled = true,
+                                                    longPressTriggered = false,
+                                                )
+                                            } else if (!currentHoldState.longPressTriggered && movedBeyondSlop) {
+                                                holdSpeedGestureState = currentHoldState.copy(cancelled = true)
+                                            }
+                                        }
                                         val currentSideGestureState = sideGestureState
                                         if (
                                             currentSideGestureState != null &&
@@ -953,6 +1042,8 @@ class VideoPlayerActivity : BaseActivity() {
                                     MotionEvent.ACTION_UP,
                                     MotionEvent.ACTION_CANCEL,
                                     -> {
+                                        temporarySpeedBoostActive = false
+                                        holdSpeedGestureState = null
                                         if (sideGestureState?.active == true) {
                                             sideGestureState = null
                                             if (motionEvent.actionMasked == MotionEvent.ACTION_UP) {
@@ -965,6 +1056,9 @@ class VideoPlayerActivity : BaseActivity() {
                                 }
 
                                 val handled = gestureDetector.onTouchEvent(motionEvent)
+                                if (latestTemporarySpeedBoostActive) {
+                                    return@setOnTouchListener true
+                                }
                                 if (
                                     !latestSettingsVisible &&
                                     latestSeekGestureModeActive &&
@@ -1026,6 +1120,7 @@ class VideoPlayerActivity : BaseActivity() {
                             showPictureInPictureButton = showPictureInPictureButton,
                             onEnterPictureInPicture = ::enterPictureInPictureFromControls,
                             onToggleLock = {
+                                temporarySpeedBoostActive = false
                                 controlsLocked = !controlsLocked
                                 controlsVisible = true
                                 settingsVisible = false
@@ -1034,11 +1129,13 @@ class VideoPlayerActivity : BaseActivity() {
                                 registerControllerInteraction(true)
                             },
                             onOpenSettings = {
+                                temporarySpeedBoostActive = false
                                 episodesDrawerVisible = false
                                 settingsVisible = true
                                 registerControllerInteraction(true)
                             },
                             onOpenEpisodes = {
+                                temporarySpeedBoostActive = false
                                 settingsVisible = false
                                 episodesDrawerVisible = true
                                 registerControllerInteraction(true)
@@ -1049,6 +1146,7 @@ class VideoPlayerActivity : BaseActivity() {
                             },
                             onEpisodeSelected = { episode ->
                                 if (episode.id != current.episodeId) {
+                                    temporarySpeedBoostActive = false
                                     episodesDrawerVisible = false
                                     controlsVisible = !controlsLocked
                                     flushPlaybackState()
@@ -1114,17 +1212,29 @@ class VideoPlayerActivity : BaseActivity() {
                         VideoPlayerSettingsSheet(
                             playback = current.playback,
                             onDismissRequest = {
+                                temporarySpeedBoostActive = false
                                 settingsVisible = false
                                 registerControllerInteraction(true)
                             },
-                            onApplySourceSelection = { selection ->
+                            onApplySettings = { draft ->
+                                temporarySpeedBoostActive = false
                                 persistPlayback(currentPlayer)
-                                viewModel.applySourceSelection(selection)
+                                if (draft.playbackSpeed != initialSettingsDraft.playbackSpeed) {
+                                    viewModel.updateSessionPlaybackSpeed(draft.playbackSpeed)
+                                }
+                                if (draft.adaptiveQuality != initialSettingsDraft.adaptiveQuality) {
+                                    viewModel.selectAdaptiveQuality(draft.adaptiveQuality)
+                                }
+                                if (draft.subtitleSelection != initialSettingsDraft.subtitleSelection) {
+                                    viewModel.selectSubtitle(draft.subtitleSelection)
+                                }
+                                if (draft.sourceSelection != initialSettingsDraft.sourceSelection) {
+                                    viewModel.applySourceSelection(draft.sourceSelection)
+                                }
                             },
                             onPreviewSourceSelection = viewModel::previewSourceSelection,
-                            onSelectAdaptiveQuality = viewModel::selectAdaptiveQuality,
-                            onSelectSubtitle = viewModel::selectSubtitle,
                             onOpenSubtitleSettings = {
+                                temporarySpeedBoostActive = false
                                 settingsVisible = false
                                 episodesDrawerVisible = false
                                 subtitleEditorDraft = current.playback.subtitleAppearance
@@ -1149,6 +1259,7 @@ class VideoPlayerActivity : BaseActivity() {
                                 ?: stringResource(MR.strings.anime_playback_subtitle_sample),
                             onDraftChange = { subtitleEditorDraft = it.normalized() },
                             onDismissRequest = {
+                                temporarySpeedBoostActive = false
                                 subtitleEditorVisible = false
                                 if (resumePlaybackAfterSubtitleEditor) {
                                     currentPlayer.play()
@@ -1156,6 +1267,7 @@ class VideoPlayerActivity : BaseActivity() {
                             },
                             onReset = { subtitleEditorDraft = VideoSubtitleAppearance() },
                             onDone = {
+                                temporarySpeedBoostActive = false
                                 val normalizedAppearance = subtitleEditorDraft.normalized()
                                 subtitleEditorVisible = false
                                 viewModel.updateSubtitleAppearance(normalizedAppearance)
@@ -1537,8 +1649,62 @@ private data class SideGestureState(
     val active: Boolean = false,
 )
 
+private data class HoldSpeedGestureState(
+    val startX: Float,
+    val startY: Float,
+    val longPressTriggered: Boolean = false,
+    val cancelled: Boolean = false,
+)
+
 private fun brightnessOverlayLevelFor(level: Int): Int {
     return if (level <= 0) -75 else 0
+}
+
+internal data class PlayerTouchZoneBounds(
+    val leftFraction: Float,
+    val topFraction: Float,
+    val rightFraction: Float,
+    val bottomFraction: Float,
+) {
+    fun contains(xFraction: Float, yFraction: Float): Boolean {
+        return xFraction in leftFraction..rightFraction && yFraction in topFraction..bottomFraction
+    }
+}
+
+internal fun holdSpeedZoneBounds(): List<PlayerTouchZoneBounds> {
+    return listOf(
+        PlayerTouchZoneBounds(
+            leftFraction = HOLD_SPEED_TOP_ZONE_LEFT_FRACTION,
+            topFraction = HOLD_SPEED_TOP_ZONE_TOP_FRACTION,
+            rightFraction = HOLD_SPEED_TOP_ZONE_RIGHT_FRACTION,
+            bottomFraction = HOLD_SPEED_TOP_ZONE_BOTTOM_FRACTION,
+        ),
+        PlayerTouchZoneBounds(
+            leftFraction = HOLD_SPEED_ZONE_START_FRACTION,
+            topFraction = HOLD_SPEED_ZONE_TOP_FRACTION,
+            rightFraction = HOLD_SPEED_ZONE_END_FRACTION,
+            bottomFraction = HOLD_SPEED_ZONE_BOTTOM_FRACTION,
+        ),
+    )
+}
+
+private fun isTouchInHoldSpeedZone(
+    touchX: Float,
+    touchY: Float,
+    playerWidth: Int,
+    playerHeight: Int,
+): Boolean {
+    if (playerWidth <= 0 || playerHeight <= 0) {
+        return false
+    }
+
+    val width = playerWidth.toFloat()
+    val height = playerHeight.toFloat()
+    val xFraction = (touchX / width).coerceIn(0f, 1f)
+    val yFraction = (touchY / height).coerceIn(0f, 1f)
+    return holdSpeedZoneBounds().any { zone ->
+        zone.contains(xFraction = xFraction, yFraction = yFraction)
+    }
 }
 
 private fun resolveSideGestureType(
