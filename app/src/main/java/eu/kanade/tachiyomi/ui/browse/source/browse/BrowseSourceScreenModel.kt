@@ -32,8 +32,9 @@ import eu.kanade.domain.track.interactor.AddTracks
 import eu.kanade.presentation.manga.components.MangaPreviewSizeUi
 import eu.kanade.presentation.manga.components.MergeEditorEntry
 import eu.kanade.presentation.manga.components.MergeTarget
+import eu.kanade.presentation.manga.components.buildMergeTargetQuery
 import eu.kanade.presentation.manga.components.buildMergeTargets
-import eu.kanade.presentation.manga.components.matchesQuery
+import eu.kanade.presentation.manga.components.rankMergeTargets
 import eu.kanade.presentation.util.ioCoroutineScope
 import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.data.download.DownloadManager
@@ -71,6 +72,7 @@ import tachiyomi.domain.manga.model.DuplicateMangaCandidate
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.presentationTitle
 import tachiyomi.domain.manga.model.toMangaUpdate
+import tachiyomi.domain.manga.service.DuplicatePreferences
 import tachiyomi.domain.source.interactor.GetRemoteManga
 import tachiyomi.domain.source.service.SourceManager
 import uy.kohesive.injekt.Injekt
@@ -97,6 +99,7 @@ class BrowseSourceScreenModel(
     private val getLibraryManga: GetLibraryManga = Injekt.get(),
     private val getManga: GetManga = Injekt.get(),
     private val getMergedManga: GetMergedManga = Injekt.get(),
+    private val duplicatePreferences: DuplicatePreferences = Injekt.get(),
     private val networkToLocalManga: NetworkToLocalManga = Injekt.get(),
     private val updateMergedManga: UpdateMergedManga = Injekt.get(),
     private val updateManga: UpdateManga = Injekt.get(),
@@ -448,8 +451,8 @@ class BrowseSourceScreenModel(
         screenModelScope.launchIO {
             val targets = buildMergeTargets(getLibraryManga.await(), sourceManager)
             if (targets.isEmpty()) return@launchIO
-            val query = manga.presentationTitle()
-            val visibleTargets = targets.filter { it.matchesQuery(query) }.toImmutableList()
+            val query = buildMergeTargetQuery(manga.presentationTitle(), duplicatePreferences)
+            val visibleTargets = rankMergeTargets(targets, query).toImmutableList()
             setDialog(
                 Dialog.SelectMergeTarget(
                     manga = manga,
@@ -463,7 +466,7 @@ class BrowseSourceScreenModel(
 
     fun updateMergeTargetQuery(query: String) {
         val dialog = state.value.dialog as? Dialog.SelectMergeTarget ?: return
-        val visibleTargets = dialog.targets.filter { it.matchesQuery(query) }.toImmutableList()
+        val visibleTargets = rankMergeTargets(dialog.targets, query).toImmutableList()
         setDialog(dialog.copy(query = query, visibleTargets = visibleTargets))
     }
 
@@ -803,6 +806,16 @@ class BrowseSourceScreenModel(
         }
 
         val entries = buildList {
+            if (target.isMerged && orderedMembers.none { it.id == remoteManga.id }) {
+                add(
+                    MergeEditorEntry(
+                        id = remoteManga.id,
+                        manga = remoteManga,
+                        subtitle = getSourceSubtitle(remoteManga) + " • New",
+                        isRemovable = false,
+                    ),
+                )
+            }
             orderedMembers.forEach { member ->
                 add(
                     MergeEditorEntry(
@@ -814,7 +827,7 @@ class BrowseSourceScreenModel(
                     ),
                 )
             }
-            if (none { it.id == remoteManga.id }) {
+            if (!target.isMerged && none { it.id == remoteManga.id }) {
                 add(
                     MergeEditorEntry(
                         id = remoteManga.id,

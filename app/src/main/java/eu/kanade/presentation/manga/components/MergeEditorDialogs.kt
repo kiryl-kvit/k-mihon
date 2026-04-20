@@ -6,17 +6,21 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.DragHandle
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.MoreVert
@@ -180,16 +184,47 @@ fun MergeTargetPickerSheet(
     ) {
         Column(
             modifier = Modifier
-                .padding(vertical = 8.dp)
-                .imePadding()
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .padding(vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.medium),
         ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.padding(horizontal = 24.dp),
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.headlineMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = onDismissRequest) {
+                    Icon(
+                        imageVector = Icons.Outlined.Close,
+                        contentDescription = stringResource(MR.strings.action_close),
+                    )
+                }
+            }
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f, fill = false)
+                    .heightIn(max = 520.dp),
+                reverseLayout = true,
+                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+            ) {
+                items(entries, key = { it.id }) { entry ->
+                    ElevatedCard(onClick = { onSelectTarget(entry.id) }) {
+                        StaticMergeEditorItem(
+                            entry = entry,
+                        )
+                    }
+                }
+            }
             androidx.compose.material3.OutlinedTextField(
                 value = textFieldValue,
                 onValueChange = {
@@ -201,32 +236,23 @@ fun MergeTargetPickerSheet(
                     .padding(horizontal = 24.dp)
                     .focusRequester(focusRequester),
                 label = { Text(text = stringResource(MR.strings.action_search)) },
+                trailingIcon = {
+                    if (textFieldValue.text.isNotEmpty()) {
+                        IconButton(
+                            onClick = {
+                                textFieldValue = TextFieldValue("")
+                                onQueryChange("")
+                            },
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Cancel,
+                                contentDescription = stringResource(MR.strings.action_reset),
+                            )
+                        }
+                    }
+                },
                 singleLine = true,
             )
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f, fill = false)
-                    .heightIn(max = 520.dp),
-                contentPadding = PaddingValues(horizontal = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
-            ) {
-                items(entries, key = { it.id }) { entry ->
-                    ElevatedCard(onClick = { onSelectTarget(entry.id) }) {
-                        StaticMergeEditorItem(
-                            entry = entry,
-                        )
-                    }
-                }
-            }
-            TextButton(
-                onClick = onDismissRequest,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
-            ) {
-                Text(text = stringResource(MR.strings.action_cancel))
-            }
         }
     }
 }

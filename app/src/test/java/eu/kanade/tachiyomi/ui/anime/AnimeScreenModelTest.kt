@@ -931,12 +931,14 @@ class AnimeScreenModelTest {
     }
 
     @Test
-    fun `show merge target picker seeds query from visible title and prefilters targets`() = runTest(dispatcher) {
+    fun `show merge target picker strips duplicate patterns from visible title and prefilters targets`() = runTest(
+        dispatcher,
+    ) {
         val anime = AnimeTitle.create().copy(
             id = 1L,
             source = 99L,
             title = "Source Title",
-            displayName = "Custom Title",
+            displayName = "Custom Title [1080p] Season 2",
             favorite = true,
             initialized = true,
             url = "/anime/1",
@@ -962,6 +964,9 @@ class AnimeScreenModelTest {
             anime = anime,
             episodes = emptyList(),
             animeRepository = FakeAnimeRepository(listOf(anime, matchingTarget, otherTarget)),
+            duplicatePreferences = DuplicatePreferences(InMemoryPreferenceStore()).apply {
+                titleExclusionPatterns.set(listOf("[*]", "Season *"))
+            },
         )
 
         advanceUntilIdle()
@@ -976,6 +981,65 @@ class AnimeScreenModelTest {
         }
     }
 
+    @Test
+    fun `open merge editor places newly added anime before existing merge members`() = runTest(dispatcher) {
+        val current = AnimeTitle.create().copy(
+            id = 1L,
+            source = 99L,
+            title = "Current",
+            favorite = true,
+            initialized = true,
+            url = "/anime/1",
+        )
+        val target = AnimeTitle.create().copy(
+            id = 2L,
+            source = 100L,
+            title = "Target",
+            favorite = true,
+            initialized = true,
+            url = "/anime/2",
+        )
+        val member = AnimeTitle.create().copy(
+            id = 3L,
+            source = 101L,
+            title = "Member",
+            favorite = true,
+            initialized = true,
+            url = "/anime/3",
+        )
+        val mergedRepository = FakeMergedAnimeRepository(
+            listOf(
+                AnimeMerge(targetId = target.id, animeId = target.id, position = 0L),
+                AnimeMerge(targetId = target.id, animeId = member.id, position = 1L),
+            ),
+        )
+        val model = createModel(
+            anime = current,
+            episodes = emptyList(),
+            animeRepository = FakeAnimeRepository(listOf(current, target, member)),
+            mergedRepository = mergedRepository,
+        )
+
+        advanceUntilIdle()
+        awaitSuccess(model)
+        model.showMergeTargetPicker()
+
+        eventually(2.seconds) {
+            val state = model.state.value as AnimeScreenModel.State.Success
+            val dialog = state.dialog as AnimeScreenModel.Dialog.SelectMergeTarget
+            dialog.targets.map { it.id } shouldContainExactly listOf(target.id)
+        }
+
+        model.openMergeEditor(target.id)
+
+        eventually(2.seconds) {
+            val state = model.state.value as AnimeScreenModel.State.Success
+            val dialog = state.dialog as AnimeScreenModel.Dialog.EditMerge
+            dialog.entries.map { it.id } shouldContainExactly listOf(current.id, target.id, member.id)
+            dialog.targetId shouldBe target.id
+        }
+    }
+
     private fun createModel(
         anime: AnimeTitle,
         episodes: List<AnimeEpisode>,
@@ -985,6 +1049,7 @@ class AnimeScreenModelTest {
         animeSourceManager: AnimeSourceManager = FakeAnimeSourceManager(),
         libraryPreferences: LibraryPreferences = testLibraryPreferences(),
         mergedRepository: MergedAnimeRepository = FakeMergedAnimeRepository(emptyList()),
+        duplicatePreferences: DuplicatePreferences = DuplicatePreferences(InMemoryPreferenceStore()),
     ): AnimeScreenModel {
         val setAnimeEpisodeFlags = SetAnimeEpisodeFlags(animeRepository)
         val getAnimeWithEpisodes = GetAnimeWithEpisodes(animeRepository, episodeRepository, mergedRepository)
@@ -1012,6 +1077,7 @@ class AnimeScreenModelTest {
             setAnimeEpisodeFlags = setAnimeEpisodeFlags,
             setAnimeDefaultEpisodeFlags = SetAnimeDefaultEpisodeFlags(libraryPreferences, setAnimeEpisodeFlags),
             libraryPreferences = libraryPreferences,
+            duplicatePreferences = duplicatePreferences,
             syncAnimeWithSource = SyncAnimeWithSource(
                 animeRepository = animeRepository,
                 animeEpisodeRepository = episodeRepository,

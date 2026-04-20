@@ -33,8 +33,9 @@ import eu.kanade.presentation.manga.DownloadAction
 import eu.kanade.presentation.manga.components.ChapterDownloadAction
 import eu.kanade.presentation.manga.components.MergeEditorEntry
 import eu.kanade.presentation.manga.components.MergeTarget
+import eu.kanade.presentation.manga.components.buildMergeTargetQuery
 import eu.kanade.presentation.manga.components.buildMergeTargets
-import eu.kanade.presentation.manga.components.matchesQuery
+import eu.kanade.presentation.manga.components.rankMergeTargets
 import eu.kanade.presentation.util.formattedMessage
 import eu.kanade.tachiyomi.data.download.DownloadCache
 import eu.kanade.tachiyomi.data.download.DownloadManager
@@ -112,6 +113,7 @@ import tachiyomi.domain.manga.model.applyFilter
 import tachiyomi.domain.manga.model.presentationTitle
 import tachiyomi.domain.manga.model.toMangaUpdate
 import tachiyomi.domain.manga.repository.MangaRepository
+import tachiyomi.domain.manga.service.DuplicatePreferences
 import tachiyomi.domain.source.model.SourceNotInstalledException
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.track.interactor.GetTracks
@@ -130,6 +132,7 @@ class MangaScreenModel(
     private val isFromSource: Boolean,
     private val bypassMerge: Boolean = false,
     private val libraryPreferences: LibraryPreferences = Injekt.get(),
+    private val duplicatePreferences: DuplicatePreferences = Injekt.get(),
     private val trackPreferences: TrackPreferences = Injekt.get(),
     readerPreferences: ReaderPreferences = Injekt.get(),
     private val trackerManager: TrackerManager = Injekt.get(),
@@ -1559,8 +1562,8 @@ class MangaScreenModel(
                 excludedMangaIds = excludedIds,
             )
             if (targets.isEmpty()) return@launchIO
-            val query = state.manga.presentationTitle()
-            val visibleTargets = targets.filter { it.matchesQuery(query) }.toImmutableList()
+            val query = buildMergeTargetQuery(state.manga.presentationTitle(), duplicatePreferences)
+            val visibleTargets = rankMergeTargets(targets, query).toImmutableList()
             updateSuccessState {
                 it.copy(
                     dialog = Dialog.SelectMergeTarget(
@@ -1577,7 +1580,7 @@ class MangaScreenModel(
     fun updateMergeTargetQuery(query: String) {
         updateSuccessState { state ->
             val dialog = state.dialog as? Dialog.SelectMergeTarget ?: return@updateSuccessState state
-            val visibleTargets = dialog.targets.filter { it.matchesQuery(query) }.toImmutableList()
+            val visibleTargets = rankMergeTargets(dialog.targets, query).toImmutableList()
             state.copy(dialog = dialog.copy(query = query, visibleTargets = visibleTargets))
         }
     }
@@ -1988,6 +1991,16 @@ class MangaScreenModel(
         }
 
         val entries = buildList {
+            if (target.isMerged && orderedMembers.none { it.id == localManga.id }) {
+                add(
+                    MergeEditorEntry(
+                        id = localManga.id,
+                        manga = localManga,
+                        subtitle = getMergeSubtitle(localManga) + " • New",
+                        isRemovable = false,
+                    ),
+                )
+            }
             orderedMembers.forEach { member ->
                 add(
                     MergeEditorEntry(
@@ -1999,7 +2012,7 @@ class MangaScreenModel(
                     ),
                 )
             }
-            if (none { it.id == localManga.id }) {
+            if (!target.isMerged && none { it.id == localManga.id }) {
                 add(
                     MergeEditorEntry(
                         id = localManga.id,

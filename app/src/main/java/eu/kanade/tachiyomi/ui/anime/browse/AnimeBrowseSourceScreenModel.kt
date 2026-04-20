@@ -19,9 +19,10 @@ import eu.kanade.domain.source.interactor.GetIncognitoState
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.presentation.anime.AnimeMergeTarget
 import eu.kanade.presentation.anime.buildAnimeMergeTargets
-import eu.kanade.presentation.anime.matchesQuery
 import eu.kanade.presentation.anime.toMergeEditorEntry
 import eu.kanade.presentation.manga.components.MergeEditorEntry
+import eu.kanade.presentation.manga.components.buildMergeTargetQuery
+import eu.kanade.presentation.manga.components.rankMergeTargets
 import eu.kanade.presentation.util.ioCoroutineScope
 import eu.kanade.tachiyomi.source.AnimeCatalogueSource
 import eu.kanade.tachiyomi.source.AsyncAnimeCatalogueFilterSource
@@ -56,6 +57,7 @@ import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.interactor.SetAnimeCategories
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.library.service.LibraryPreferences
+import tachiyomi.domain.manga.service.DuplicatePreferences
 import tachiyomi.domain.source.interactor.GetRemoteAnime
 import tachiyomi.domain.source.service.AnimeSourceManager
 import tachiyomi.i18n.MR
@@ -75,6 +77,7 @@ class AnimeBrowseSourceScreenModel(
     private val getCategories: GetCategories = Injekt.get(),
     private val getAnimeCategories: GetAnimeCategories = Injekt.get(),
     private val getMergedAnime: GetMergedAnime = Injekt.get(),
+    private val duplicatePreferences: DuplicatePreferences = Injekt.get(),
     private val networkToLocalAnime: NetworkToLocalAnime = Injekt.get(),
     private val setAnimeCategories: SetAnimeCategories = Injekt.get(),
     private val animeRepository: AnimeRepository = Injekt.get(),
@@ -290,8 +293,8 @@ class AnimeBrowseSourceScreenModel(
         screenModelScope.launchIO {
             val targets = getMergeTargets(excludedAnimeIds = getMergeMemberIds(anime.id).toSet())
             if (targets.isEmpty()) return@launchIO
-            val query = anime.displayTitle
-            val visibleTargets = targets.filter { it.matchesQuery(query) }.toImmutableList()
+            val query = buildMergeTargetQuery(anime.displayTitle, duplicatePreferences)
+            val visibleTargets = rankMergeTargets(targets, query).toImmutableList()
             setDialog(
                 Dialog.SelectMergeTarget(
                     anime = anime,
@@ -305,7 +308,7 @@ class AnimeBrowseSourceScreenModel(
 
     fun updateMergeTargetQuery(query: String) {
         val dialog = state.value.dialog as? Dialog.SelectMergeTarget ?: return
-        val visibleTargets = dialog.targets.filter { it.matchesQuery(query) }.toImmutableList()
+        val visibleTargets = rankMergeTargets(dialog.targets, query).toImmutableList()
         setDialog(dialog.copy(query = query, visibleTargets = visibleTargets))
     }
 
@@ -486,6 +489,13 @@ class AnimeBrowseSourceScreenModel(
         }
 
         val entries = buildList {
+            if (target.isMerged && orderedMembers.none { it.id == localAnime.id }) {
+                add(
+                    localAnime.toMergeEditorEntry(
+                        subtitle = buildMergeSubtitle(localAnime) + " • New",
+                    ),
+                )
+            }
             orderedMembers.forEach { member ->
                 add(
                     member.toMergeEditorEntry(
@@ -495,7 +505,7 @@ class AnimeBrowseSourceScreenModel(
                     ),
                 )
             }
-            if (none { it.id == localAnime.id }) {
+            if (!target.isMerged && none { it.id == localAnime.id }) {
                 add(
                     localAnime.toMergeEditorEntry(
                         subtitle = buildMergeSubtitle(localAnime) + " • New",

@@ -6,7 +6,9 @@ import eu.kanade.domain.source.model.latestFeedPreset
 import eu.kanade.domain.source.model.popularFeedPreset
 import eu.kanade.domain.source.model.snapshot
 import eu.kanade.domain.source.model.toListing
+import eu.kanade.presentation.manga.components.buildMergeTargetQuery
 import eu.kanade.presentation.manga.components.buildMergeTargets
+import eu.kanade.presentation.manga.components.rankMergeTargets
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
@@ -15,8 +17,10 @@ import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.junit.jupiter.api.Test
+import tachiyomi.core.common.preference.InMemoryPreferenceStore
 import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.domain.manga.model.Manga
+import tachiyomi.domain.manga.service.DuplicatePreferences
 import tachiyomi.domain.source.service.SourceManager
 
 class BrowseSourceScreenModelTest {
@@ -150,6 +154,87 @@ class BrowseSourceScreenModelTest {
         )
 
         targets.map { it.id } shouldBe listOf(4L)
+    }
+
+    @Test
+    fun `build merge target query strips duplicate exclusion patterns`() {
+        val preferences = DuplicatePreferences(InMemoryPreferenceStore()).apply {
+            titleExclusionPatterns.set(listOf("[*]", "Season *"))
+        }
+
+        buildMergeTargetQuery("Frieren [1080p] Season 2", preferences) shouldBe "Frieren"
+    }
+
+    @Test
+    fun `build merge target query falls back when stripping removes everything meaningful`() {
+        val preferences = DuplicatePreferences(InMemoryPreferenceStore()).apply {
+            titleExclusionPatterns.set(listOf("[*]", "RAW"))
+        }
+
+        buildMergeTargetQuery("[RAW]", preferences) shouldBe "[RAW]"
+    }
+
+    @Test
+    fun `rank merge targets keeps closest match nearest input`() {
+        val targets = buildMergeTargets(
+            libraryManga = listOf(
+                libraryManga(id = 1L, title = "Frieren The Journey Continues", sourceId = 1L),
+                libraryManga(id = 2L, title = "Freezing", sourceId = 2L),
+                libraryManga(id = 3L, title = "Fruits Basket", sourceId = 3L),
+            ),
+            sourceManager = fakeSourceManager(),
+        )
+
+        rankMergeTargets(targets, "Frieren").map { it.id }.first() shouldBe 1L
+    }
+
+    @Test
+    fun `buildMergeTargets indexes merged member titles for ranked search`() {
+        val targets = buildMergeTargets(
+            libraryManga = listOf(
+                libraryManga(
+                    id = 2L,
+                    title = "Merged Root",
+                    sourceId = 2L,
+                    memberMangas = listOf(
+                        manga(id = 2L, title = "Merged Root", sourceId = 2L),
+                        manga(id = 3L, title = "Child Alias", sourceId = 3L),
+                    ),
+                ),
+            ),
+            sourceManager = fakeSourceManager(),
+        )
+
+        rankMergeTargets(targets, "Child Alias").map { it.id } shouldBe listOf(2L)
+    }
+
+    @Test
+    fun `rank merge targets treats slash-separated aliases as alternatives`() {
+        val targets = buildMergeTargets(
+            libraryManga = listOf(
+                libraryManga(id = 1L, title = "Атака титанов: Последняя Атака", sourceId = 1L),
+                libraryManga(id = 2L, title = "Легенда о героях Галактики", sourceId = 2L),
+                libraryManga(id = 3L, title = "Re: Zero", sourceId = 3L),
+            ),
+            sourceManager = fakeSourceManager(),
+        )
+
+        rankMergeTargets(targets, "Атака титанов / Вторжение гигантов").map { it.id } shouldBe listOf(1L)
+    }
+
+    @Test
+    fun `rank merge targets excludes unrelated titles for alias query`() {
+        val targets = buildMergeTargets(
+            libraryManga = listOf(
+                libraryManga(id = 1L, title = "Атака Титанов: Последняя Атака", sourceId = 1L),
+                libraryManga(id = 2L, title = "Фрирен, провожающая в последний путь", sourceId = 2L),
+                libraryManga(id = 3L, title = "Легенда о героях Галактики", sourceId = 3L),
+                libraryManga(id = 4L, title = "Re: Жизнь в альтернативном мире с нуля", sourceId = 4L),
+            ),
+            sourceManager = fakeSourceManager(),
+        )
+
+        rankMergeTargets(targets, "Атака титанов / Вторжение гигантов").map { it.id } shouldBe listOf(1L)
     }
 
     @Test

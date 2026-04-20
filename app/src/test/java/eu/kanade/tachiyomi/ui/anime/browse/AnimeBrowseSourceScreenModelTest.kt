@@ -51,6 +51,7 @@ import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.category.model.CategoryUpdate
 import tachiyomi.domain.category.repository.CategoryRepository
 import tachiyomi.domain.library.service.LibraryPreferences
+import tachiyomi.domain.manga.service.DuplicatePreferences
 import tachiyomi.domain.source.interactor.GetRemoteAnime
 import tachiyomi.domain.source.repository.AnimeSourcePagingSource
 import tachiyomi.domain.source.repository.AnimeSourceRepository
@@ -271,8 +272,10 @@ class AnimeBrowseSourceScreenModelTest {
     }
 
     @Test
-    fun `show merge target picker seeds query from browse anime title and prefilters targets`() = runTest(dispatcher) {
-        val current = anime(id = 10L, favorite = false, title = "Current Search")
+    fun `show merge target picker strips duplicate patterns from browse anime title and prefilters targets`() = runTest(
+        dispatcher,
+    ) {
+        val current = anime(id = 10L, favorite = false, title = "Current Search [1080p] Season 2")
         val matching = anime(id = 20L, favorite = true, title = "Current Search Results")
         val other = anime(id = 30L, favorite = true, title = "Other Target")
         val animeRepository = FakeAnimeRepository(
@@ -283,6 +286,9 @@ class AnimeBrowseSourceScreenModelTest {
         val model = createModel(
             anime = current,
             animeRepository = animeRepository,
+            duplicatePreferences = DuplicatePreferences(InMemoryPreferenceStore()).apply {
+                titleExclusionPatterns.set(listOf("[*]", "Season *"))
+            },
         )
 
         model.showMergeTargetPicker(current)
@@ -291,6 +297,44 @@ class AnimeBrowseSourceScreenModelTest {
             val dialog = model.state.value.dialog as AnimeBrowseSourceScreenModel.Dialog.SelectMergeTarget
             dialog.query shouldBe "Current Search"
             dialog.visibleTargets.map { it.id } shouldContainExactly listOf(20L)
+        }
+    }
+
+    @Test
+    fun `open merge editor places newly added anime before existing merge members`() = runTest(dispatcher) {
+        val current = anime(id = 10L, favorite = false, title = "Current")
+        val target = anime(id = 20L, favorite = true, title = "Target")
+        val member = anime(id = 21L, favorite = true, title = "Member")
+        val animeRepository = FakeAnimeRepository(
+            anime = listOf(current, target, member),
+            favorites = listOf(target, member),
+        )
+        val mergedRepository = FakeMergedAnimeRepository(
+            merges = listOf(
+                AnimeMerge(targetId = target.id, animeId = target.id, position = 0L),
+                AnimeMerge(targetId = target.id, animeId = member.id, position = 1L),
+            ),
+        )
+
+        val model = createModel(
+            anime = current,
+            animeRepository = animeRepository,
+            getMergedAnime = GetMergedAnime(mergedRepository),
+        )
+
+        model.showMergeTargetPicker(current)
+
+        eventually(2.seconds) {
+            val dialog = model.state.value.dialog as AnimeBrowseSourceScreenModel.Dialog.SelectMergeTarget
+            dialog.targets.map { it.id } shouldContainExactly listOf(target.id)
+        }
+
+        model.openMergeEditor(target.id)
+
+        eventually(2.seconds) {
+            val dialog = model.state.value.dialog as AnimeBrowseSourceScreenModel.Dialog.EditMerge
+            dialog.entries.map { it.id } shouldContainExactly listOf(current.id, target.id, member.id)
+            dialog.targetId shouldBe target.id
         }
     }
 
@@ -306,6 +350,7 @@ class AnimeBrowseSourceScreenModelTest {
             duplicatePreferences = tachiyomi.domain.manga.service.DuplicatePreferences(InMemoryPreferenceStore()),
         ),
         getMergedAnime: GetMergedAnime = GetMergedAnime(FakeMergedAnimeRepository()),
+        duplicatePreferences: DuplicatePreferences = DuplicatePreferences(InMemoryPreferenceStore()),
     ): AnimeBrowseSourceScreenModel {
         val sourcePreferences = SourcePreferences(InMemoryPreferenceStore(), testJson)
         val getIncognitoState = mockk<GetIncognitoState>()
@@ -323,6 +368,7 @@ class AnimeBrowseSourceScreenModelTest {
             getCategories = GetCategories(categoryRepository),
             getAnimeCategories = GetAnimeCategories(categoryRepository),
             getMergedAnime = getMergedAnime,
+            duplicatePreferences = duplicatePreferences,
             networkToLocalAnime = NetworkToLocalAnime(animeRepository),
             setAnimeCategories = SetAnimeCategories(animeRepository),
             animeRepository = animeRepository,
