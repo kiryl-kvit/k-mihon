@@ -50,6 +50,32 @@ import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
+internal enum class LibrarySettingsSection {
+    Categories,
+    Display,
+    Group,
+    LibraryUpdate,
+    Behavior,
+}
+
+internal fun visibleLibrarySettingsSectionsForProfileType(profileType: ProfileType): List<LibrarySettingsSection> {
+    return when (profileType) {
+        ProfileType.MANGA -> listOf(
+            LibrarySettingsSection.Categories,
+            LibrarySettingsSection.Display,
+            LibrarySettingsSection.Group,
+            LibrarySettingsSection.LibraryUpdate,
+            LibrarySettingsSection.Behavior,
+        )
+        ProfileType.ANIME -> listOf(
+            LibrarySettingsSection.Categories,
+            LibrarySettingsSection.Display,
+            LibrarySettingsSection.Group,
+            LibrarySettingsSection.LibraryUpdate,
+        )
+    }
+}
+
 object SettingsLibraryScreen : SearchableSettings {
 
     @Composable
@@ -65,20 +91,41 @@ object SettingsLibraryScreen : SearchableSettings {
         val activeProfile by profileManager.activeProfile.collectAsState()
         val activeProfileType = activeProfile?.type ?: ProfileType.MANGA
         val allCategories by getCategories.subscribe().collectAsState(initial = emptyList())
-
-        return when (activeProfileType) {
-            ProfileType.MANGA -> listOf(
-                getCategoriesGroup(LocalNavigator.currentOrThrow, allCategories, libraryPreferences),
-                getGlobalUpdateGroup(allCategories, libraryPreferences),
-                getBehaviorGroup(libraryPreferences, globalLibraryPreferences),
-            )
-            ProfileType.ANIME -> listOf(
-                getAnimeCategoriesGroup(LocalNavigator.currentOrThrow, allCategories, libraryPreferences),
-                getAnimeDisplayGroup(libraryPreferences),
-                getAnimeGroupGroup(libraryPreferences),
-                getAnimeGlobalUpdateGroup(allCategories, libraryPreferences),
-            )
+        val navigator = LocalNavigator.currentOrThrow
+        val visibleSections = remember(activeProfileType) {
+            visibleLibrarySettingsSectionsForProfileType(activeProfileType)
         }
+
+        return listOfNotNull(
+            if (LibrarySettingsSection.Categories in visibleSections) {
+                getCategoriesGroup(navigator, allCategories, libraryPreferences)
+            } else {
+                null
+            },
+            if (LibrarySettingsSection.Display in visibleSections) {
+                getDisplayGroup(libraryPreferences, activeProfileType)
+            } else {
+                null
+            },
+            if (LibrarySettingsSection.Group in visibleSections) {
+                getGroupGroup(libraryPreferences)
+            } else {
+                null
+            },
+            if (LibrarySettingsSection.LibraryUpdate in visibleSections) {
+                when (activeProfileType) {
+                    ProfileType.MANGA -> getGlobalUpdateGroup(allCategories, libraryPreferences)
+                    ProfileType.ANIME -> getAnimeGlobalUpdateGroup(allCategories, libraryPreferences)
+                }
+            } else {
+                null
+            },
+            if (LibrarySettingsSection.Behavior in visibleSections) {
+                getBehaviorGroup(libraryPreferences, globalLibraryPreferences)
+            } else {
+                null
+            },
+        )
     }
 
     @Composable
@@ -284,49 +331,21 @@ object SettingsLibraryScreen : SearchableSettings {
     }
 
     @Composable
-    private fun getAnimeCategoriesGroup(
-        navigator: Navigator,
-        allCategories: List<Category>,
+    private fun getDisplayGroup(
         libraryPreferences: LibraryPreferences,
-    ): Preference.PreferenceGroup {
-        val scope = rememberCoroutineScope()
-        val userCategoriesCount = allCategories.filterNot(Category::isSystemCategory).size
-
-        return Preference.PreferenceGroup(
-            title = stringResource(MR.strings.categories),
-            preferenceItems = persistentListOf(
-                Preference.PreferenceItem.TextPreference(
-                    title = stringResource(MR.strings.action_edit_categories),
-                    subtitle = pluralStringResource(
-                        MR.plurals.num_categories,
-                        count = userCategoriesCount,
-                        userCategoriesCount,
-                    ),
-                    onClick = { navigator.push(CategoryScreen()) },
-                ),
-                Preference.PreferenceItem.SwitchPreference(
-                    preference = libraryPreferences.categorizedDisplaySettings,
-                    title = stringResource(MR.strings.categorized_display_settings),
-                    onValueChanged = {
-                        if (!it) {
-                            scope.launch {
-                                Injekt.get<ResetCategoryFlags>().await()
-                            }
-                        }
-                        true
-                    },
-                ),
-            ),
-        )
-    }
-
-    @Composable
-    private fun getAnimeDisplayGroup(
-        libraryPreferences: LibraryPreferences,
+        profileType: ProfileType,
     ): Preference.PreferenceGroup {
         val displayMode by libraryPreferences.displayMode.collectAsState()
         val portraitColumns by libraryPreferences.portraitColumns.collectAsState()
         val landscapeColumns by libraryPreferences.landscapeColumns.collectAsState()
+        val unreadBadgeTitle = when (profileType) {
+            ProfileType.MANGA -> MR.strings.action_display_unread_badge
+            ProfileType.ANIME -> MR.strings.action_display_unwatched_badge
+        }
+        val continueButtonTitle = when (profileType) {
+            ProfileType.MANGA -> MR.strings.action_display_show_continue_reading_button
+            ProfileType.ANIME -> MR.strings.action_display_show_continue_watching_button
+        }
 
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.action_display),
@@ -373,7 +392,7 @@ object SettingsLibraryScreen : SearchableSettings {
                 ),
                 Preference.PreferenceItem.SwitchPreference(
                     preference = libraryPreferences.unreadBadge,
-                    title = stringResource(MR.strings.action_display_unwatched_badge),
+                    title = stringResource(unreadBadgeTitle),
                 ),
                 Preference.PreferenceItem.SwitchPreference(
                     preference = libraryPreferences.languageBadge,
@@ -381,14 +400,14 @@ object SettingsLibraryScreen : SearchableSettings {
                 ),
                 Preference.PreferenceItem.SwitchPreference(
                     preference = libraryPreferences.showContinueReadingButton,
-                    title = stringResource(MR.strings.action_display_show_continue_watching_button),
+                    title = stringResource(continueButtonTitle),
                 ),
             ),
         )
     }
 
     @Composable
-    private fun getAnimeGroupGroup(
+    private fun getGroupGroup(
         libraryPreferences: LibraryPreferences,
     ): Preference.PreferenceGroup {
         val groupType by libraryPreferences.groupType.collectAsState()
