@@ -30,15 +30,15 @@ import androidx.compose.ui.unit.dp
 import eu.kanade.tachiyomi.source.model.VideoPlaybackOption
 import eu.kanade.tachiyomi.source.model.VideoPlaybackSelection
 import eu.kanade.tachiyomi.ui.video.player.VideoAdaptiveQualityPreference
-import eu.kanade.tachiyomi.ui.video.player.VideoPlayerSettingsDraft
 import eu.kanade.tachiyomi.ui.video.player.VideoPlaybackUiState
+import eu.kanade.tachiyomi.ui.video.player.VideoPlayerSettingsDraft
 import eu.kanade.tachiyomi.ui.video.player.VideoPlayerSubtitleSelection
-import eu.kanade.tachiyomi.ui.video.player.videoPlaybackSpeedOptions
 import eu.kanade.tachiyomi.ui.video.player.defaultSubtitleSelection
 import eu.kanade.tachiyomi.ui.video.player.externalSubtitleOptions
 import eu.kanade.tachiyomi.ui.video.player.resolvePreviewSubtitleSelection
 import eu.kanade.tachiyomi.ui.video.player.subtitleSelectionKey
 import eu.kanade.tachiyomi.ui.video.player.toSettingsDraft
+import eu.kanade.tachiyomi.ui.video.player.videoPlaybackSpeedOptions
 import eu.kanade.tachiyomi.ui.video.player.withSelectedDub
 import eu.kanade.tachiyomi.ui.video.player.withSelectedSourceQuality
 import eu.kanade.tachiyomi.ui.video.player.withSelectedStream

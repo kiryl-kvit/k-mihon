@@ -18,8 +18,8 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.provider.Settings
 import android.os.SystemClock
+import android.provider.Settings
 import android.util.Rational
 import android.view.GestureDetector
 import android.view.MotionEvent
@@ -953,8 +953,9 @@ class VideoPlayerActivity : BaseActivity() {
                                     MotionEvent.ACTION_MOVE -> {
                                         val currentHoldState = holdSpeedGestureState
                                         if (currentHoldState != null) {
-                                            val movedBeyondSlop = abs(motionEvent.x - currentHoldState.startX) > touchSlop ||
-                                                abs(motionEvent.y - currentHoldState.startY) > touchSlop
+                                            val movedBeyondSlop =
+                                                abs(motionEvent.x - currentHoldState.startX) > touchSlop ||
+                                                    abs(motionEvent.y - currentHoldState.startY) > touchSlop
                                             if (
                                                 currentHoldState.longPressTriggered &&
                                                 !isTouchInHoldSpeedZone(

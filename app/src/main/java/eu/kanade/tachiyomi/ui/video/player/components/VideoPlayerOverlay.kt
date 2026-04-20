@@ -194,7 +194,7 @@ internal fun VideoPlayerOverlay(
                     animationSpec = tween(120),
                     initialScale = 0.94f,
                 ),
-                exit = fadeOut(animationSpec = overlayCenterFadeAnimationSpec) +
+            exit = fadeOut(animationSpec = overlayCenterFadeAnimationSpec) +
                 scaleOut(
                     animationSpec = tween(100),
                     targetScale = 0.97f,
