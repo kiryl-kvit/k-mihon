@@ -171,7 +171,7 @@ fun ChronologicalFeedBrowseContent(
                     if (firstVisibleItemIndex < state.newItemsAvailableCount) {
                         screenModel.consumeNewItemsIndicator()
                     }
-            }
+                }
         }
     }
 
