@@ -50,7 +50,6 @@ import eu.kanade.presentation.library.components.CommonMangaItemDefaults
 import eu.kanade.presentation.library.components.MangaComfortableGridItem
 import eu.kanade.presentation.library.components.MangaCompactGridItem
 import eu.kanade.presentation.library.components.MangaListItem
-import eu.kanade.presentation.manga.components.MangaCover as CoverType
 import eu.kanade.presentation.util.formattedMessage
 import eu.kanade.tachiyomi.source.Source
 import kotlinx.collections.immutable.persistentListOf
@@ -69,6 +68,7 @@ import tachiyomi.presentation.core.screens.EmptyScreenAction
 import tachiyomi.presentation.core.screens.LoadingScreen
 import tachiyomi.presentation.core.util.plus
 import tachiyomi.source.local.LocalSource
+import eu.kanade.presentation.manga.components.MangaCover as CoverType
 
 @Composable
 fun ChronologicalFeedBrowseContent(
