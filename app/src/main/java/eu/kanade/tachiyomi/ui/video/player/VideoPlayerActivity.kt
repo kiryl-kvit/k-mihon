@@ -182,6 +182,7 @@ class VideoPlayerActivity : BaseActivity() {
         window.decorView.setBackgroundColor(android.graphics.Color.BLACK)
         windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         hideSystemUi()
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         super.onCreate(savedInstanceState)
 
@@ -1357,6 +1358,7 @@ class VideoPlayerActivity : BaseActivity() {
         unregisterPictureInPictureActionReceiver()
         resetPlaybackBrightness()
         releasePlayer(persistState = false)
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         super.onDestroy()
     }
 
