@@ -1,5 +1,11 @@
 package eu.kanade.tachiyomi.ui.video.player
 
+import android.app.Application
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import eu.kanade.tachiyomi.data.anime.download.AnimeDownloadProvider
 import eu.kanade.tachiyomi.source.AnimeSource
 import eu.kanade.tachiyomi.source.AnimeSubtitleSource
 import eu.kanade.tachiyomi.source.model.VideoPlaybackData
@@ -9,12 +15,15 @@ import eu.kanade.tachiyomi.source.model.VideoStream
 import eu.kanade.tachiyomi.source.model.VideoStreamType
 import eu.kanade.tachiyomi.source.model.VideoSubtitle
 import io.kotest.matchers.shouldBe
+import io.mockk.every
+import io.mockk.mockk
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Test
 import tachiyomi.domain.anime.model.AnimeEpisode
 import tachiyomi.domain.anime.model.AnimePlaybackPreferences
@@ -26,6 +35,44 @@ import tachiyomi.domain.anime.repository.AnimeRepository
 import tachiyomi.domain.source.service.AnimeSourceManager
 
 class ResolveVideoStreamTest {
+
+    private val context = mockk<Application>(relaxed = true) {
+        val connectivityManager = mockk<ConnectivityManager>()
+        val network = mockk<Network>()
+        val capabilities = mockk<NetworkCapabilities>()
+
+        every { getSystemService(Context.CONNECTIVITY_SERVICE) } returns connectivityManager
+        every { getSystemService(ConnectivityManager::class.java) } returns connectivityManager
+        every { connectivityManager.activeNetwork } returns network
+        every { connectivityManager.getNetworkCapabilities(network) } returns capabilities
+        every { capabilities.hasTransport(any()) } answers {
+            firstArg<Int>() == NetworkCapabilities.TRANSPORT_WIFI
+        }
+    }
+
+    private val downloadProvider = mockk<AnimeDownloadProvider> {
+        every { findEpisodeDir(any(), any(), any(), any()) } returns null
+    }
+
+    private fun createResolver(
+        video: AnimeTitle,
+        episode: AnimeEpisode?,
+        sourceManager: AnimeSourceManager,
+        sourceInitTimeoutMs: Long = 5_000L,
+        streamFetchTimeoutMs: Long = 15_000L,
+    ): ResolveVideoStream {
+        return ResolveVideoStream(
+            videoRepository = FakeAnimeRepository(video),
+            videoEpisodeRepository = FakeAnimeEpisodeRepository(episode),
+            animePlaybackPreferencesRepository = FakeAnimePlaybackPreferencesRepository(),
+            videoSourceManager = sourceManager,
+            animeDownloadProvider = downloadProvider,
+            json = Json,
+            context = context,
+            sourceInitTimeoutMs = sourceInitTimeoutMs,
+            streamFetchTimeoutMs = streamFetchTimeoutMs,
+        )
+    }
 
     @Test
     fun `prefers HLS stream from resolved source`() = runTest {
@@ -45,11 +92,10 @@ class ResolveVideoStreamTest {
             type = VideoStreamType.PROGRESSIVE,
         )
 
-        val resolver = ResolveVideoStream(
-            videoRepository = FakeAnimeRepository(video),
-            videoEpisodeRepository = FakeAnimeEpisodeRepository(episode),
-            animePlaybackPreferencesRepository = FakeAnimePlaybackPreferencesRepository(),
-            videoSourceManager = FakeAnimeSourceManager(
+        val resolver = createResolver(
+            video = video,
+            episode = episode,
+            sourceManager = FakeAnimeSourceManager(
                 source = FakeAnimeSource(video.source) { listOf(firstStream, secondStream) },
             ),
         )
@@ -67,11 +113,10 @@ class ResolveVideoStreamTest {
         val video = videoTitle(id = 1L, sourceId = 99L)
         val episode = videoEpisode(id = 2L, animeId = 1L)
 
-        val resolver = ResolveVideoStream(
-            videoRepository = FakeAnimeRepository(video),
-            videoEpisodeRepository = FakeAnimeEpisodeRepository(episode),
-            animePlaybackPreferencesRepository = FakeAnimePlaybackPreferencesRepository(),
-            videoSourceManager = FakeAnimeSourceManager(
+        val resolver = createResolver(
+            video = video,
+            episode = episode,
+            sourceManager = FakeAnimeSourceManager(
                 source = FakeAnimeSource(video.source) { emptyList() },
                 initialized = false,
             ),
@@ -88,11 +133,10 @@ class ResolveVideoStreamTest {
         val video = videoTitle(id = 1L, sourceId = 99L)
         val episode = videoEpisode(id = 2L, animeId = 1L)
 
-        val resolver = ResolveVideoStream(
-            videoRepository = FakeAnimeRepository(video),
-            videoEpisodeRepository = FakeAnimeEpisodeRepository(episode),
-            animePlaybackPreferencesRepository = FakeAnimePlaybackPreferencesRepository(),
-            videoSourceManager = FakeAnimeSourceManager(
+        val resolver = createResolver(
+            video = video,
+            episode = episode,
+            sourceManager = FakeAnimeSourceManager(
                 source = FakeAnimeSource(video.source) {
                     delay(10)
                     emptyList()
@@ -111,11 +155,10 @@ class ResolveVideoStreamTest {
         val video = videoTitle(id = 1L, sourceId = 99L)
         val episode = videoEpisode(id = 2L, animeId = 1L)
 
-        val resolver = ResolveVideoStream(
-            videoRepository = FakeAnimeRepository(video),
-            videoEpisodeRepository = FakeAnimeEpisodeRepository(episode),
-            animePlaybackPreferencesRepository = FakeAnimePlaybackPreferencesRepository(),
-            videoSourceManager = FakeAnimeSourceManager(source = null),
+        val resolver = createResolver(
+            video = video,
+            episode = episode,
+            sourceManager = FakeAnimeSourceManager(source = null),
         )
 
         val result = resolver(video.id, episode.id, ownerAnimeId = video.id)
@@ -128,11 +171,10 @@ class ResolveVideoStreamTest {
         val video = videoTitle(id = 1L, sourceId = 99L)
         val episode = videoEpisode(id = 2L, animeId = 1L)
 
-        val resolver = ResolveVideoStream(
-            videoRepository = FakeAnimeRepository(video),
-            videoEpisodeRepository = FakeAnimeEpisodeRepository(episode),
-            animePlaybackPreferencesRepository = FakeAnimePlaybackPreferencesRepository(),
-            videoSourceManager = FakeAnimeSourceManager(
+        val resolver = createResolver(
+            video = video,
+            episode = episode,
+            sourceManager = FakeAnimeSourceManager(
                 source = FakeAnimeSource(video.source) { emptyList() },
             ),
         )
@@ -147,11 +189,10 @@ class ResolveVideoStreamTest {
         val video = videoTitle(id = 1L, sourceId = 99L)
         val episode = videoEpisode(id = 2L, animeId = 3L)
 
-        val resolver = ResolveVideoStream(
-            videoRepository = FakeAnimeRepository(video),
-            videoEpisodeRepository = FakeAnimeEpisodeRepository(episode),
-            animePlaybackPreferencesRepository = FakeAnimePlaybackPreferencesRepository(),
-            videoSourceManager = FakeAnimeSourceManager(
+        val resolver = createResolver(
+            video = video,
+            episode = episode,
+            sourceManager = FakeAnimeSourceManager(
                 source = FakeAnimeSource(video.source) { emptyList() },
             ),
         )
@@ -177,11 +218,10 @@ class ResolveVideoStreamTest {
             isDefault = true,
         )
 
-        val resolver = ResolveVideoStream(
-            videoRepository = FakeAnimeRepository(video),
-            videoEpisodeRepository = FakeAnimeEpisodeRepository(episode),
-            animePlaybackPreferencesRepository = FakeAnimePlaybackPreferencesRepository(),
-            videoSourceManager = FakeAnimeSourceManager(
+        val resolver = createResolver(
+            video = video,
+            episode = episode,
+            sourceManager = FakeAnimeSourceManager(
                 source = FakeSubtitleAnimeSource(video.source, listOf(stream), listOf(subtitle)),
             ),
         )
@@ -201,11 +241,10 @@ class ResolveVideoStreamTest {
             type = VideoStreamType.HLS,
         )
 
-        val resolver = ResolveVideoStream(
-            videoRepository = FakeAnimeRepository(video),
-            videoEpisodeRepository = FakeAnimeEpisodeRepository(episode),
-            animePlaybackPreferencesRepository = FakeAnimePlaybackPreferencesRepository(),
-            videoSourceManager = FakeAnimeSourceManager(
+        val resolver = createResolver(
+            video = video,
+            episode = episode,
+            sourceManager = FakeAnimeSourceManager(
                 source = FailingSubtitleAnimeSource(video.source, listOf(stream)),
             ),
         )

@@ -25,6 +25,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import eu.kanade.presentation.components.DownloadIndicator
+import eu.kanade.presentation.components.DownloadIndicatorAction
+import eu.kanade.presentation.components.DownloadIndicatorState
 import eu.kanade.presentation.components.relativeDateText
 import eu.kanade.presentation.manga.components.DotSeparatorText
 import eu.kanade.presentation.util.formatChapterNumber
@@ -47,9 +50,12 @@ fun LazyListScope.animeEpisodeItems(
     selectedEpisodeIds: Set<Long>,
     selectionMode: Boolean,
     playbackStateByEpisodeId: Map<Long, AnimePlaybackState>,
+    downloadStateByEpisodeId: Map<Long, DownloadIndicatorState>,
+    downloadProgressByEpisodeId: Map<Long, Int>,
     showPlaybackStatus: Boolean = true,
     onEpisodeClick: (AnimeEpisode) -> Unit,
     onEpisodeSelected: ((AnimeEpisode, Boolean, Boolean) -> Unit)? = null,
+    onEpisodeDownloadAction: ((AnimeEpisode, DownloadIndicatorAction) -> Unit)? = null,
 ) {
     if (episodeListItems.isEmpty()) {
         item {
@@ -83,6 +89,8 @@ fun LazyListScope.animeEpisodeItems(
                     episode = episode,
                     selected = episode.id in selectedEpisodeIds,
                     playbackState = playbackStateByEpisodeId[episode.id],
+                    downloadState = downloadStateByEpisodeId[episode.id] ?: DownloadIndicatorState.NOT_DOWNLOADED,
+                    downloadProgress = downloadProgressByEpisodeId[episode.id] ?: 0,
                     showPlaybackStatus = showPlaybackStatus,
                     onClick = {
                         if (selectionMode && onEpisodeSelected != null) {
@@ -96,6 +104,9 @@ fun LazyListScope.animeEpisodeItems(
                             it(episode, true, true)
                         }
                     },
+                    onDownloadAction = onEpisodeDownloadAction?.let { callback ->
+                        { action -> callback(episode, action) }
+                    },
                 )
             }
         }
@@ -108,9 +119,12 @@ private fun AnimeEpisodeListItem(
     episode: AnimeEpisode,
     selected: Boolean,
     playbackState: AnimePlaybackState?,
+    downloadState: DownloadIndicatorState,
+    downloadProgress: Int,
     showPlaybackStatus: Boolean,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)?,
+    onDownloadAction: ((DownloadIndicatorAction) -> Unit)?,
 ) {
     val context = LocalContext.current
     val progress = playbackState.progressFraction(takeIf = showPlaybackStatus)
@@ -207,6 +221,20 @@ private fun AnimeEpisodeListItem(
                         .height(4.dp),
                 )
             }
+        }
+
+        if (onDownloadAction != null) {
+            DownloadIndicator(
+                enabled = true,
+                downloadStateProvider = { downloadState },
+                downloadProgressProvider = { downloadProgress },
+                startContentDescription = stringResource(MR.strings.action_download),
+                errorContentDescription = stringResource(MR.strings.action_download),
+                startNowText = stringResource(MR.strings.action_start),
+                cancelText = stringResource(MR.strings.action_cancel),
+                deleteText = stringResource(MR.strings.action_delete),
+                onClick = onDownloadAction,
+            )
         }
     }
 

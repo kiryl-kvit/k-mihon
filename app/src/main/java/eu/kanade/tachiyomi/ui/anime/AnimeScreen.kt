@@ -139,6 +139,9 @@ data class AnimeScreen(
                         }
                     },
                     onEpisodeSelected = screenModel::toggleSelection,
+                    onEpisodeDownloadAction = { episode, action ->
+                        screenModel.runEpisodeDownloadAction(episode.id, action)
+                    },
                     onAllEpisodesSelected = screenModel::toggleAllSelection,
                     onInvertSelection = screenModel::invertSelection,
                     onMarkSelectedWatched = screenModel::markSelectedEpisodesWatched,
@@ -276,6 +279,11 @@ data class AnimeScreen(
                             initialStreamKey = dialog.streamKey,
                             initialSubtitleKey = dialog.subtitleKey,
                             initialQualityMode = dialog.qualityMode,
+                            selectedCount = dialog.episodeIds.size,
+                            dubOptions = dialog.dubOptions,
+                            streamOptions = dialog.streamOptions,
+                            subtitleOptions = dialog.subtitleOptions,
+                            isLoadingOptions = dialog.isLoadingOptions,
                             onDismissRequest = screenModel::dismissDialog,
                             onConfirm = { dubKey, streamKey, subtitleKey, qualityMode ->
                                 screenModel.queueSelectedEpisodesDownload(

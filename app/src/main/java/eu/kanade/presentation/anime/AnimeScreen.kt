@@ -67,7 +67,7 @@ import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ProvideTextStyle
-import androidx.compose.material3.RadioButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.SmallExtendedFloatingActionButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -118,6 +118,8 @@ import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.components.AppBarTitle
 import eu.kanade.presentation.components.DropdownMenu
+import eu.kanade.presentation.components.DownloadIndicatorState
+import eu.kanade.presentation.components.DownloadIndicatorAction
 import eu.kanade.presentation.components.relativeDateText
 import eu.kanade.presentation.manga.components.DISALLOWED_MARKDOWN_TYPES
 import eu.kanade.presentation.manga.components.DotSeparatorText
@@ -185,6 +187,7 @@ fun AnimeScreen(
     onOpenMergedEntryClicked: (() -> Unit)?,
     onEpisodeClick: (AnimeEpisode) -> Unit,
     onEpisodeSelected: (AnimeEpisode, Boolean, Boolean) -> Unit,
+    onEpisodeDownloadAction: (AnimeEpisode, DownloadIndicatorAction) -> Unit,
     onAllEpisodesSelected: (Boolean) -> Unit,
     onInvertSelection: () -> Unit,
     onMarkSelectedWatched: (Boolean) -> Unit,
@@ -213,6 +216,7 @@ fun AnimeScreen(
             onOpenMergedEntryClicked = onOpenMergedEntryClicked,
             onEpisodeClick = onEpisodeClick,
             onEpisodeSelected = onEpisodeSelected,
+            onEpisodeDownloadAction = onEpisodeDownloadAction,
             onAllEpisodesSelected = onAllEpisodesSelected,
             onInvertSelection = onInvertSelection,
             onMarkSelectedWatched = onMarkSelectedWatched,
@@ -241,6 +245,7 @@ fun AnimeScreen(
             onOpenMergedEntryClicked = onOpenMergedEntryClicked,
             onEpisodeClick = onEpisodeClick,
             onEpisodeSelected = onEpisodeSelected,
+            onEpisodeDownloadAction = onEpisodeDownloadAction,
             onAllEpisodesSelected = onAllEpisodesSelected,
             onInvertSelection = onInvertSelection,
             onMarkSelectedWatched = onMarkSelectedWatched,
@@ -272,6 +277,7 @@ private fun AnimeScreenSmallImpl(
     onOpenMergedEntryClicked: (() -> Unit)?,
     onEpisodeClick: (AnimeEpisode) -> Unit,
     onEpisodeSelected: (AnimeEpisode, Boolean, Boolean) -> Unit,
+    onEpisodeDownloadAction: (AnimeEpisode, DownloadIndicatorAction) -> Unit,
     onAllEpisodesSelected: (Boolean) -> Unit,
     onInvertSelection: () -> Unit,
     onMarkSelectedWatched: (Boolean) -> Unit,
@@ -436,8 +442,11 @@ private fun AnimeScreenSmallImpl(
                         selectedEpisodeIds = state.selection,
                         selectionMode = state.isSelectionMode,
                         playbackStateByEpisodeId = state.playbackStateByEpisodeId,
+                        downloadStateByEpisodeId = state.downloadStateByEpisodeId,
+                        downloadProgressByEpisodeId = state.downloadProgressByEpisodeId,
                         onEpisodeClick = onEpisodeClick,
                         onEpisodeSelected = onEpisodeSelected,
+                        onEpisodeDownloadAction = onEpisodeDownloadAction,
                     )
                 }
             }
@@ -468,6 +477,7 @@ private fun AnimeScreenLargeImpl(
     onOpenMergedEntryClicked: (() -> Unit)?,
     onEpisodeClick: (AnimeEpisode) -> Unit,
     onEpisodeSelected: (AnimeEpisode, Boolean, Boolean) -> Unit,
+    onEpisodeDownloadAction: (AnimeEpisode, DownloadIndicatorAction) -> Unit,
     onAllEpisodesSelected: (Boolean) -> Unit,
     onInvertSelection: () -> Unit,
     onMarkSelectedWatched: (Boolean) -> Unit,
@@ -625,8 +635,11 @@ private fun AnimeScreenLargeImpl(
                                 selectedEpisodeIds = state.selection,
                                 selectionMode = state.isSelectionMode,
                                 playbackStateByEpisodeId = state.playbackStateByEpisodeId,
+                                downloadStateByEpisodeId = state.downloadStateByEpisodeId,
+                                downloadProgressByEpisodeId = state.downloadProgressByEpisodeId,
                                 onEpisodeClick = onEpisodeClick,
                                 onEpisodeSelected = onEpisodeSelected,
+                                onEpisodeDownloadAction = onEpisodeDownloadAction,
                             )
                         }
                     }
@@ -1492,6 +1505,11 @@ fun AnimeDownloadSettingsDialog(
     initialStreamKey: String?,
     initialSubtitleKey: String?,
     initialQualityMode: AnimeDownloadQualityMode,
+    selectedCount: Int,
+    dubOptions: List<AnimeScreenModel.Dialog.Option>,
+    streamOptions: List<AnimeScreenModel.Dialog.Option>,
+    subtitleOptions: List<AnimeScreenModel.Dialog.Option>,
+    isLoadingOptions: Boolean,
     onDismissRequest: () -> Unit,
     onConfirm: (String?, String?, String?, AnimeDownloadQualityMode) -> Unit,
 ) {
@@ -1516,44 +1534,51 @@ fun AnimeDownloadSettingsDialog(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-
-            Text(text = "Quality mode", style = MaterialTheme.typography.titleSmall)
-            listOf(
-                AnimeDownloadQualityMode.BEST to "Best quality",
-                AnimeDownloadQualityMode.BALANCED to "Balanced",
-                AnimeDownloadQualityMode.DATA_SAVING to "Data saving",
-            ).forEach { (mode, label) ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { qualityMode = mode },
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    RadioButton(selected = qualityMode == mode, onClick = { qualityMode = mode })
-                    Text(text = label)
-                }
+            if (isLoadingOptions) {
+                Text(
+                    text = "Loading source options...",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (selectedCount >= 5) {
+                Text(
+                    text = "Downloading many episodes can use significant storage",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
 
-            OutlinedTextField(
+            val isDubValid = dubOptions.isEmpty() || dubKey.isNotBlank()
+            val isValid = !isLoadingOptions && isDubValid
+
+            OptionChipGroup(
+                label = "Quality mode",
+                value = qualityMode.name,
+                options = listOf(
+                    AnimeScreenModel.Dialog.Option(AnimeDownloadQualityMode.BEST.name, "Best quality"),
+                    AnimeScreenModel.Dialog.Option(AnimeDownloadQualityMode.BALANCED.name, "Balanced"),
+                    AnimeScreenModel.Dialog.Option(AnimeDownloadQualityMode.DATA_SAVING.name, "Data saving"),
+                ),
+                onValueChange = { selected ->
+                    qualityMode = AnimeDownloadQualityMode.entries.first { it.name == selected }
+                },
+                visible = true,
+            )
+
+            OptionChipGroup(
+                label = "Dub",
                 value = dubKey,
+                options = dubOptions,
                 onValueChange = { dubKey = it },
-                label = { Text("Dub key (optional)") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
+                visible = dubOptions.isNotEmpty(),
             )
-            OutlinedTextField(
-                value = streamKey,
-                onValueChange = { streamKey = it },
-                label = { Text("Stream key (optional)") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
+            OptionChipGroup(
+                label = "Subtitle",
                 value = subtitleKey,
+                options = subtitleOptions,
                 onValueChange = { subtitleKey = it },
-                label = { Text("Subtitle key (optional)") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
+                visible = subtitleOptions.isNotEmpty(),
             )
 
             Row(
@@ -1562,16 +1587,48 @@ fun AnimeDownloadSettingsDialog(
             ) {
                 Button(onClick = onDismissRequest) { Text(stringResource(MR.strings.action_cancel)) }
                 Button(
+                    enabled = isValid,
                     onClick = {
                         onConfirm(
                             dubKey.trim().ifBlank { null },
-                            streamKey.trim().ifBlank { null },
+                            null,
                             subtitleKey.trim().ifBlank { null },
                             qualityMode,
                         )
                     },
                 ) { Text(stringResource(MR.strings.action_download)) }
             }
+        }
+    }
+}
+
+@Composable
+private fun OptionChipGroup(
+    label: String,
+    value: String,
+    options: List<AnimeScreenModel.Dialog.Option>,
+    onValueChange: (String) -> Unit,
+    visible: Boolean,
+) {
+    if (!visible) return
+
+    Text(text = label, style = MaterialTheme.typography.titleSmall)
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        options.forEach { option ->
+            FilterChip(
+                selected = value == option.key,
+                onClick = {
+                    if (value == option.key) {
+                        onValueChange("")
+                    } else {
+                        onValueChange(option.key)
+                    }
+                },
+                label = { Text(option.label) },
+            )
         }
     }
 }

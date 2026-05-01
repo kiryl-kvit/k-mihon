@@ -8,6 +8,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asFlow
@@ -23,6 +24,7 @@ import kotlinx.coroutines.launch
 import tachiyomi.domain.anime.model.AnimeDownloadPreferences
 import tachiyomi.domain.anime.model.AnimeEpisode
 import tachiyomi.domain.anime.model.AnimeTitle
+import tachiyomi.domain.source.service.AnimeSourceManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -31,9 +33,11 @@ class AnimeDownloadManager(
     private val cache: AnimeDownloadCache = AnimeDownloadCache(context),
     private val provider: AnimeDownloadProvider = AnimeDownloadProvider(context),
     private val downloader: AnimeDownloader = Injekt.get(),
+    private val sourceManager: AnimeSourceManager = Injekt.get(),
 ) {
 
     private val store = AnimeDownloadStore(context)
+    private val notifier = AnimeDownloadNotifier(context)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val _queueState = MutableStateFlow<List<AnimeDownload>>(emptyList())
@@ -49,6 +53,13 @@ class AnimeDownloadManager(
             val downloads = store.restore()
             if (downloads.isNotEmpty()) {
                 addAllToQueue(downloads)
+            }
+        }
+        scope.launch {
+            progressFlow().collectLatest { download ->
+                if (download.status == AnimeDownload.State.DOWNLOADING || download.status == AnimeDownload.State.RESOLVING) {
+                    notifier.onProgressChange(download)
+                }
             }
         }
     }
@@ -72,6 +83,7 @@ class AnimeDownloadManager(
             .filter { it.status == AnimeDownload.State.RESOLVING || it.status == AnimeDownload.State.DOWNLOADING }
             .forEach { it.status = AnimeDownload.State.QUEUE }
         _isRunning.value = false
+        notifier.onPaused()
     }
 
     fun clearQueue() {
@@ -80,6 +92,7 @@ class AnimeDownloadManager(
         processorJob = null
         _isRunning.value = false
         store.clear()
+        notifier.onComplete()
     }
 
     fun queueEpisodes(
@@ -90,10 +103,15 @@ class AnimeDownloadManager(
     ) {
         if (episodes.isEmpty()) return
 
-        val queued = queueState.value
+        val episodeIds = episodes.map(AnimeEpisode::id).toSet()
+        val existing = queueState.value.filter { it.episode.id in episodeIds }
+        if (existing.isNotEmpty()) {
+            _queueState.update { current -> current.filterNot { it.episode.id in episodeIds } }
+            store.removeAll(existing)
+        }
+
         val newDownloads = episodes
             .sortedByDescending { it.sourceOrder }
-            .filter { episode -> queued.none { it.episode.id == episode.id } }
             .map {
                 AnimeDownload(
                     anime = anime,
@@ -102,7 +120,12 @@ class AnimeDownloadManager(
                 )
             }
 
-        if (newDownloads.isEmpty()) return
+        if (newDownloads.isEmpty()) {
+            if (autoStart) {
+                startDownloads()
+            }
+            return
+        }
 
         addAllToQueue(newDownloads)
         if (autoStart) {
@@ -125,6 +148,15 @@ class AnimeDownloadManager(
 
     fun reorderQueue(downloads: List<AnimeDownload>) {
         updateQueue(downloads)
+    }
+
+    suspend fun deleteEpisodes(anime: AnimeTitle, episodes: List<AnimeEpisode>) {
+        if (episodes.isEmpty()) return
+        removeFromQueue(episodes.map(AnimeEpisode::id))
+        val source = sourceManager.get(anime.source) ?: return
+        val (_, episodeDirs) = provider.findEpisodeDirs(episodes, anime, source)
+        episodeDirs.forEach { it.delete() }
+        cache.removeEpisodes(episodes, anime)
     }
 
     fun isEpisodeDownloaded(
@@ -193,6 +225,7 @@ class AnimeDownloadManager(
             while (_isRunning.value) {
                 val next = queueState.value.firstOrNull { it.status == AnimeDownload.State.QUEUE } ?: break
                 try {
+                    notifier.onProgressChange(next)
                     val failure = downloader.download(next)
                     if (failure == null) {
                         _queueState.update { current -> current.filterNot { it.episode.id == next.episode.id } }
@@ -201,6 +234,7 @@ class AnimeDownloadManager(
                         next.progress = 0
                         next.failure = failure
                         next.status = AnimeDownload.State.ERROR
+                        notifier.onError(next)
                     }
                 } catch (e: Throwable) {
                     if (e is CancellationException) throw e
@@ -210,10 +244,12 @@ class AnimeDownloadManager(
                         message = e.message,
                     )
                     next.status = AnimeDownload.State.ERROR
+                    notifier.onError(next)
                 }
             }
             _isRunning.value = false
             processorJob = null
+            notifier.onComplete()
         }
     }
 
