@@ -15,6 +15,8 @@ import tachiyomi.domain.anime.model.AnimeTitle
 
 class AnimeDownloadManager(
     context: Context,
+    private val cache: AnimeDownloadCache = AnimeDownloadCache(context),
+    private val provider: AnimeDownloadProvider = AnimeDownloadProvider(context),
 ) {
 
     private val store = AnimeDownloadStore(context)
@@ -98,6 +100,24 @@ class AnimeDownloadManager(
         updateQueue(downloads)
     }
 
+    fun isEpisodeDownloaded(
+        episodeName: String,
+        episodeUrl: String,
+        animeTitle: String,
+        sourceId: Long,
+        skipCache: Boolean = false,
+    ): Boolean {
+        return cache.isEpisodeDownloaded(episodeName, episodeUrl, animeTitle, sourceId, skipCache)
+    }
+
+    fun getDownloadCount(anime: AnimeTitle): Int {
+        return cache.getDownloadCount(anime)
+    }
+
+    fun getTotalDownloadCount(): Int {
+        return cache.getTotalDownloadCount()
+    }
+
     private fun addAllToQueue(downloads: List<AnimeDownload>) {
         _queueState.update { current -> current + downloads }
         store.addAll(downloads)
@@ -107,5 +127,9 @@ class AnimeDownloadManager(
         _queueState.value = downloads
         store.clear()
         store.addAll(downloads)
+    }
+
+    companion object {
+        const val TMP_DIR_SUFFIX = "_tmp"
     }
 }
