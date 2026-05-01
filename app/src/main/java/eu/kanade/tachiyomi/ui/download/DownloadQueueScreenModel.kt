@@ -28,7 +28,7 @@ class DownloadQueueScreenModel(
     private val downloadManager: DownloadManager = Injekt.get(),
 ) : ScreenModel {
 
-    private val _state = MutableStateFlow(emptyList<DownloadHeaderItem>())
+    private val _state = MutableStateFlow(emptyList<DownloadQueueHeaderItem>())
     val state = _state.asStateFlow()
 
     lateinit var controllerBinding: DownloadListBinding
@@ -36,14 +36,14 @@ class DownloadQueueScreenModel(
     /**
      * Adapter containing the active downloads.
      */
-    var adapter: DownloadAdapter? = null
+    var adapter: DownloadQueueAdapter? = null
 
     /**
      * Map of jobs for active downloads.
      */
     private val progressJobs = mutableMapOf<Download, Job>()
 
-    val listener = object : DownloadAdapter.DownloadItemListener {
+    val listener = object : DownloadQueueAdapter.DownloadQueueItemListener {
         /**
          * Called when an item is released from a drag.
          *
@@ -53,7 +53,7 @@ class DownloadQueueScreenModel(
             val adapter = adapter ?: return
             val downloads = adapter.headerItems.flatMap { header ->
                 adapter.getSectionItems(header).map { item ->
-                    (item as DownloadItem).download
+                    (item as DownloadQueueItem).payloadAsDownload()
                 }
             }
             reorder(downloads)
@@ -67,13 +67,13 @@ class DownloadQueueScreenModel(
          */
         override fun onMenuItemClick(position: Int, menuItem: MenuItem) {
             val item = adapter?.getItem(position) ?: return
-            if (item is DownloadItem) {
+            if (item is DownloadQueueItem) {
                 when (menuItem.itemId) {
                     R.id.move_to_top, R.id.move_to_bottom -> {
                         val headerItems = adapter?.headerItems ?: return
                         val newDownloads = mutableListOf<Download>()
                         headerItems.forEach { headerItem ->
-                            headerItem as DownloadHeaderItem
+                            headerItem as DownloadQueueHeaderItem
                             if (headerItem == item.header) {
                                 headerItem.removeSubItem(item)
                                 if (menuItem.itemId == R.id.move_to_top) {
@@ -82,15 +82,16 @@ class DownloadQueueScreenModel(
                                     headerItem.addSubItem(item)
                                 }
                             }
-                            newDownloads.addAll(headerItem.subItems.map { it.download })
+                            newDownloads.addAll(headerItem.subItems.map { it.payloadAsDownload() })
                         }
                         reorder(newDownloads)
                     }
                     R.id.move_to_top_series, R.id.move_to_bottom_series -> {
+                        val selectedDownload = item.payloadAsDownload()
                         val (selectedSeries, otherSeries) = adapter?.currentItems
-                            ?.filterIsInstance<DownloadItem>()
-                            ?.map(DownloadItem::download)
-                            ?.partition { item.download.manga.id == it.manga.id }
+                            ?.filterIsInstance<DownloadQueueItem>()
+                            ?.map(DownloadQueueItem::payloadAsDownload)
+                            ?.partition { selectedDownload.manga.id == it.manga.id }
                             ?: Pair(emptyList(), emptyList())
                         if (menuItem.itemId == R.id.move_to_top_series) {
                             reorder(selectedSeries + otherSeries)
@@ -99,13 +100,13 @@ class DownloadQueueScreenModel(
                         }
                     }
                     R.id.cancel_download -> {
-                        cancel(listOf(item.download))
+                        cancel(listOf(item.payloadAsDownload()))
                     }
                     R.id.cancel_series -> {
                         val allDownloadsForSeries = adapter?.currentItems
-                            ?.filterIsInstance<DownloadItem>()
-                            ?.filter { item.download.manga.id == it.download.manga.id }
-                            ?.map(DownloadItem::download)
+                            ?.filterIsInstance<DownloadQueueItem>()
+                            ?.filter { item.payloadAsDownload().manga.id == it.payloadAsDownload().manga.id }
+                            ?.map(DownloadQueueItem::payloadAsDownload)
                         if (!allDownloadsForSeries.isNullOrEmpty()) {
                             cancel(allDownloadsForSeries)
                         }
@@ -122,8 +123,24 @@ class DownloadQueueScreenModel(
                     downloads
                         .groupBy { it.source }
                         .map { entry ->
-                            DownloadHeaderItem(entry.key.id, entry.key.name, entry.value.size).apply {
-                                addSubItems(0, entry.value.map { DownloadItem(it, this) })
+                            DownloadQueueHeaderItem(
+                                DownloadQueueHeaderModel(
+                                    id = entry.key.id,
+                                    contentType = DownloadQueueContentType.MANGA_CHAPTER,
+                                    title = entry.key.name,
+                                    count = entry.value.size,
+                                ),
+                            ).apply {
+                                addSubItems(
+                                    0,
+                                    entry.value.map { download ->
+                                        DownloadQueueItem(
+                                            payload = download,
+                                            header = this,
+                                            modelProvider = download::toDownloadQueueItemModel,
+                                        )
+                                    },
+                                )
                             }
                         }
                 }
@@ -165,17 +182,17 @@ class DownloadQueueScreenModel(
         downloadManager.cancelQueuedDownloads(downloads)
     }
 
-    fun <R : Comparable<R>> reorderQueue(selector: (DownloadItem) -> R, reverse: Boolean = false) {
+    fun <R : Comparable<R>> reorderQueue(selector: (DownloadQueueItem) -> R, reverse: Boolean = false) {
         val adapter = adapter ?: return
         val newDownloads = mutableListOf<Download>()
         adapter.headerItems.forEach { headerItem ->
-            headerItem as DownloadHeaderItem
+            headerItem as DownloadQueueHeaderItem
             headerItem.subItems = headerItem.subItems.sortedBy(selector).toMutableList().apply {
                 if (reverse) {
                     reverse()
                 }
             }
-            newDownloads.addAll(headerItem.subItems.map { it.download })
+            newDownloads.addAll(headerItem.subItems.map { it.payloadAsDownload() })
         }
         reorder(newDownloads)
     }
@@ -254,7 +271,7 @@ class DownloadQueueScreenModel(
      * @param download the download whose page has been downloaded.
      */
     fun onUpdateDownloadedPages(download: Download) {
-        getHolder(download)?.notifyDownloadedPages()
+        getHolder(download)?.notifyProgressText()
     }
 
     /**
@@ -263,7 +280,11 @@ class DownloadQueueScreenModel(
      * @param download the download to find.
      * @return the holder of the download or null if it's not bound.
      */
-    private fun getHolder(download: Download): DownloadHolder? {
-        return controllerBinding.root.findViewHolderForItemId(download.chapter.id) as? DownloadHolder
+    private fun getHolder(download: Download): DownloadQueueHolder? {
+        return controllerBinding.root.findViewHolderForItemId(download.chapter.id) as? DownloadQueueHolder
     }
+}
+
+internal fun DownloadQueueItem.payloadAsDownload(): Download {
+    return payloadAs<Download>() ?: error("Download queue item payload is not a manga download")
 }
