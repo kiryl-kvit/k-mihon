@@ -11,6 +11,7 @@ import eu.kanade.tachiyomi.data.anime.download.model.DownloadedVideo
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.awaitSuccess
 import eu.kanade.tachiyomi.source.AnimeSubtitleSource
+import eu.kanade.tachiyomi.source.model.VideoPlaybackOption
 import eu.kanade.tachiyomi.source.model.VideoPlaybackSelection
 import eu.kanade.tachiyomi.source.model.VideoRequest
 import eu.kanade.tachiyomi.source.model.VideoStream
@@ -34,6 +35,8 @@ import java.io.File
 import java.io.IOException
 import kotlin.math.abs
 
+private val HEIGHT_REGEX = Regex("""(\d{3,4})p?""", RegexOption.IGNORE_CASE)
+
 class AnimeDownloader(
     private val application: Application = Injekt.get(),
     private val provider: AnimeDownloadProvider = Injekt.get(),
@@ -53,13 +56,36 @@ class AnimeDownloader(
             streamKey = download.preferences.streamKey,
         )
 
-        val playbackData = runCatching {
+        var playbackData = runCatching {
             source.getPlaybackData(download.episode.toSEpisode(), requestedSelection)
         }.getOrElse {
             return AnimeDownloadFailure(
                 reason = AnimeDownloadFailure.Reason.NETWORK,
                 message = it.message,
             )
+        }
+
+        if (download.preferences.streamKey == null) {
+            val selectedSourceQualityKey = selectSourceQualityForPreferences(
+                qualityMode = download.preferences.qualityMode,
+                sourceQualities = playbackData.sourceQualities,
+            )
+            if (
+                selectedSourceQualityKey != null &&
+                selectedSourceQualityKey != playbackData.selection.sourceQualityKey
+            ) {
+                playbackData = runCatching {
+                    source.getPlaybackData(
+                        download.episode.toSEpisode(),
+                        playbackData.selection.copy(sourceQualityKey = selectedSourceQualityKey),
+                    )
+                }.getOrElse {
+                    return AnimeDownloadFailure(
+                        reason = AnimeDownloadFailure.Reason.NETWORK,
+                        message = it.message,
+                    )
+                }
+            }
         }
 
         if (selectedDubKey != null && playbackData.selection.dubKey != selectedDubKey) {
@@ -534,9 +560,26 @@ internal fun selectStreamForPreferences(
     } ?: streams.firstOrNull()
 }
 
+internal fun selectSourceQualityForPreferences(
+    qualityMode: AnimeDownloadQualityMode,
+    sourceQualities: List<VideoPlaybackOption>,
+): String? {
+    if (sourceQualities.isEmpty()) return null
+
+    return when (qualityMode) {
+        AnimeDownloadQualityMode.BEST -> sourceQualities.maxByOrNull(::scorePlaybackOptionHeight)
+        AnimeDownloadQualityMode.DATA_SAVING -> sourceQualities.minByOrNull(::scorePlaybackOptionHeight)
+        AnimeDownloadQualityMode.BALANCED -> sourceQualities.minByOrNull { abs(scorePlaybackOptionHeight(it) - 720) }
+    }?.key ?: sourceQualities.firstOrNull()?.key
+}
+
 internal fun scoreStreamHeight(stream: VideoStream): Int {
-    val label = stream.label
-    val match = """(\d{3,4})p?""".toRegex(RegexOption.IGNORE_CASE).find(label)
+    val match = HEIGHT_REGEX.find(stream.label)
+    return match?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
+}
+
+internal fun scorePlaybackOptionHeight(option: VideoPlaybackOption): Int {
+    val match = HEIGHT_REGEX.find(option.label)
     return match?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
 }
 

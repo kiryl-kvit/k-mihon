@@ -1,7 +1,9 @@
 package eu.kanade.tachiyomi.data.anime.download
 
+import eu.kanade.tachiyomi.source.model.VideoPlaybackOption
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
+import tachiyomi.domain.anime.model.AnimeDownloadQualityMode
 
 class AnimeDownloaderTest {
 
@@ -27,5 +29,29 @@ class AnimeDownloaderTest {
             url = "https://cdn.example.com/key",
             currentTagLine = "#EXT-X-KEY:METHOD=AES-128,URI=\"key\"",
         ) shouldBe false
+    }
+
+    @Test
+    fun `best quality selects highest source quality option`() {
+        selectSourceQualityForPreferences(
+            qualityMode = AnimeDownloadQualityMode.BEST,
+            sourceQualities = listOf(
+                VideoPlaybackOption(key = "240", label = "240p"),
+                VideoPlaybackOption(key = "720", label = "720p"),
+                VideoPlaybackOption(key = "1080", label = "1080p"),
+            ),
+        ) shouldBe "1080"
+    }
+
+    @Test
+    fun `data saving selects lowest source quality option`() {
+        selectSourceQualityForPreferences(
+            qualityMode = AnimeDownloadQualityMode.DATA_SAVING,
+            sourceQualities = listOf(
+                VideoPlaybackOption(key = "240", label = "240p"),
+                VideoPlaybackOption(key = "720", label = "720p"),
+                VideoPlaybackOption(key = "1080", label = "1080p"),
+            ),
+        ) shouldBe "240"
     }
 }
