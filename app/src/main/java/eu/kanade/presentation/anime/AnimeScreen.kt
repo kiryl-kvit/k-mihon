@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.DoneAll
+import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Pause
@@ -114,6 +115,7 @@ import eu.kanade.domain.anime.model.toMangaCover
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.anime.animeEpisodeItems
 import eu.kanade.presentation.components.AdaptiveSheet
+import eu.kanade.presentation.components.AnimeDownloadDropdownMenu
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.components.AppBarTitle
@@ -183,6 +185,7 @@ fun AnimeScreen(
     onDuplicatesClicked: (() -> Unit)?,
     onCoverClicked: () -> Unit,
     onFilterClicked: (() -> Unit)?,
+    onDownloadActionClicked: ((AnimeDownloadAction) -> Unit)?,
     onManageMergeClicked: (() -> Unit)?,
     onOpenMergedEntryClicked: (() -> Unit)?,
     onEpisodeClick: (AnimeEpisode) -> Unit,
@@ -213,6 +216,7 @@ fun AnimeScreen(
             onDuplicatesClicked = onDuplicatesClicked,
             onCoverClicked = onCoverClicked,
             onFilterClicked = onFilterClicked,
+            onDownloadActionClicked = onDownloadActionClicked,
             onManageMergeClicked = onManageMergeClicked,
             onOpenMergedEntryClicked = onOpenMergedEntryClicked,
             onEpisodeClick = onEpisodeClick,
@@ -243,6 +247,7 @@ fun AnimeScreen(
             onDuplicatesClicked = onDuplicatesClicked,
             onCoverClicked = onCoverClicked,
             onFilterClicked = onFilterClicked,
+            onDownloadActionClicked = onDownloadActionClicked,
             onManageMergeClicked = onManageMergeClicked,
             onOpenMergedEntryClicked = onOpenMergedEntryClicked,
             onEpisodeClick = onEpisodeClick,
@@ -276,6 +281,7 @@ private fun AnimeScreenSmallImpl(
     onDuplicatesClicked: (() -> Unit)?,
     onCoverClicked: () -> Unit,
     onFilterClicked: (() -> Unit)?,
+    onDownloadActionClicked: ((AnimeDownloadAction) -> Unit)?,
     onManageMergeClicked: (() -> Unit)?,
     onOpenMergedEntryClicked: (() -> Unit)?,
     onEpisodeClick: (AnimeEpisode) -> Unit,
@@ -315,6 +321,7 @@ private fun AnimeScreenSmallImpl(
                 onRefresh = onRefresh,
                 hasFilters = state.filterActive,
                 onFilterClicked = onFilterClicked,
+                onClickDownload = onDownloadActionClicked,
                 onEditCategoryClicked = onEditCategoryClicked,
                 onEditDisplayNameClicked = onEditDisplayNameClicked,
                 onShareClicked = onShareClicked,
@@ -478,6 +485,7 @@ private fun AnimeScreenLargeImpl(
     onDuplicatesClicked: (() -> Unit)?,
     onCoverClicked: () -> Unit,
     onFilterClicked: (() -> Unit)?,
+    onDownloadActionClicked: ((AnimeDownloadAction) -> Unit)?,
     onManageMergeClicked: (() -> Unit)?,
     onOpenMergedEntryClicked: (() -> Unit)?,
     onEpisodeClick: (AnimeEpisode) -> Unit,
@@ -505,6 +513,7 @@ private fun AnimeScreenLargeImpl(
                 onRefresh = onRefresh,
                 hasFilters = state.filterActive,
                 onFilterClicked = onFilterClicked,
+                onClickDownload = onDownloadActionClicked,
                 onEditCategoryClicked = onEditCategoryClicked,
                 onEditDisplayNameClicked = onEditDisplayNameClicked,
                 onShareClicked = onShareClicked,
@@ -663,6 +672,7 @@ private fun AnimeToolbar(
     onRefresh: () -> Unit,
     hasFilters: Boolean,
     onFilterClicked: (() -> Unit)?,
+    onClickDownload: ((AnimeDownloadAction) -> Unit)?,
     onEditCategoryClicked: (() -> Unit)?,
     onEditDisplayNameClicked: (() -> Unit)?,
     onShareClicked: (() -> Unit)?,
@@ -691,6 +701,16 @@ private fun AnimeToolbar(
         isActionMode = actionModeCounter > 0,
         onCancelActionMode = onCancelActionMode,
         actions = {
+            var downloadExpanded by remember { mutableStateOf(false) }
+            if (onClickDownload != null) {
+                val onDismissRequest = { downloadExpanded = false }
+                AnimeDownloadDropdownMenu(
+                    expanded = downloadExpanded,
+                    onDismissRequest = onDismissRequest,
+                    onDownloadClicked = onClickDownload,
+                )
+            }
+
             if (actionModeCounter > 0) {
                 AppBarActions(
                     actions = persistentListOf<AppBar.AppBarAction>(
@@ -710,13 +730,15 @@ private fun AnimeToolbar(
                 AppBarActions(
                     actions = persistentListOf<AppBar.AppBarAction>().builder()
                         .apply {
-                            add(
-                                AppBar.Action(
-                                    title = stringResource(MR.strings.action_retry),
-                                    icon = Icons.Outlined.Refresh,
-                                    onClick = onRefresh,
-                                ),
-                            )
+                            if (onClickDownload != null) {
+                                add(
+                                    AppBar.Action(
+                                        title = stringResource(MR.strings.manga_download),
+                                        icon = Icons.Outlined.Download,
+                                        onClick = { downloadExpanded = !downloadExpanded },
+                                    ),
+                                )
+                            }
                             if (onFilterClicked != null) {
                                 add(
                                     AppBar.Action(
@@ -727,6 +749,12 @@ private fun AnimeToolbar(
                                     ),
                                 )
                             }
+                            add(
+                                AppBar.OverflowAction(
+                                    title = stringResource(MR.strings.action_webview_refresh),
+                                    onClick = onRefresh,
+                                ),
+                            )
                             if (onEditCategoryClicked != null) {
                                 add(
                                     AppBar.OverflowAction(

@@ -8,6 +8,8 @@ import cafe.adriel.voyager.core.model.screenModelScope
 import eu.kanade.core.util.addOrRemove
 import eu.kanade.domain.anime.model.episodesFiltered
 import eu.kanade.domain.anime.model.toSEpisode
+import tachiyomi.domain.anime.service.sortedForReading
+import eu.kanade.presentation.anime.AnimeDownloadAction
 import eu.kanade.presentation.anime.AnimeMergeTarget
 import eu.kanade.presentation.anime.buildAnimeMergeTargets
 import eu.kanade.presentation.anime.toMergeEditorEntry
@@ -520,6 +522,62 @@ class AnimeScreenModel(
                 }
 
             clearSelection()
+        }
+    }
+
+    fun runDownloadAction(action: AnimeDownloadAction) {
+        val current = successState ?: return
+        if (current.dialog is Dialog.DownloadSettings) return
+
+        val unwatchedEpisodes = current.episodes
+            .filter { episode ->
+                !episode.watched &&
+                    current.downloadStateByEpisodeId[episode.id] != DownloadIndicatorState.DOWNLOADED
+            }
+            .sortedForReading(current.anime, current.memberIds)
+
+        val episodesToDownload = when (action) {
+            AnimeDownloadAction.NEXT_1_EPISODE -> unwatchedEpisodes.take(1)
+            AnimeDownloadAction.NEXT_5_EPISODES -> unwatchedEpisodes.take(5)
+            AnimeDownloadAction.NEXT_10_EPISODES -> unwatchedEpisodes.take(10)
+            AnimeDownloadAction.NEXT_25_EPISODES -> unwatchedEpisodes.take(25)
+            AnimeDownloadAction.UNWATCHED_EPISODES -> unwatchedEpisodes
+        }
+        if (episodesToDownload.isEmpty()) return
+
+        val episodeIds = episodesToDownload.map { it.id }.toSet().toImmutableSet()
+
+        updateSuccessState {
+            it.copy(
+                dialog = Dialog.DownloadSettings(
+                    episodeIds = episodeIds,
+                    dubKey = null,
+                    streamKey = null,
+                    subtitleKey = null,
+                    qualityMode = AnimeDownloadQualityMode.BALANCED,
+                    isLoadingOptions = true,
+                ),
+            )
+        }
+
+        screenModelScope.launchIO {
+            val saved = animeDownloadPreferencesRepository.getByAnimeId(current.anime.id)
+            val options = buildDownloadSelectionOptions(current, episodeIds, saved)
+            updateSuccessState {
+                it.copy(
+                    dialog = Dialog.DownloadSettings(
+                        episodeIds = episodeIds,
+                        dubKey = saved?.dubKey,
+                        streamKey = saved?.streamKey,
+                        subtitleKey = saved?.subtitleKey,
+                        qualityMode = saved?.qualityMode ?: AnimeDownloadQualityMode.BALANCED,
+                        dubOptions = options.dubOptions,
+                        streamOptions = options.streamOptions,
+                        subtitleOptions = options.subtitleOptions,
+                        isLoadingOptions = false,
+                    ),
+                )
+            }
         }
     }
 

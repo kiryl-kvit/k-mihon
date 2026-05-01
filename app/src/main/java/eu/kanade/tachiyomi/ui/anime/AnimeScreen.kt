@@ -124,6 +124,7 @@ data class AnimeScreen(
                     },
                     onCoverClicked = screenModel::showCoverDialog,
                     onFilterClicked = screenModel::showSettingsDialog,
+                    onDownloadActionClicked = screenModel::runDownloadAction.takeIf { current.sourceAvailable },
                     onManageMergeClicked = screenModel::showManageMergeDialog.takeIf { current.isPartOfMerge },
                     onOpenMergedEntryClicked = {
                         navigator.push(AnimeScreen(current.mergeTargetId))
