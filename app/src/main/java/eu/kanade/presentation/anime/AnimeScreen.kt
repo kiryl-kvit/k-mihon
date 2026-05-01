@@ -61,6 +61,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
@@ -68,7 +69,6 @@ import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ProvideTextStyle
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.SmallExtendedFloatingActionButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -119,9 +119,9 @@ import eu.kanade.presentation.components.AnimeDownloadDropdownMenu
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.components.AppBarTitle
-import eu.kanade.presentation.components.DropdownMenu
-import eu.kanade.presentation.components.DownloadIndicatorState
 import eu.kanade.presentation.components.DownloadIndicatorAction
+import eu.kanade.presentation.components.DownloadIndicatorState
+import eu.kanade.presentation.components.DropdownMenu
 import eu.kanade.presentation.components.relativeDateText
 import eu.kanade.presentation.manga.components.DISALLOWED_MARKDOWN_TYPES
 import eu.kanade.presentation.manga.components.DotSeparatorText
@@ -142,8 +142,8 @@ import kotlinx.collections.immutable.toImmutableList
 import org.intellij.markdown.MarkdownElementTypes
 import org.intellij.markdown.MarkdownTokenTypes
 import org.intellij.markdown.ast.findChildOfType
-import tachiyomi.domain.anime.model.AnimeEpisode
 import tachiyomi.domain.anime.model.AnimeDownloadQualityMode
+import tachiyomi.domain.anime.model.AnimeEpisode
 import tachiyomi.domain.anime.model.AnimeTitle
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.ListGroupHeader

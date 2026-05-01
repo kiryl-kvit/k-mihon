@@ -9,7 +9,6 @@ import eu.kanade.tachiyomi.data.anime.download.model.AnimeDownload
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.download.model.Download
 import eu.kanade.tachiyomi.databinding.DownloadListBinding
-import tachiyomi.domain.source.service.AnimeSourceManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,6 +16,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import tachiyomi.domain.source.service.AnimeSourceManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -138,7 +138,10 @@ class DownloadQueueScreenModel(
         adapter = null
     }
 
-    val isDownloaderRunning = combine(downloadManager.isDownloaderRunning, animeDownloadManager.isRunning) { manga, anime ->
+    val isDownloaderRunning = combine(downloadManager.isDownloaderRunning, animeDownloadManager.isRunning) {
+            manga,
+            anime,
+        ->
         manga || anime
     }.stateIn(screenModelScope, SharingStarted.WhileSubscribed(5000), false)
 

@@ -48,7 +48,7 @@ fun AnimeDownload.toDownloadQueueItemModel(): DownloadQueueItemModel {
         AnimeDownload.State.ERROR -> failure?.message ?: failure?.reason?.name ?: "Error"
         AnimeDownload.State.DOWNLOADED -> "Downloaded"
         AnimeDownload.State.RESOLVING -> "Resolving"
-        AnimeDownload.State.DOWNLOADING -> "${progress}%"
+        AnimeDownload.State.DOWNLOADING -> "$progress%"
         AnimeDownload.State.QUEUE -> "Queued"
         AnimeDownload.State.NOT_DOWNLOADED -> ""
     }

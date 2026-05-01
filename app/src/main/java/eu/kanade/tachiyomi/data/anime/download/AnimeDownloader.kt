@@ -2,10 +2,10 @@ package eu.kanade.tachiyomi.data.anime.download
 
 import android.app.Application
 import com.hippo.unifile.UniFile
-import eu.kanade.tachiyomi.data.anime.download.model.AnimeDownloadManifest
 import eu.kanade.domain.anime.model.toSEpisode
 import eu.kanade.tachiyomi.data.anime.download.model.AnimeDownload
 import eu.kanade.tachiyomi.data.anime.download.model.AnimeDownloadFailure
+import eu.kanade.tachiyomi.data.anime.download.model.AnimeDownloadManifest
 import eu.kanade.tachiyomi.data.anime.download.model.DownloadedSubtitle
 import eu.kanade.tachiyomi.data.anime.download.model.DownloadedVideo
 import eu.kanade.tachiyomi.network.NetworkHelper
@@ -19,9 +19,9 @@ import eu.kanade.tachiyomi.source.model.VideoStreamType
 import eu.kanade.tachiyomi.source.model.VideoSubtitle
 import eu.kanade.tachiyomi.util.lang.Hash.md5
 import eu.kanade.tachiyomi.util.storage.saveTo
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import kotlinx.coroutines.CancellationException
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Request
@@ -273,7 +273,8 @@ class AnimeDownloader(
     ): String {
         progressTracker.markAsHls()
         val downloaded = LinkedHashMap<String, String>()
-        val stagingDir = File(application.cacheDir, "anime_hls_${md5(stream.request.url).take(8)}_${System.currentTimeMillis()}")
+        val stagingDir =
+            File(application.cacheDir, "anime_hls_${md5(stream.request.url).take(8)}_${System.currentTimeMillis()}")
         stagingDir.mkdirs()
         return try {
             val rootFileName = downloadHlsPlaylist(
@@ -414,9 +415,9 @@ class AnimeDownloader(
         downloaded: MutableMap<String, String>,
         progressTracker: VideoDownloadProgressTracker,
     ): String {
-        downloaded[url]?.let { 
+        downloaded[url]?.let {
             progressTracker.onAssetDownloaded()
-            return it 
+            return it
         }
         val fileName = uniqueLocalName(url)
         val file = File(stagingDir, fileName)
@@ -603,7 +604,10 @@ internal fun effectiveStreamType(stream: VideoStream): VideoStreamType {
         url.endsWith(".mpd", ignoreCase = true) -> VideoStreamType.DASH
         mime.contains("mpegurl", ignoreCase = true) || mime.contains("m3u8", ignoreCase = true) -> VideoStreamType.HLS
         mime.contains("dash", ignoreCase = true) || mime.contains("mpd", ignoreCase = true) -> VideoStreamType.DASH
-        mime.contains("mp4", ignoreCase = true) || mime.contains("webm", ignoreCase = true) -> VideoStreamType.PROGRESSIVE
+        mime.contains(
+            "mp4",
+            ignoreCase = true,
+        ) || mime.contains("webm", ignoreCase = true) -> VideoStreamType.PROGRESSIVE
         else -> VideoStreamType.UNKNOWN
     }
 }

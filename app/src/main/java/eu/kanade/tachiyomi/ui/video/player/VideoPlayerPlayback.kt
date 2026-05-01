@@ -449,7 +449,8 @@ private fun rewriteDownloadedHlsContentUri(baseUri: Uri, candidateUri: Uri): Uri
     if (baseUri.scheme != "content" || candidateUri.scheme != "content") return candidateUri
 
     val baseDocumentId = runCatching { DocumentsContract.getDocumentId(baseUri) }.getOrNull() ?: return candidateUri
-    val candidateDocumentId = runCatching { DocumentsContract.getDocumentId(candidateUri) }.getOrNull() ?: return candidateUri
+    val candidateDocumentId =
+        runCatching { DocumentsContract.getDocumentId(candidateUri) }.getOrNull() ?: return candidateUri
     val baseParentDocumentId = baseDocumentId.substringBeforeLast('/', missingDelimiterValue = "")
     if (baseParentDocumentId.isBlank() || candidateDocumentId.startsWith("$baseParentDocumentId/")) {
         return candidateUri

@@ -8,11 +8,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flatMapLatest
@@ -58,7 +58,9 @@ class AnimeDownloadManager(
         }
         scope.launch {
             progressFlow().collectLatest { download ->
-                if (download.status == AnimeDownload.State.DOWNLOADING || download.status == AnimeDownload.State.RESOLVING) {
+                if (download.status == AnimeDownload.State.DOWNLOADING ||
+                    download.status == AnimeDownload.State.RESOLVING
+                ) {
                     notifier.onProgressChange(download)
                 }
             }

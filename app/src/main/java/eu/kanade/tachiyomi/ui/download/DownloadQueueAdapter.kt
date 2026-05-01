@@ -4,7 +4,9 @@ import android.view.MenuItem
 import eu.davidea.flexibleadapter.FlexibleAdapter
 import eu.davidea.flexibleadapter.items.AbstractFlexibleItem
 
-class DownloadQueueAdapter(val downloadItemListener: DownloadQueueItemListener) : FlexibleAdapter<AbstractFlexibleItem<*>>(
+class DownloadQueueAdapter(
+    val downloadItemListener: DownloadQueueItemListener,
+) : FlexibleAdapter<AbstractFlexibleItem<*>>(
     null,
     downloadItemListener,
     true,

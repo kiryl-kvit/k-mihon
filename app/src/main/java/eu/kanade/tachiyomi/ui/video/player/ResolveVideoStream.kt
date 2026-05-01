@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.ui.video.player
 
+import android.app.Application
 import eu.kanade.domain.anime.model.toSEpisode
 import eu.kanade.tachiyomi.data.anime.download.AnimeDownloadProvider
 import eu.kanade.tachiyomi.data.anime.download.AnimeDownloader
@@ -11,6 +12,7 @@ import eu.kanade.tachiyomi.source.model.VideoRequest
 import eu.kanade.tachiyomi.source.model.VideoStream
 import eu.kanade.tachiyomi.source.model.VideoStreamType
 import eu.kanade.tachiyomi.source.model.VideoSubtitle
+import eu.kanade.tachiyomi.util.system.isOnline
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
@@ -25,8 +27,6 @@ import tachiyomi.domain.anime.repository.AnimeRepository
 import tachiyomi.domain.source.service.AnimeSourceManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import android.app.Application
-import eu.kanade.tachiyomi.util.system.isOnline
 
 class ResolveVideoStream(
     private val videoRepository: AnimeRepository = Injekt.get(),
@@ -235,14 +235,14 @@ class ResolveVideoStream(
             animeTitle = anime.title,
             source = source,
         ) ?: return null
-        
+
         val manifestFile = episodeDir.findFile(AnimeDownloader.MANIFEST_FILE_NAME)
         val manifest = runCatching {
             manifestFile?.openInputStream()?.bufferedReader()?.use { reader ->
                 json.decodeFromString<AnimeDownloadManifest>(reader.readText())
             }
         }.getOrNull()
-        
+
         if (manifest != null) {
             val videoFile = resolveDownloadedVideoFile(episodeDir, manifest) ?: return null
 
@@ -279,7 +279,7 @@ class ResolveVideoStream(
         }
 
         // Fallback for older downloads without a valid manifest
-        val videoFile = episodeDir.listFiles()?.firstOrNull { 
+        val videoFile = episodeDir.listFiles()?.firstOrNull {
             it.name?.endsWith(".mp4") == true ||
                 it.name?.endsWith(".mkv") == true ||
                 it.name?.endsWith(".m3u8") == true ||

@@ -8,13 +8,12 @@ import cafe.adriel.voyager.core.model.screenModelScope
 import eu.kanade.core.util.addOrRemove
 import eu.kanade.domain.anime.model.episodesFiltered
 import eu.kanade.domain.anime.model.toSEpisode
-import tachiyomi.domain.anime.service.sortedForReading
 import eu.kanade.presentation.anime.AnimeDownloadAction
 import eu.kanade.presentation.anime.AnimeMergeTarget
 import eu.kanade.presentation.anime.buildAnimeMergeTargets
 import eu.kanade.presentation.anime.toMergeEditorEntry
-import eu.kanade.presentation.components.DownloadIndicatorState
 import eu.kanade.presentation.components.DownloadIndicatorAction
+import eu.kanade.presentation.components.DownloadIndicatorState
 import eu.kanade.presentation.manga.components.MergeEditorEntry
 import eu.kanade.presentation.manga.components.buildMergeTargetQuery
 import eu.kanade.presentation.manga.components.rankMergeTargets
@@ -23,8 +22,8 @@ import eu.kanade.presentation.util.formattedMessage
 import eu.kanade.tachiyomi.source.AnimeScheduleSource
 import eu.kanade.tachiyomi.source.AnimeSubtitleSource
 import eu.kanade.tachiyomi.source.AnimeWebViewSource
-import eu.kanade.tachiyomi.source.model.VideoPlaybackSelection
 import eu.kanade.tachiyomi.source.model.SAnimeScheduleEpisode
+import eu.kanade.tachiyomi.source.model.VideoPlaybackSelection
 import eu.kanade.tachiyomi.util.lang.toStoredDisplayName
 import eu.kanade.tachiyomi.util.system.isOnline
 import kotlinx.collections.immutable.ImmutableList
@@ -33,10 +32,10 @@ import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableSet
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapLatest
@@ -60,20 +59,21 @@ import tachiyomi.domain.anime.interactor.SetAnimeDefaultEpisodeFlags
 import tachiyomi.domain.anime.interactor.SetAnimeEpisodeFlags
 import tachiyomi.domain.anime.interactor.SyncAnimeWithSource
 import tachiyomi.domain.anime.interactor.UpdateMergedAnime
-import tachiyomi.domain.anime.model.AnimeEpisode
 import tachiyomi.domain.anime.model.AnimeDownloadPreferences
 import tachiyomi.domain.anime.model.AnimeDownloadQualityMode
+import tachiyomi.domain.anime.model.AnimeEpisode
 import tachiyomi.domain.anime.model.AnimeEpisodeUpdate
 import tachiyomi.domain.anime.model.AnimeMerge
 import tachiyomi.domain.anime.model.AnimePlaybackState
 import tachiyomi.domain.anime.model.AnimeTitle
 import tachiyomi.domain.anime.model.AnimeTitleUpdate
 import tachiyomi.domain.anime.model.DuplicateAnimeCandidate
-import tachiyomi.domain.anime.repository.AnimeEpisodeRepository
 import tachiyomi.domain.anime.repository.AnimeDownloadPreferencesRepository
+import tachiyomi.domain.anime.repository.AnimeEpisodeRepository
 import tachiyomi.domain.anime.repository.AnimePlaybackStateRepository
 import tachiyomi.domain.anime.repository.AnimeRepository
 import tachiyomi.domain.anime.repository.MergedAnimeRepository
+import tachiyomi.domain.anime.service.sortedForReading
 import tachiyomi.domain.category.interactor.GetAnimeCategories
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.interactor.SetAnimeCategories
@@ -87,6 +87,7 @@ import uy.kohesive.injekt.api.get
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import eu.kanade.tachiyomi.data.anime.download.model.AnimeDownload.State as DownloadState
 
 class AnimeScreenModel(
     private val context: Context,
@@ -167,10 +168,10 @@ class AnimeScreenModel(
             } else {
                 download.status.toDownloadIndicatorState()
             }
-            
+
             val downloadProgressByEpisodeId = current.downloadProgressByEpisodeId.toMutableMap()
             downloadProgressByEpisodeId[download.episode.id] = download.progress
-            
+
             current.copy(
                 downloadStateByEpisodeId = downloadStateByEpisodeId,
                 downloadProgressByEpisodeId = downloadProgressByEpisodeId,
@@ -754,7 +755,8 @@ class AnimeScreenModel(
         deletingEpisodeIds.update { it + episodeIds }
         updateSuccessState {
             it.copy(
-                downloadStateByEpisodeId = it.downloadStateByEpisodeId + episodeIds.associateWith { DownloadIndicatorState.DELETING },
+                downloadStateByEpisodeId =
+                it.downloadStateByEpisodeId + episodeIds.associateWith { DownloadIndicatorState.DELETING },
             )
         }
         clearSelection()
@@ -780,7 +782,8 @@ class AnimeScreenModel(
                 deletingEpisodeIds.update { it + episodeId }
                 updateSuccessState {
                     it.copy(
-                        downloadStateByEpisodeId = it.downloadStateByEpisodeId + (episodeId to DownloadIndicatorState.DELETING),
+                        downloadStateByEpisodeId =
+                        it.downloadStateByEpisodeId + (episodeId to DownloadIndicatorState.DELETING),
                     )
                 }
                 screenModelScope.launchIO {
@@ -1855,15 +1858,15 @@ private fun resolveManageMergeTargetId(targetId: Long, remainingIds: List<Long>)
     return remainingIds.firstOrNull { it == targetId } ?: remainingIds.firstOrNull()
 }
 
-private fun eu.kanade.tachiyomi.data.anime.download.model.AnimeDownload.State.toDownloadIndicatorState(): DownloadIndicatorState {
+private fun DownloadState.toDownloadIndicatorState(): DownloadIndicatorState {
     return when (this) {
-        eu.kanade.tachiyomi.data.anime.download.model.AnimeDownload.State.NOT_DOWNLOADED -> DownloadIndicatorState.NOT_DOWNLOADED
-        eu.kanade.tachiyomi.data.anime.download.model.AnimeDownload.State.QUEUE,
-        eu.kanade.tachiyomi.data.anime.download.model.AnimeDownload.State.RESOLVING,
+        DownloadState.NOT_DOWNLOADED -> DownloadIndicatorState.NOT_DOWNLOADED
+        DownloadState.QUEUE,
+        DownloadState.RESOLVING,
         -> DownloadIndicatorState.QUEUE
-        eu.kanade.tachiyomi.data.anime.download.model.AnimeDownload.State.DOWNLOADING -> DownloadIndicatorState.DOWNLOADING
-        eu.kanade.tachiyomi.data.anime.download.model.AnimeDownload.State.DOWNLOADED -> DownloadIndicatorState.DOWNLOADED
-        eu.kanade.tachiyomi.data.anime.download.model.AnimeDownload.State.ERROR -> DownloadIndicatorState.ERROR
+        DownloadState.DOWNLOADING -> DownloadIndicatorState.DOWNLOADING
+        DownloadState.DOWNLOADED -> DownloadIndicatorState.DOWNLOADED
+        DownloadState.ERROR -> DownloadIndicatorState.ERROR
     }
 }
 

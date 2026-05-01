@@ -137,8 +137,12 @@ object DownloadQueueScreen : Screen() {
                                                 screenModel.reorderQueue(
                                                     { item ->
                                                         when (item.model().contentType) {
-                                                            DownloadQueueContentType.MANGA_CHAPTER -> item.payloadAsDownload().chapter.dateUpload
-                                                            DownloadQueueContentType.ANIME_EPISODE -> item.payloadAsAnimeDownload().episode.dateUpload
+                                                            DownloadQueueContentType.MANGA_CHAPTER -> {
+                                                                item.payloadAsDownload().chapter.dateUpload
+                                                            }
+                                                            DownloadQueueContentType.ANIME_EPISODE -> {
+                                                                item.payloadAsAnimeDownload().episode.dateUpload
+                                                            }
                                                         }
                                                     },
                                                     true,
@@ -152,8 +156,12 @@ object DownloadQueueScreen : Screen() {
                                                 screenModel.reorderQueue(
                                                     { item ->
                                                         when (item.model().contentType) {
-                                                            DownloadQueueContentType.MANGA_CHAPTER -> item.payloadAsDownload().chapter.dateUpload
-                                                            DownloadQueueContentType.ANIME_EPISODE -> item.payloadAsAnimeDownload().episode.dateUpload
+                                                            DownloadQueueContentType.MANGA_CHAPTER -> {
+                                                                item.payloadAsDownload().chapter.dateUpload
+                                                            }
+                                                            DownloadQueueContentType.ANIME_EPISODE -> {
+                                                                item.payloadAsAnimeDownload().episode.dateUpload
+                                                            }
                                                         }
                                                     },
                                                     false,
@@ -172,8 +180,12 @@ object DownloadQueueScreen : Screen() {
                                                 screenModel.reorderQueue(
                                                     { item ->
                                                         when (item.model().contentType) {
-                                                            DownloadQueueContentType.MANGA_CHAPTER -> item.payloadAsDownload().chapter.chapterNumber
-                                                            DownloadQueueContentType.ANIME_EPISODE -> item.payloadAsAnimeDownload().episode.episodeNumber
+                                                            DownloadQueueContentType.MANGA_CHAPTER -> {
+                                                                item.payloadAsDownload().chapter.chapterNumber
+                                                            }
+                                                            DownloadQueueContentType.ANIME_EPISODE -> {
+                                                                item.payloadAsAnimeDownload().episode.episodeNumber
+                                                            }
                                                         }
                                                     },
                                                     false,
@@ -187,8 +199,12 @@ object DownloadQueueScreen : Screen() {
                                                 screenModel.reorderQueue(
                                                     { item ->
                                                         when (item.model().contentType) {
-                                                            DownloadQueueContentType.MANGA_CHAPTER -> item.payloadAsDownload().chapter.chapterNumber
-                                                            DownloadQueueContentType.ANIME_EPISODE -> item.payloadAsAnimeDownload().episode.episodeNumber
+                                                            DownloadQueueContentType.MANGA_CHAPTER -> {
+                                                                item.payloadAsDownload().chapter.chapterNumber
+                                                            }
+                                                            DownloadQueueContentType.ANIME_EPISODE -> {
+                                                                item.payloadAsAnimeDownload().episode.episodeNumber
+                                                            }
                                                         }
                                                     },
                                                     true,

@@ -16,10 +16,10 @@ import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.core.util.ifAnimeSourcesLoaded
 import eu.kanade.domain.anime.model.toMangaCover
+import eu.kanade.presentation.anime.AnimeDownloadSettingsDialog
 import eu.kanade.presentation.anime.AnimeMergeTargetPickerDialog
 import eu.kanade.presentation.anime.AnimeScheduleSheet
 import eu.kanade.presentation.anime.AnimeScreen
-import eu.kanade.presentation.anime.AnimeDownloadSettingsDialog
 import eu.kanade.presentation.anime.DuplicateAnimeDialog
 import eu.kanade.presentation.anime.EpisodeSettingsDialog
 import eu.kanade.presentation.anime.ManageAnimeMergeDialog
