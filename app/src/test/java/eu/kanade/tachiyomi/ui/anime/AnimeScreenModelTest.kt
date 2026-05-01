@@ -3,18 +3,23 @@
 package eu.kanade.tachiyomi.ui.anime
 
 import android.app.Application
+import android.content.Context
 import eu.kanade.tachiyomi.source.AnimeScheduleSource
 import eu.kanade.tachiyomi.source.model.SAnime
 import eu.kanade.tachiyomi.source.model.SAnimeScheduleEpisode
 import eu.kanade.tachiyomi.source.model.SEpisode
 import eu.kanade.tachiyomi.source.model.VideoPlaybackData
 import eu.kanade.tachiyomi.source.model.VideoPlaybackSelection
+import eu.kanade.tachiyomi.util.system.isOnline
 import io.kotest.assertions.nondeterministic.eventually
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkAll
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
@@ -70,6 +75,8 @@ class AnimeScreenModelTest {
     fun setup() {
         dispatcher = StandardTestDispatcher()
         kotlinx.coroutines.Dispatchers.setMain(dispatcher)
+        mockkStatic("eu.kanade.tachiyomi.util.system.NetworkExtensionsKt")
+        every { any<Context>().isOnline() } returns true
     }
 
     @AfterEach
@@ -78,6 +85,7 @@ class AnimeScreenModelTest {
         createdModels.clear()
         dispatcher.scheduler.advanceUntilIdle()
         kotlinx.coroutines.Dispatchers.resetMain()
+        unmockkAll()
     }
 
     @Test
@@ -450,6 +458,46 @@ class AnimeScreenModelTest {
             state.scheduleSummary shouldBe AnimeScreenModel.ScheduleSummary.Error
             state.schedule.shouldBeInstanceOf<AnimeScreenModel.ScheduleState.Error>()
             scheduleSource.scheduleRequests shouldBe 1
+        }
+    }
+
+    @Test
+    fun `schedule does not load when device is offline`() = runTest(dispatcher) {
+        val anime = AnimeTitle.create().copy(
+            id = 1L,
+            source = 99L,
+            title = "Anime",
+            favorite = true,
+            initialized = true,
+            url = "/anime/1",
+        )
+        val scheduleSource = FakeScheduleAnimeSource(
+            scheduleEntries = listOf(
+                SAnimeScheduleEpisode(
+                    seasonNumber = 1,
+                    episodeNumber = 12f,
+                    title = "Finale",
+                    airDate = System.currentTimeMillis() + 86_400_000L,
+                    isAvailable = false,
+                ),
+            ),
+        )
+
+        every { any<Context>().isOnline() } returns false
+
+        val model = createModel(
+            anime = anime,
+            episodes = emptyList(),
+            animeSourceManager = FakeAnimeSourceManager(scheduleSource),
+        )
+
+        advanceUntilIdle()
+
+        eventually(2.seconds) {
+            val state = model.state.value.shouldBeInstanceOf<AnimeScreenModel.State.Success>()
+            state.showScheduleButton shouldBe true
+            state.schedule shouldBe AnimeScreenModel.ScheduleState.NotLoaded
+            scheduleSource.scheduleRequests shouldBe 0
         }
     }
 

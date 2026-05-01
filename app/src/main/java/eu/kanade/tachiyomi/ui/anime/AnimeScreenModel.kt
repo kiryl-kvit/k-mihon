@@ -24,6 +24,7 @@ import eu.kanade.tachiyomi.source.AnimeWebViewSource
 import eu.kanade.tachiyomi.source.model.VideoPlaybackSelection
 import eu.kanade.tachiyomi.source.model.SAnimeScheduleEpisode
 import eu.kanade.tachiyomi.util.lang.toStoredDisplayName
+import eu.kanade.tachiyomi.util.system.isOnline
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -878,6 +879,8 @@ class AnimeScreenModel(
 
     private fun loadSchedule(force: Boolean = false) {
         val currentState = successState ?: return
+
+        if (!context.isOnline()) return
 
         val shouldLoad = when (currentState.schedule) {
             ScheduleState.Unavailable -> false
