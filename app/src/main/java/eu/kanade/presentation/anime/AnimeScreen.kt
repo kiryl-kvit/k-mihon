@@ -1591,7 +1591,7 @@ fun AnimeDownloadSettingsDialog(
                     onClick = {
                         onConfirm(
                             dubKey.trim().ifBlank { null },
-                            null,
+                            streamKey.trim().ifBlank { null },
                             subtitleKey.trim().ifBlank { null },
                             qualityMode,
                         )
