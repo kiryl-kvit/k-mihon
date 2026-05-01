@@ -192,6 +192,7 @@ fun AnimeScreen(
     onInvertSelection: () -> Unit,
     onMarkSelectedWatched: (Boolean) -> Unit,
     onDownloadSelectedEpisodes: () -> Unit,
+    onDeleteSelectedEpisodes: () -> Unit,
 ) {
     if (isTabletUi()) {
         AnimeScreenLargeImpl(
@@ -221,6 +222,7 @@ fun AnimeScreen(
             onInvertSelection = onInvertSelection,
             onMarkSelectedWatched = onMarkSelectedWatched,
             onDownloadSelectedEpisodes = onDownloadSelectedEpisodes,
+            onDeleteSelectedEpisodes = onDeleteSelectedEpisodes,
         )
     } else {
         AnimeScreenSmallImpl(
@@ -250,6 +252,7 @@ fun AnimeScreen(
             onInvertSelection = onInvertSelection,
             onMarkSelectedWatched = onMarkSelectedWatched,
             onDownloadSelectedEpisodes = onDownloadSelectedEpisodes,
+            onDeleteSelectedEpisodes = onDeleteSelectedEpisodes,
         )
     }
 }
@@ -282,6 +285,7 @@ private fun AnimeScreenSmallImpl(
     onInvertSelection: () -> Unit,
     onMarkSelectedWatched: (Boolean) -> Unit,
     onDownloadSelectedEpisodes: () -> Unit,
+    onDeleteSelectedEpisodes: () -> Unit,
 ) {
     val episodeListState = rememberLazyListState()
 
@@ -329,6 +333,7 @@ private fun AnimeScreenSmallImpl(
                 selectedEpisodes = state.episodes.filter { it.id in state.selection },
                 onMarkSelectedWatched = onMarkSelectedWatched,
                 onDownloadClicked = onDownloadSelectedEpisodes,
+                onDeleteClicked = onDeleteSelectedEpisodes.takeIf { state.hasDownloadedSelection },
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -482,6 +487,7 @@ private fun AnimeScreenLargeImpl(
     onInvertSelection: () -> Unit,
     onMarkSelectedWatched: (Boolean) -> Unit,
     onDownloadSelectedEpisodes: () -> Unit,
+    onDeleteSelectedEpisodes: () -> Unit,
 ) {
     val episodeListState = rememberLazyListState()
     val layoutDirection = LocalLayoutDirection.current
@@ -517,6 +523,7 @@ private fun AnimeScreenLargeImpl(
                 selectedEpisodes = state.episodes.filter { it.id in state.selection },
                 onMarkSelectedWatched = onMarkSelectedWatched,
                 onDownloadClicked = onDownloadSelectedEpisodes,
+                onDeleteClicked = onDeleteSelectedEpisodes.takeIf { state.hasDownloadedSelection },
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -1484,6 +1491,7 @@ private fun AnimeBottomActionMenu(
     selectedEpisodes: List<AnimeEpisode>,
     onMarkSelectedWatched: (Boolean) -> Unit,
     onDownloadClicked: () -> Unit,
+    onDeleteClicked: (() -> Unit)? = null,
 ) {
     MangaBottomActionMenu(
         visible = visible,
@@ -1496,6 +1504,7 @@ private fun AnimeBottomActionMenu(
         markAsReadLabel = MR.strings.action_mark_as_watched,
         markAsUnreadLabel = MR.strings.action_mark_as_unwatched,
         onDownloadClicked = onDownloadClicked,
+        onDeleteClicked = onDeleteClicked,
     )
 }
 

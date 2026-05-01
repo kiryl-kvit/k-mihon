@@ -146,6 +146,7 @@ data class AnimeScreen(
                     onInvertSelection = screenModel::invertSelection,
                     onMarkSelectedWatched = screenModel::markSelectedEpisodesWatched,
                     onDownloadSelectedEpisodes = screenModel::showDownloadSettingsDialogForSelection,
+                    onDeleteSelectedEpisodes = screenModel::deleteSelectedDownloadedEpisodes,
                 )
 
                 when (val dialog = current.dialog) {

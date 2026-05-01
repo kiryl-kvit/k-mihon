@@ -42,6 +42,7 @@ class AnimeDownloadManager(
 
     private val _queueState = MutableStateFlow<List<AnimeDownload>>(emptyList())
     val queueState = _queueState.asStateFlow()
+    val cacheChanges = cache.changes
 
     private val _isRunning = MutableStateFlow(false)
     val isRunning = _isRunning.asStateFlow()
@@ -67,7 +68,11 @@ class AnimeDownloadManager(
     fun startDownloads() {
         if (queueState.value.isEmpty()) return
         queueState.value.forEach { download ->
-            if (download.status != AnimeDownload.State.DOWNLOADED) {
+            if (
+                download.status != AnimeDownload.State.DOWNLOADED &&
+                download.status != AnimeDownload.State.RESOLVING &&
+                download.status != AnimeDownload.State.DOWNLOADING
+            ) {
                 download.status = AnimeDownload.State.QUEUE
                 download.failure = null
             }

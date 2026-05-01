@@ -1,6 +1,12 @@
 package eu.kanade.presentation.components
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
@@ -23,8 +29,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -37,6 +46,7 @@ import tachiyomi.presentation.core.util.secondaryItemAlpha
 
 enum class DownloadIndicatorState {
     NOT_DOWNLOADED,
+    DELETING,
     QUEUE,
     DOWNLOADING,
     DOWNLOADED,
@@ -70,7 +80,12 @@ fun DownloadIndicator(
             startContentDescription = startContentDescription,
             onClick = onClick,
         )
-        DownloadIndicatorState.QUEUE, DownloadIndicatorState.DOWNLOADING -> DownloadingIndicator(
+        DownloadIndicatorState.DELETING -> DeletingIndicator(
+            modifier = modifier,
+        )
+        DownloadIndicatorState.QUEUE,
+        DownloadIndicatorState.DOWNLOADING,
+        -> DownloadingIndicator(
             enabled = enabled,
             modifier = modifier,
             downloadState = downloadState,
@@ -90,6 +105,50 @@ fun DownloadIndicator(
             modifier = modifier,
             errorContentDescription = errorContentDescription,
             onClick = onClick,
+        )
+    }
+}
+
+@Composable
+private fun DeletingIndicator(
+    modifier: Modifier = Modifier,
+) {
+    val strokeColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val eraseTransition = rememberInfiniteTransition(label = "deleting-erase")
+    val eraseProgress by eraseTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2700, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "deleting-erase-progress",
+    )
+
+    Box(
+        modifier = modifier.size(IconButtonTokens.StateLayerSize),
+        contentAlignment = Alignment.Center,
+    ) {
+        CircularProgressIndicator(
+            progress = { 1f },
+            modifier = IndicatorModifier,
+            color = strokeColor.copy(alpha = 0.18f),
+            strokeWidth = IndicatorStrokeWidth,
+            trackColor = Color.Transparent,
+            strokeCap = StrokeCap.Round,
+        )
+        Icon(
+            imageVector = Icons.Filled.CheckCircle,
+            contentDescription = null,
+            modifier = Modifier
+                .size(IndicatorSize)
+                .alpha((1f - eraseProgress).coerceIn(0.18f, 1f))
+                .drawWithContent {
+                    clipRect(right = size.width * (1f - eraseProgress)) {
+                        this@drawWithContent.drawContent()
+                    }
+                },
+            tint = strokeColor,
         )
     }
 }

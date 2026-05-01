@@ -34,6 +34,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapLatest
@@ -116,6 +117,7 @@ class AnimeScreenModel(
 
     private val selectionState = UpdatesSelectionState()
     private val selectedEpisodeIds = HashSet<Long>()
+    private val deletingEpisodeIds = MutableStateFlow<Set<Long>>(emptySet())
     private var duplicateObservationJob: Job? = null
 
     val webViewSource: AnimeWebViewSource?
@@ -158,7 +160,11 @@ class AnimeScreenModel(
     private fun updateDownloadState(download: eu.kanade.tachiyomi.data.anime.download.model.AnimeDownload) {
         updateSuccessState { current ->
             val downloadStateByEpisodeId = current.downloadStateByEpisodeId.toMutableMap()
-            downloadStateByEpisodeId[download.episode.id] = download.status.toDownloadIndicatorState()
+            downloadStateByEpisodeId[download.episode.id] = if (download.episode.id in deletingEpisodeIds.value) {
+                DownloadIndicatorState.DELETING
+            } else {
+                download.status.toDownloadIndicatorState()
+            }
             
             val downloadProgressByEpisodeId = current.downloadProgressByEpisodeId.toMutableMap()
             downloadProgressByEpisodeId[download.episode.id] = download.progress
@@ -176,10 +182,18 @@ class AnimeScreenModel(
                 getAnimeWithEpisodes.subscribe(animeId, bypassMerge = bypassMerge),
                 getMergedAnime.subscribeGroupByAnimeId(animeId),
                 animeDownloadManager.queueState,
-            ) { (anime, episodes), merges, queue ->
-                Quadruple(anime, episodes, merges.sortedBy(AnimeMerge::position), queue)
+                animeDownloadManager.cacheChanges,
+                deletingEpisodeIds,
+            ) { (anime, episodes), merges, queue, _, deletingEpisodeIds ->
+                Quintuple(
+                    anime,
+                    episodes,
+                    merges.sortedBy(AnimeMerge::position),
+                    queue,
+                    deletingEpisodeIds,
+                )
             }
-                .flatMapLatest { (anime, episodes, merges, queue) ->
+                .flatMapLatest { (anime, episodes, merges, queue, deletingEpisodeIds) ->
                     val mergeGroupMemberIds = merges.map(AnimeMerge::animeId).ifEmpty { listOf(anime.id) }
                     val memberIds = if (bypassMerge) {
                         listOf(anime.id)
@@ -196,6 +210,7 @@ class AnimeScreenModel(
                             episodes = episodes,
                             memberIds = memberIds,
                             queue = queue,
+                            deletingEpisodeIds = deletingEpisodeIds,
                             mergeTargetId = merges.firstOrNull()?.targetId ?: anime.id,
                             mergeGroupMemberIds = mergeGroupMemberIds,
                             memberAnimes = memberAnimes,
@@ -669,6 +684,32 @@ class AnimeScreenModel(
         }
     }
 
+    fun deleteSelectedDownloadedEpisodes() {
+        val current = successState ?: return
+        val episodesToDelete = current.episodes.filter { episode ->
+            episode.id in current.selection &&
+                current.downloadStateByEpisodeId[episode.id] == DownloadIndicatorState.DOWNLOADED
+        }
+        if (episodesToDelete.isEmpty()) return
+
+        val episodeIds = episodesToDelete.map(AnimeEpisode::id).toSet()
+        deletingEpisodeIds.update { it + episodeIds }
+        updateSuccessState {
+            it.copy(
+                downloadStateByEpisodeId = it.downloadStateByEpisodeId + episodeIds.associateWith { DownloadIndicatorState.DELETING },
+            )
+        }
+        clearSelection()
+
+        screenModelScope.launchIO {
+            try {
+                animeDownloadManager.deleteEpisodes(current.anime, episodesToDelete)
+            } finally {
+                deletingEpisodeIds.update { it - episodeIds }
+            }
+        }
+    }
+
     fun runEpisodeDownloadAction(episodeId: Long, action: DownloadIndicatorAction) {
         when (action) {
             DownloadIndicatorAction.START,
@@ -678,8 +719,18 @@ class AnimeScreenModel(
             DownloadIndicatorAction.DELETE -> {
                 val current = successState ?: return
                 val episode = current.episodes.firstOrNull { it.id == episodeId } ?: return
+                deletingEpisodeIds.update { it + episodeId }
+                updateSuccessState {
+                    it.copy(
+                        downloadStateByEpisodeId = it.downloadStateByEpisodeId + (episodeId to DownloadIndicatorState.DELETING),
+                    )
+                }
                 screenModelScope.launchIO {
-                    animeDownloadManager.deleteEpisodes(current.anime, listOf(episode))
+                    try {
+                        animeDownloadManager.deleteEpisodes(current.anime, listOf(episode))
+                    } finally {
+                        deletingEpisodeIds.update { it - episodeId }
+                    }
                 }
             }
         }
@@ -1122,6 +1173,11 @@ class AnimeScreenModel(
 
             val selectedCount: Int = selection.size
 
+            val hasDownloadedSelection: Boolean
+                get() = selection.any { episodeId ->
+                    downloadStateByEpisodeId[episodeId] == DownloadIndicatorState.DOWNLOADED
+                }
+
             val filterActive: Boolean = anime.episodesFiltered()
 
             val showScheduleButton: Boolean
@@ -1418,6 +1474,7 @@ class AnimeScreenModel(
         episodes: List<AnimeEpisode>,
         memberIds: List<Long>,
         queue: List<eu.kanade.tachiyomi.data.anime.download.model.AnimeDownload>,
+        deletingEpisodeIds: Set<Long>,
         mergeTargetId: Long,
         mergeGroupMemberIds: List<Long>,
         memberAnimes: List<AnimeTitle>,
@@ -1438,6 +1495,7 @@ class AnimeScreenModel(
         val downloadStateByEpisodeId = episodeDisplay.episodes.associate { episode ->
             val queuedDownload = queueByEpisodeId[episode.id]
             episode.id to when {
+                episode.id in deletingEpisodeIds -> DownloadIndicatorState.DELETING
                 queuedDownload != null -> queuedDownload.status.toDownloadIndicatorState()
                 animeDownloadManager.isEpisodeDownloaded(
                     episodeName = episode.name,
@@ -1756,6 +1814,14 @@ private data class Quadruple<A, B, C, D>(
     val second: B,
     val third: C,
     val fourth: D,
+)
+
+private data class Quintuple<A, B, C, D, E>(
+    val first: A,
+    val second: B,
+    val third: C,
+    val fourth: D,
+    val fifth: E,
 )
 
 private data class DownloadSelectionOptions(
