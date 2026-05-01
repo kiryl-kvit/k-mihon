@@ -12,6 +12,7 @@ import eu.kanade.domain.track.store.DelayedTrackingStore
 import eu.kanade.tachiyomi.data.cache.ChapterCache
 import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.data.anime.download.AnimeDownloadCache
+import eu.kanade.tachiyomi.data.anime.download.AnimeDownloader
 import eu.kanade.tachiyomi.data.anime.download.AnimeDownloadManager
 import eu.kanade.tachiyomi.data.anime.download.AnimeDownloadProvider
 import eu.kanade.tachiyomi.data.download.DownloadCache
@@ -151,7 +152,8 @@ class AppModule(val app: Application) : InjektModule {
         addSingletonFactory { DownloadProvider(app) }
         addSingletonFactory { AnimeDownloadProvider(app) }
         addSingletonFactory { AnimeDownloadCache(app) }
-        addSingletonFactory { AnimeDownloadManager(app, get(), get()) }
+        addSingletonFactory { AnimeDownloader(get(), get(), get(), get(), get()) }
+        addSingletonFactory { AnimeDownloadManager(app, get(), get(), get()) }
         addSingletonFactory { DownloadManager(app) }
         addSingletonFactory { DownloadCache(app) }
 

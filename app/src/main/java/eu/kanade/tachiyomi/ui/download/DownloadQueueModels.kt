@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.ui.download
 
+import eu.kanade.tachiyomi.data.anime.download.model.AnimeDownload
 import eu.kanade.tachiyomi.data.download.model.Download
 
 enum class DownloadQueueContentType {
@@ -39,5 +40,25 @@ fun Download.toDownloadQueueItemModel(): DownloadQueueItemModel {
         progress = totalProgress,
         progressMax = progressMax,
         progressText = progressText,
+    )
+}
+
+fun AnimeDownload.toDownloadQueueItemModel(): DownloadQueueItemModel {
+    val statusText = when (status) {
+        AnimeDownload.State.ERROR -> failure?.message ?: failure?.reason?.name ?: "Error"
+        AnimeDownload.State.DOWNLOADED -> "Downloaded"
+        AnimeDownload.State.RESOLVING -> "Resolving"
+        AnimeDownload.State.DOWNLOADING -> "${progress}%"
+        AnimeDownload.State.QUEUE -> "Queued"
+        AnimeDownload.State.NOT_DOWNLOADED -> ""
+    }
+    return DownloadQueueItemModel(
+        id = episode.id,
+        contentType = DownloadQueueContentType.ANIME_EPISODE,
+        title = anime.title,
+        subtitle = episode.name,
+        progress = progress,
+        progressMax = 100,
+        progressText = statusText,
     )
 }
