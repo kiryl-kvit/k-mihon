@@ -19,6 +19,7 @@ import eu.kanade.domain.anime.model.toMangaCover
 import eu.kanade.presentation.anime.AnimeMergeTargetPickerDialog
 import eu.kanade.presentation.anime.AnimeScheduleSheet
 import eu.kanade.presentation.anime.AnimeScreen
+import eu.kanade.presentation.anime.AnimeDownloadSettingsDialog
 import eu.kanade.presentation.anime.DuplicateAnimeDialog
 import eu.kanade.presentation.anime.EpisodeSettingsDialog
 import eu.kanade.presentation.anime.ManageAnimeMergeDialog
@@ -141,6 +142,7 @@ data class AnimeScreen(
                     onAllEpisodesSelected = screenModel::toggleAllSelection,
                     onInvertSelection = screenModel::invertSelection,
                     onMarkSelectedWatched = screenModel::markSelectedEpisodesWatched,
+                    onDownloadSelectedEpisodes = screenModel::showDownloadSettingsDialogForSelection,
                 )
 
                 when (val dialog = current.dialog) {
@@ -266,6 +268,23 @@ data class AnimeScreen(
                             onDismissRequest = screenModel::dismissDialog,
                             onQueryChange = screenModel::updateMergeTargetQuery,
                             onSelectTarget = screenModel::openMergeEditor,
+                        )
+                    }
+                    is AnimeScreenModel.Dialog.DownloadSettings -> {
+                        AnimeDownloadSettingsDialog(
+                            initialDubKey = dialog.dubKey,
+                            initialStreamKey = dialog.streamKey,
+                            initialSubtitleKey = dialog.subtitleKey,
+                            initialQualityMode = dialog.qualityMode,
+                            onDismissRequest = screenModel::dismissDialog,
+                            onConfirm = { dubKey, streamKey, subtitleKey, qualityMode ->
+                                screenModel.queueSelectedEpisodesDownload(
+                                    dubKey = dubKey,
+                                    streamKey = streamKey,
+                                    subtitleKey = subtitleKey,
+                                    qualityMode = qualityMode,
+                                )
+                            },
                         )
                     }
                     null -> Unit

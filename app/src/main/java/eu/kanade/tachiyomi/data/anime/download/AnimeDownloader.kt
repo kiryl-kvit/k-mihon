@@ -168,7 +168,7 @@ class AnimeDownloader(
                 .build(),
         ).awaitSuccess()
         response.use {
-            val body = it.body ?: error("Missing response body")
+            val body = it.body
             body.source().saveTo(file.openOutputStream())
         }
     }

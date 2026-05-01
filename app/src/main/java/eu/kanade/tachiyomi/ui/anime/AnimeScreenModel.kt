@@ -52,6 +52,8 @@ import tachiyomi.domain.anime.interactor.SetAnimeEpisodeFlags
 import tachiyomi.domain.anime.interactor.SyncAnimeWithSource
 import tachiyomi.domain.anime.interactor.UpdateMergedAnime
 import tachiyomi.domain.anime.model.AnimeEpisode
+import tachiyomi.domain.anime.model.AnimeDownloadPreferences
+import tachiyomi.domain.anime.model.AnimeDownloadQualityMode
 import tachiyomi.domain.anime.model.AnimeEpisodeUpdate
 import tachiyomi.domain.anime.model.AnimeMerge
 import tachiyomi.domain.anime.model.AnimePlaybackState
@@ -59,6 +61,7 @@ import tachiyomi.domain.anime.model.AnimeTitle
 import tachiyomi.domain.anime.model.AnimeTitleUpdate
 import tachiyomi.domain.anime.model.DuplicateAnimeCandidate
 import tachiyomi.domain.anime.repository.AnimeEpisodeRepository
+import tachiyomi.domain.anime.repository.AnimeDownloadPreferencesRepository
 import tachiyomi.domain.anime.repository.AnimePlaybackStateRepository
 import tachiyomi.domain.anime.repository.AnimeRepository
 import tachiyomi.domain.anime.repository.MergedAnimeRepository
@@ -83,6 +86,7 @@ class AnimeScreenModel(
     private val bypassMerge: Boolean = false,
     private val animeRepository: AnimeRepository = Injekt.get(),
     private val animeEpisodeRepository: AnimeEpisodeRepository = Injekt.get(),
+    private val animeDownloadPreferencesRepository: AnimeDownloadPreferencesRepository = Injekt.get(),
     private val animePlaybackStateRepository: AnimePlaybackStateRepository = Injekt.get(),
     private val animeSourceManager: AnimeSourceManager = Injekt.get(),
     private val getCategories: GetCategories = Injekt.get(),
@@ -100,6 +104,7 @@ class AnimeScreenModel(
     private val libraryPreferences: LibraryPreferences = Injekt.get(),
     private val duplicatePreferences: DuplicatePreferences = Injekt.get(),
     private val syncAnimeWithSource: SyncAnimeWithSource = Injekt.get(),
+    private val animeDownloadManager: eu.kanade.tachiyomi.data.anime.download.AnimeDownloadManager = Injekt.get(),
     val snackbarHostState: SnackbarHostState = SnackbarHostState(),
 ) : StateScreenModel<AnimeScreenModel.State>(State.Loading) {
 
@@ -468,6 +473,59 @@ class AnimeScreenModel(
         }
     }
 
+    fun showDownloadSettingsDialogForSelection() {
+        val current = successState ?: return
+        val selectedIds = current.selection
+        if (selectedIds.isEmpty()) return
+
+        screenModelScope.launchIO {
+            val saved = animeDownloadPreferencesRepository.getByAnimeId(current.anime.id)
+            updateSuccessState {
+                it.copy(
+                    dialog = Dialog.DownloadSettings(
+                        episodeIds = selectedIds,
+                        dubKey = saved?.dubKey,
+                        streamKey = saved?.streamKey,
+                        subtitleKey = saved?.subtitleKey,
+                        qualityMode = saved?.qualityMode ?: AnimeDownloadQualityMode.BALANCED,
+                    ),
+                )
+            }
+        }
+    }
+
+    fun queueSelectedEpisodesDownload(
+        dubKey: String?,
+        streamKey: String?,
+        subtitleKey: String?,
+        qualityMode: AnimeDownloadQualityMode,
+    ) {
+        val current = successState ?: return
+        val selectedIds = current.selection
+        if (selectedIds.isEmpty()) return
+
+        screenModelScope.launchIO {
+            val episodes = current.episodes.filter { it.id in selectedIds }
+            if (episodes.isEmpty()) {
+                dismissDialog()
+                return@launchIO
+            }
+
+            val preferences = AnimeDownloadPreferences(
+                animeId = current.anime.id,
+                dubKey = dubKey,
+                streamKey = streamKey,
+                subtitleKey = subtitleKey,
+                qualityMode = qualityMode,
+                updatedAt = System.currentTimeMillis(),
+            )
+            animeDownloadPreferencesRepository.upsert(preferences)
+            animeDownloadManager.queueEpisodes(current.anime, episodes, preferences, autoStart = true)
+            clearSelection()
+            dismissDialog()
+        }
+    }
+
     private fun selectPrimaryEpisodeId(
         episodes: List<AnimeEpisode>,
         playbackStateByEpisodeId: Map<Long, AnimePlaybackState>,
@@ -832,6 +890,14 @@ class AnimeScreenModel(
 
         data class EditDisplayName(
             val initialValue: String,
+        ) : Dialog
+
+        data class DownloadSettings(
+            val episodeIds: Set<Long>,
+            val dubKey: String?,
+            val streamKey: String?,
+            val subtitleKey: String?,
+            val qualityMode: AnimeDownloadQualityMode,
         ) : Dialog
     }
 
