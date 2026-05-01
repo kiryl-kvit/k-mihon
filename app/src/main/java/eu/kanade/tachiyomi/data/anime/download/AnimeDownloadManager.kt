@@ -142,12 +142,24 @@ class AnimeDownloadManager(
         if (episodeIds.isEmpty()) return
         val toRemove = queueState.value.filter { it.episode.id in episodeIds }
         if (toRemove.isEmpty()) return
-        _queueState.update { current -> current.filterNot { it.episode.id in episodeIds } }
-        store.removeAll(toRemove)
-        if (_queueState.value.isEmpty()) {
+
+        val wasRunning = _isRunning.value
+        if (wasRunning) {
             processorJob?.cancel()
             processorJob = null
+        }
+
+        _queueState.update { current -> current.filterNot { it.episode.id in episodeIds } }
+        store.removeAll(toRemove)
+
+        if (queueState.value.isEmpty()) {
             _isRunning.value = false
+            notifier.onComplete()
+        } else if (wasRunning) {
+            queueState.value
+                .filter { it.status == AnimeDownload.State.RESOLVING || it.status == AnimeDownload.State.DOWNLOADING }
+                .forEach { it.status = AnimeDownload.State.QUEUE }
+            launchProcessorIfNeeded()
         }
     }
 

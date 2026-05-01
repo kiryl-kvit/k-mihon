@@ -531,8 +531,8 @@ class AnimeScreenModel(
 
         val unwatchedEpisodes = current.episodes
             .filter { episode ->
-                !episode.watched &&
-                    current.downloadStateByEpisodeId[episode.id] != DownloadIndicatorState.DOWNLOADED
+                !episode.completed &&
+                    current.downloadStateByEpisodeId[episode.id] == DownloadIndicatorState.NOT_DOWNLOADED
             }
             .sortedForReading(current.anime, current.memberIds)
 
