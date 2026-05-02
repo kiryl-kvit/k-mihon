@@ -7,24 +7,32 @@ import cafe.adriel.voyager.core.model.StateScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import eu.kanade.core.util.addOrRemove
 import eu.kanade.domain.anime.model.episodesFiltered
+import eu.kanade.domain.anime.model.toSEpisode
+import eu.kanade.presentation.anime.AnimeDownloadAction
 import eu.kanade.presentation.anime.AnimeMergeTarget
 import eu.kanade.presentation.anime.buildAnimeMergeTargets
 import eu.kanade.presentation.anime.toMergeEditorEntry
+import eu.kanade.presentation.components.DownloadIndicatorAction
+import eu.kanade.presentation.components.DownloadIndicatorState
 import eu.kanade.presentation.manga.components.MergeEditorEntry
 import eu.kanade.presentation.manga.components.buildMergeTargetQuery
 import eu.kanade.presentation.manga.components.rankMergeTargets
 import eu.kanade.presentation.updates.UpdatesSelectionState
 import eu.kanade.presentation.util.formattedMessage
 import eu.kanade.tachiyomi.source.AnimeScheduleSource
+import eu.kanade.tachiyomi.source.AnimeSubtitleSource
 import eu.kanade.tachiyomi.source.AnimeWebViewSource
 import eu.kanade.tachiyomi.source.model.SAnimeScheduleEpisode
+import eu.kanade.tachiyomi.source.model.VideoPlaybackSelection
 import eu.kanade.tachiyomi.util.lang.toStoredDisplayName
+import eu.kanade.tachiyomi.util.system.isOnline
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableSet
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
@@ -51,6 +59,8 @@ import tachiyomi.domain.anime.interactor.SetAnimeDefaultEpisodeFlags
 import tachiyomi.domain.anime.interactor.SetAnimeEpisodeFlags
 import tachiyomi.domain.anime.interactor.SyncAnimeWithSource
 import tachiyomi.domain.anime.interactor.UpdateMergedAnime
+import tachiyomi.domain.anime.model.AnimeDownloadPreferences
+import tachiyomi.domain.anime.model.AnimeDownloadQualityMode
 import tachiyomi.domain.anime.model.AnimeEpisode
 import tachiyomi.domain.anime.model.AnimeEpisodeUpdate
 import tachiyomi.domain.anime.model.AnimeMerge
@@ -58,10 +68,12 @@ import tachiyomi.domain.anime.model.AnimePlaybackState
 import tachiyomi.domain.anime.model.AnimeTitle
 import tachiyomi.domain.anime.model.AnimeTitleUpdate
 import tachiyomi.domain.anime.model.DuplicateAnimeCandidate
+import tachiyomi.domain.anime.repository.AnimeDownloadPreferencesRepository
 import tachiyomi.domain.anime.repository.AnimeEpisodeRepository
 import tachiyomi.domain.anime.repository.AnimePlaybackStateRepository
 import tachiyomi.domain.anime.repository.AnimeRepository
 import tachiyomi.domain.anime.repository.MergedAnimeRepository
+import tachiyomi.domain.anime.service.sortedForReading
 import tachiyomi.domain.category.interactor.GetAnimeCategories
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.interactor.SetAnimeCategories
@@ -75,6 +87,7 @@ import uy.kohesive.injekt.api.get
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import eu.kanade.tachiyomi.data.anime.download.model.AnimeDownload.State as DownloadState
 
 class AnimeScreenModel(
     private val context: Context,
@@ -83,6 +96,7 @@ class AnimeScreenModel(
     private val bypassMerge: Boolean = false,
     private val animeRepository: AnimeRepository = Injekt.get(),
     private val animeEpisodeRepository: AnimeEpisodeRepository = Injekt.get(),
+    private val animeDownloadPreferencesRepository: AnimeDownloadPreferencesRepository = Injekt.get(),
     private val animePlaybackStateRepository: AnimePlaybackStateRepository = Injekt.get(),
     private val animeSourceManager: AnimeSourceManager = Injekt.get(),
     private val getCategories: GetCategories = Injekt.get(),
@@ -100,11 +114,13 @@ class AnimeScreenModel(
     private val libraryPreferences: LibraryPreferences = Injekt.get(),
     private val duplicatePreferences: DuplicatePreferences = Injekt.get(),
     private val syncAnimeWithSource: SyncAnimeWithSource = Injekt.get(),
+    private val animeDownloadManager: eu.kanade.tachiyomi.data.anime.download.AnimeDownloadManager = Injekt.get(),
     val snackbarHostState: SnackbarHostState = SnackbarHostState(),
 ) : StateScreenModel<AnimeScreenModel.State>(State.Loading) {
 
     private val selectionState = UpdatesSelectionState()
     private val selectedEpisodeIds = HashSet<Long>()
+    private val deletingEpisodeIds = MutableStateFlow<Set<Long>>(emptySet())
     private var duplicateObservationJob: Job? = null
 
     val webViewSource: AnimeWebViewSource?
@@ -128,8 +144,39 @@ class AnimeScreenModel(
 
     init {
         observeAnime()
+        observeAnimeDownloadUpdates()
         observeDuplicateCandidates()
         refresh(initial = true)
+    }
+
+    private fun observeAnimeDownloadUpdates() {
+        screenModelScope.launchIO {
+            kotlinx.coroutines.flow.merge(
+                animeDownloadManager.statusFlow(),
+                animeDownloadManager.progressFlow(),
+            ).collectLatest { download ->
+                updateDownloadState(download)
+            }
+        }
+    }
+
+    private fun updateDownloadState(download: eu.kanade.tachiyomi.data.anime.download.model.AnimeDownload) {
+        updateSuccessState { current ->
+            val downloadStateByEpisodeId = current.downloadStateByEpisodeId.toMutableMap()
+            downloadStateByEpisodeId[download.episode.id] = if (download.episode.id in deletingEpisodeIds.value) {
+                DownloadIndicatorState.DELETING
+            } else {
+                download.status.toDownloadIndicatorState()
+            }
+
+            val downloadProgressByEpisodeId = current.downloadProgressByEpisodeId.toMutableMap()
+            downloadProgressByEpisodeId[download.episode.id] = download.progress
+
+            current.copy(
+                downloadStateByEpisodeId = downloadStateByEpisodeId,
+                downloadProgressByEpisodeId = downloadProgressByEpisodeId,
+            )
+        }
     }
 
     private fun observeAnime() {
@@ -137,10 +184,19 @@ class AnimeScreenModel(
             combine(
                 getAnimeWithEpisodes.subscribe(animeId, bypassMerge = bypassMerge),
                 getMergedAnime.subscribeGroupByAnimeId(animeId),
-            ) { (anime, episodes), merges ->
-                Triple(anime, episodes, merges.sortedBy(AnimeMerge::position))
+                animeDownloadManager.queueState,
+                animeDownloadManager.cacheChanges,
+                deletingEpisodeIds,
+            ) { (anime, episodes), merges, queue, _, deletingEpisodeIds ->
+                Quintuple(
+                    anime,
+                    episodes,
+                    merges.sortedBy(AnimeMerge::position),
+                    queue,
+                    deletingEpisodeIds,
+                )
             }
-                .flatMapLatest { (anime, episodes, merges) ->
+                .flatMapLatest { (anime, episodes, merges, queue, deletingEpisodeIds) ->
                     val mergeGroupMemberIds = merges.map(AnimeMerge::animeId).ifEmpty { listOf(anime.id) }
                     val memberIds = if (bypassMerge) {
                         listOf(anime.id)
@@ -156,6 +212,8 @@ class AnimeScreenModel(
                             anime = anime,
                             episodes = episodes,
                             memberIds = memberIds,
+                            queue = queue,
+                            deletingEpisodeIds = deletingEpisodeIds,
                             mergeTargetId = merges.firstOrNull()?.targetId ?: anime.id,
                             mergeGroupMemberIds = mergeGroupMemberIds,
                             memberAnimes = memberAnimes,
@@ -468,6 +526,277 @@ class AnimeScreenModel(
         }
     }
 
+    fun runDownloadAction(action: AnimeDownloadAction) {
+        val current = successState ?: return
+        if (current.dialog is Dialog.DownloadSettings) return
+
+        val unwatchedEpisodes = current.episodes
+            .filter { episode ->
+                !episode.completed &&
+                    current.downloadStateByEpisodeId[episode.id] == DownloadIndicatorState.NOT_DOWNLOADED
+            }
+            .sortedForReading(current.anime, current.memberIds)
+
+        val episodesToDownload = when (action) {
+            AnimeDownloadAction.NEXT_1_EPISODE -> unwatchedEpisodes.take(1)
+            AnimeDownloadAction.NEXT_5_EPISODES -> unwatchedEpisodes.take(5)
+            AnimeDownloadAction.NEXT_10_EPISODES -> unwatchedEpisodes.take(10)
+            AnimeDownloadAction.NEXT_25_EPISODES -> unwatchedEpisodes.take(25)
+            AnimeDownloadAction.UNWATCHED_EPISODES -> unwatchedEpisodes
+        }
+        if (episodesToDownload.isEmpty()) return
+
+        val episodeIds = episodesToDownload.map { it.id }.toSet().toImmutableSet()
+
+        updateSuccessState {
+            it.copy(
+                dialog = Dialog.DownloadSettings(
+                    episodeIds = episodeIds,
+                    dubKey = null,
+                    streamKey = null,
+                    subtitleKey = null,
+                    qualityMode = AnimeDownloadQualityMode.BALANCED,
+                    isLoadingOptions = true,
+                ),
+            )
+        }
+
+        screenModelScope.launchIO {
+            val saved = animeDownloadPreferencesRepository.getByAnimeId(current.anime.id)
+            val options = buildDownloadSelectionOptions(current, episodeIds, saved)
+            updateSuccessState {
+                it.copy(
+                    dialog = Dialog.DownloadSettings(
+                        episodeIds = episodeIds,
+                        dubKey = saved?.dubKey,
+                        streamKey = saved?.streamKey,
+                        subtitleKey = saved?.subtitleKey,
+                        qualityMode = saved?.qualityMode ?: AnimeDownloadQualityMode.BALANCED,
+                        dubOptions = options.dubOptions,
+                        streamOptions = options.streamOptions,
+                        subtitleOptions = options.subtitleOptions,
+                        isLoadingOptions = false,
+                    ),
+                )
+            }
+        }
+    }
+
+    fun showDownloadSettingsDialogForSelection() {
+        val current = successState ?: return
+        if (current.dialog is Dialog.DownloadSettings) return
+        val selectedIds = current.selection
+        if (selectedIds.isEmpty()) return
+
+        updateSuccessState {
+            it.copy(
+                dialog = Dialog.DownloadSettings(
+                    episodeIds = selectedIds,
+                    dubKey = null,
+                    streamKey = null,
+                    subtitleKey = null,
+                    qualityMode = AnimeDownloadQualityMode.BALANCED,
+                    isLoadingOptions = true,
+                ),
+            )
+        }
+
+        screenModelScope.launchIO {
+            val saved = animeDownloadPreferencesRepository.getByAnimeId(current.anime.id)
+            val options = buildDownloadSelectionOptions(current, selectedIds, saved)
+            updateSuccessState {
+                it.copy(
+                    dialog = Dialog.DownloadSettings(
+                        episodeIds = selectedIds,
+                        dubKey = saved?.dubKey,
+                        streamKey = saved?.streamKey,
+                        subtitleKey = saved?.subtitleKey,
+                        qualityMode = saved?.qualityMode ?: AnimeDownloadQualityMode.BALANCED,
+                        dubOptions = options.dubOptions,
+                        streamOptions = options.streamOptions,
+                        subtitleOptions = options.subtitleOptions,
+                        isLoadingOptions = false,
+                    ),
+                )
+            }
+        }
+    }
+
+    fun showDownloadSettingsDialogForEpisode(episodeId: Long) {
+        val current = successState ?: return
+        if (current.dialog is Dialog.DownloadSettings) return
+        if (current.episodes.none { it.id == episodeId }) return
+
+        updateSuccessState {
+            it.copy(
+                dialog = Dialog.DownloadSettings(
+                    episodeIds = setOf(episodeId),
+                    dubKey = null,
+                    streamKey = null,
+                    subtitleKey = null,
+                    qualityMode = AnimeDownloadQualityMode.BALANCED,
+                    isLoadingOptions = true,
+                ),
+            )
+        }
+
+        screenModelScope.launchIO {
+            val saved = animeDownloadPreferencesRepository.getByAnimeId(current.anime.id)
+            val options = buildDownloadSelectionOptions(current, setOf(episodeId), saved)
+            updateSuccessState {
+                it.copy(
+                    dialog = Dialog.DownloadSettings(
+                        episodeIds = setOf(episodeId),
+                        dubKey = saved?.dubKey,
+                        streamKey = saved?.streamKey,
+                        subtitleKey = saved?.subtitleKey,
+                        qualityMode = saved?.qualityMode ?: AnimeDownloadQualityMode.BALANCED,
+                        dubOptions = options.dubOptions,
+                        streamOptions = options.streamOptions,
+                        subtitleOptions = options.subtitleOptions,
+                        isLoadingOptions = false,
+                    ),
+                )
+            }
+        }
+    }
+
+    private suspend fun buildDownloadSelectionOptions(
+        state: State.Success,
+        episodeIds: Set<Long>,
+        saved: AnimeDownloadPreferences?,
+    ): DownloadSelectionOptions {
+        val source = animeSourceManager.get(state.anime.source) ?: return DownloadSelectionOptions()
+        val episode = state.episodes.firstOrNull { it.id in episodeIds } ?: return DownloadSelectionOptions()
+        val selection = VideoPlaybackSelection(
+            dubKey = saved?.dubKey,
+            streamKey = saved?.streamKey,
+        )
+        val playbackData = runCatching {
+            source.getPlaybackData(episode.toSEpisode(), selection)
+        }.getOrNull() ?: return DownloadSelectionOptions()
+
+        val dubOptions = playbackData.dubs.map { option -> Dialog.Option(option.key, option.label) }
+        val streamOptions = playbackData.streams
+            .filter { it.request.url.isNotBlank() }
+            .map { stream ->
+                val key = stream.key.ifBlank { stream.label.ifBlank { stream.request.url } }
+                val label = stream.label.ifBlank { key }
+                Dialog.Option(key, label)
+            }
+            .distinctBy(Dialog.Option::key)
+        val subtitleOptions = if (source is AnimeSubtitleSource) {
+            runCatching {
+                source.getSubtitles(episode.toSEpisode(), playbackData.selection)
+            }.getOrDefault(emptyList())
+                .filter { it.request.url.isNotBlank() }
+                .map { subtitle ->
+                    val key = subtitle.key.ifBlank {
+                        listOf(subtitle.label, subtitle.language, subtitle.request.url).joinToString("|")
+                    }
+                    val label = subtitle.language?.takeIf { it.isNotBlank() }
+                        ?.let { "${subtitle.label} ($it)" }
+                        ?: subtitle.label
+                    Dialog.Option(key, label)
+                }
+                .distinctBy(Dialog.Option::key)
+        } else {
+            emptyList()
+        }
+
+        return DownloadSelectionOptions(
+            dubOptions = dubOptions,
+            streamOptions = streamOptions,
+            subtitleOptions = subtitleOptions,
+        )
+    }
+
+    fun queueSelectedEpisodesDownload(
+        dubKey: String?,
+        streamKey: String?,
+        subtitleKey: String?,
+        qualityMode: AnimeDownloadQualityMode,
+    ) {
+        val current = successState ?: return
+        val selectedIds = (current.dialog as? Dialog.DownloadSettings)?.episodeIds ?: current.selection
+        if (selectedIds.isEmpty()) return
+
+        screenModelScope.launchIO {
+            val episodes = current.episodes.filter { it.id in selectedIds }
+            if (episodes.isEmpty()) {
+                dismissDialog()
+                return@launchIO
+            }
+
+            val preferences = AnimeDownloadPreferences(
+                animeId = current.anime.id,
+                dubKey = dubKey,
+                streamKey = streamKey,
+                subtitleKey = subtitleKey,
+                qualityMode = qualityMode,
+                updatedAt = System.currentTimeMillis(),
+            )
+            animeDownloadPreferencesRepository.upsert(preferences)
+            animeDownloadManager.queueEpisodes(current.anime, episodes, preferences, autoStart = true)
+            clearSelection()
+            dismissDialog()
+        }
+    }
+
+    fun deleteSelectedDownloadedEpisodes() {
+        val current = successState ?: return
+        val episodesToDelete = current.episodes.filter { episode ->
+            episode.id in current.selection &&
+                current.downloadStateByEpisodeId[episode.id] == DownloadIndicatorState.DOWNLOADED
+        }
+        if (episodesToDelete.isEmpty()) return
+
+        val episodeIds = episodesToDelete.map(AnimeEpisode::id).toSet()
+        deletingEpisodeIds.update { it + episodeIds }
+        updateSuccessState {
+            it.copy(
+                downloadStateByEpisodeId =
+                it.downloadStateByEpisodeId + episodeIds.associateWith { DownloadIndicatorState.DELETING },
+            )
+        }
+        clearSelection()
+
+        screenModelScope.launchIO {
+            try {
+                animeDownloadManager.deleteEpisodes(current.anime, episodesToDelete)
+            } finally {
+                deletingEpisodeIds.update { it - episodeIds }
+            }
+        }
+    }
+
+    fun runEpisodeDownloadAction(episodeId: Long, action: DownloadIndicatorAction) {
+        when (action) {
+            DownloadIndicatorAction.START,
+            DownloadIndicatorAction.START_NOW,
+            -> showDownloadSettingsDialogForEpisode(episodeId)
+            DownloadIndicatorAction.CANCEL -> animeDownloadManager.removeFromQueue(listOf(episodeId))
+            DownloadIndicatorAction.DELETE -> {
+                val current = successState ?: return
+                val episode = current.episodes.firstOrNull { it.id == episodeId } ?: return
+                deletingEpisodeIds.update { it + episodeId }
+                updateSuccessState {
+                    it.copy(
+                        downloadStateByEpisodeId =
+                        it.downloadStateByEpisodeId + (episodeId to DownloadIndicatorState.DELETING),
+                    )
+                }
+                screenModelScope.launchIO {
+                    try {
+                        animeDownloadManager.deleteEpisodes(current.anime, listOf(episode))
+                    } finally {
+                        deletingEpisodeIds.update { it - episodeId }
+                    }
+                }
+            }
+        }
+    }
+
     private fun selectPrimaryEpisodeId(
         episodes: List<AnimeEpisode>,
         playbackStateByEpisodeId: Map<Long, AnimePlaybackState>,
@@ -663,6 +992,8 @@ class AnimeScreenModel(
     private fun loadSchedule(force: Boolean = false) {
         val currentState = successState ?: return
 
+        if (!context.isOnline()) return
+
         val shouldLoad = when (currentState.schedule) {
             ScheduleState.Unavailable -> false
             ScheduleState.NotLoaded -> true
@@ -833,6 +1164,23 @@ class AnimeScreenModel(
         data class EditDisplayName(
             val initialValue: String,
         ) : Dialog
+
+        data class DownloadSettings(
+            val episodeIds: Set<Long>,
+            val dubKey: String?,
+            val streamKey: String?,
+            val subtitleKey: String?,
+            val qualityMode: AnimeDownloadQualityMode,
+            val dubOptions: List<Option> = emptyList(),
+            val streamOptions: List<Option> = emptyList(),
+            val subtitleOptions: List<Option> = emptyList(),
+            val isLoadingOptions: Boolean = false,
+        ) : Dialog
+
+        data class Option(
+            val key: String,
+            val label: String,
+        )
     }
 
     @Immutable
@@ -859,6 +1207,8 @@ class AnimeScreenModel(
             val isFromSource: Boolean,
             val episodes: ImmutableList<AnimeEpisode>,
             val playbackStateByEpisodeId: Map<Long, AnimePlaybackState>,
+            val downloadStateByEpisodeId: Map<Long, DownloadIndicatorState>,
+            val downloadProgressByEpisodeId: Map<Long, Int>,
             val primaryEpisodeId: Long?,
             val selection: kotlinx.collections.immutable.ImmutableSet<Long>,
             val categories: ImmutableList<Category>,
@@ -883,6 +1233,11 @@ class AnimeScreenModel(
             val isSelectionMode: Boolean = selection.isNotEmpty()
 
             val selectedCount: Int = selection.size
+
+            val hasDownloadedSelection: Boolean
+                get() = selection.any { episodeId ->
+                    downloadStateByEpisodeId[episodeId] == DownloadIndicatorState.DOWNLOADED
+                }
 
             val filterActive: Boolean = anime.episodesFiltered()
 
@@ -1179,6 +1534,8 @@ class AnimeScreenModel(
         anime: AnimeTitle,
         episodes: List<AnimeEpisode>,
         memberIds: List<Long>,
+        queue: List<eu.kanade.tachiyomi.data.anime.download.model.AnimeDownload>,
+        deletingEpisodeIds: Set<Long>,
         mergeTargetId: Long,
         mergeGroupMemberIds: List<Long>,
         memberAnimes: List<AnimeTitle>,
@@ -1195,6 +1552,22 @@ class AnimeScreenModel(
             memberTitleById = memberTitleById,
             playbackStates = playbackStates,
         )
+        val queueByEpisodeId = queue.associateBy { it.episode.id }
+        val downloadStateByEpisodeId = episodeDisplay.episodes.associate { episode ->
+            val queuedDownload = queueByEpisodeId[episode.id]
+            episode.id to when {
+                episode.id in deletingEpisodeIds -> DownloadIndicatorState.DELETING
+                queuedDownload != null -> queuedDownload.status.toDownloadIndicatorState()
+                animeDownloadManager.isEpisodeDownloaded(
+                    episodeName = episode.name,
+                    episodeUrl = episode.url,
+                    animeTitle = anime.title,
+                    sourceId = anime.source,
+                ) -> DownloadIndicatorState.DOWNLOADED
+                else -> DownloadIndicatorState.NOT_DOWNLOADED
+            }
+        }
+        val downloadProgressByEpisodeId = queueByEpisodeId.mapValues { (_, download) -> download.progress }
         val hasScheduleSupport = memberAnimes.any { memberAnime ->
             animeSourceManager.get(memberAnime.source) is AnimeScheduleSource
         }
@@ -1220,6 +1593,8 @@ class AnimeScreenModel(
             isFromSource = fromSource,
             episodes = episodeDisplay.episodes.toImmutableList(),
             playbackStateByEpisodeId = episodeDisplay.playbackStateByEpisodeId,
+            downloadStateByEpisodeId = downloadStateByEpisodeId,
+            downloadProgressByEpisodeId = downloadProgressByEpisodeId,
             primaryEpisodeId = episodeDisplay.primaryEpisodeId,
             selection = episodeDisplay.episodes.asSequence()
                 .map(AnimeEpisode::id)
@@ -1482,6 +1857,39 @@ private fun dialogRemainingIds(
 private fun resolveManageMergeTargetId(targetId: Long, remainingIds: List<Long>): Long? {
     return remainingIds.firstOrNull { it == targetId } ?: remainingIds.firstOrNull()
 }
+
+private fun DownloadState.toDownloadIndicatorState(): DownloadIndicatorState {
+    return when (this) {
+        DownloadState.NOT_DOWNLOADED -> DownloadIndicatorState.NOT_DOWNLOADED
+        DownloadState.QUEUE,
+        DownloadState.RESOLVING,
+        -> DownloadIndicatorState.QUEUE
+        DownloadState.DOWNLOADING -> DownloadIndicatorState.DOWNLOADING
+        DownloadState.DOWNLOADED -> DownloadIndicatorState.DOWNLOADED
+        DownloadState.ERROR -> DownloadIndicatorState.ERROR
+    }
+}
+
+private data class Quadruple<A, B, C, D>(
+    val first: A,
+    val second: B,
+    val third: C,
+    val fourth: D,
+)
+
+private data class Quintuple<A, B, C, D, E>(
+    val first: A,
+    val second: B,
+    val third: C,
+    val fourth: D,
+    val fifth: E,
+)
+
+private data class DownloadSelectionOptions(
+    val dubOptions: List<AnimeScreenModel.Dialog.Option> = emptyList(),
+    val streamOptions: List<AnimeScreenModel.Dialog.Option> = emptyList(),
+    val subtitleOptions: List<AnimeScreenModel.Dialog.Option> = emptyList(),
+)
 
 private object NoOpScreenMergedAnimeRepository : MergedAnimeRepository {
     override suspend fun getAll(): List<AnimeMerge> = emptyList()

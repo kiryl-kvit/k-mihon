@@ -6,6 +6,7 @@ import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.automirrored.outlined.Label
 import androidx.compose.material.icons.filled.VolunteerActivism
 import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.GetApp
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Storage
@@ -22,19 +23,23 @@ import eu.kanade.presentation.more.LogoHeader
 import eu.kanade.presentation.more.settings.widget.SwitchPreferenceWidget
 import eu.kanade.presentation.more.settings.widget.TextPreferenceWidget
 import eu.kanade.tachiyomi.R
+import eu.kanade.tachiyomi.ui.anime.AnimeDownloadQueueState
 import mihon.feature.profiles.core.ProfileManager
 import tachiyomi.core.common.Constants
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.ScrollbarLazyColumn
 import tachiyomi.presentation.core.components.material.Scaffold
+import tachiyomi.presentation.core.i18n.pluralStringResource
 import tachiyomi.presentation.core.i18n.stringResource
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 @Composable
 fun AnimeMoreScreen(
+    downloadQueueStateProvider: () -> AnimeDownloadQueueState,
     incognitoMode: Boolean,
     onIncognitoModeChange: (Boolean) -> Unit,
+    onClickDownloadQueue: () -> Unit,
     onClickCategories: () -> Unit,
     onClickDataAndStorage: () -> Unit,
     onClickProfiles: () -> Unit,
@@ -65,6 +70,35 @@ fun AnimeMoreScreen(
 
             item { HorizontalDivider() }
 
+            item {
+                val downloadQueueState = downloadQueueStateProvider()
+                TextPreferenceWidget(
+                    title = stringResource(MR.strings.label_download_queue),
+                    subtitle = when (downloadQueueState) {
+                        AnimeDownloadQueueState.Stopped -> null
+                        is AnimeDownloadQueueState.Paused -> {
+                            val pending = downloadQueueState.pending
+                            if (pending == 0) {
+                                stringResource(MR.strings.paused)
+                            } else {
+                                "${stringResource(MR.strings.paused)} • ${
+                                    pluralStringResource(
+                                        MR.plurals.download_queue_summary,
+                                        count = pending,
+                                        pending,
+                                    )
+                                }"
+                            }
+                        }
+                        is AnimeDownloadQueueState.Downloading -> {
+                            val pending = downloadQueueState.pending
+                            pluralStringResource(MR.plurals.download_queue_summary, count = pending, pending)
+                        }
+                    },
+                    icon = Icons.Outlined.GetApp,
+                    onPreferenceClick = onClickDownloadQueue,
+                )
+            }
             item {
                 TextPreferenceWidget(
                     title = stringResource(MR.strings.categories),

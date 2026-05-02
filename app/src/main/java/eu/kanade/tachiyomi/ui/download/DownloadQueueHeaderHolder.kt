@@ -1,20 +1,18 @@
 package eu.kanade.tachiyomi.ui.download
 
-import android.annotation.SuppressLint
 import android.view.View
 import androidx.recyclerview.widget.ItemTouchHelper
 import eu.davidea.flexibleadapter.FlexibleAdapter
 import eu.davidea.viewholders.ExpandableViewHolder
 import eu.kanade.tachiyomi.databinding.DownloadHeaderBinding
 
-class DownloadHeaderHolder(view: View, adapter: FlexibleAdapter<*>) : ExpandableViewHolder(view, adapter) {
+class DownloadQueueHeaderHolder(view: View, adapter: FlexibleAdapter<*>) : ExpandableViewHolder(view, adapter) {
 
     private val binding = DownloadHeaderBinding.bind(view)
 
-    @SuppressLint("SetTextI18n")
-    fun bind(item: DownloadHeaderItem) {
+    fun bind(model: DownloadQueueHeaderModel) {
         setDragHandleView(binding.reorder)
-        binding.title.text = "${item.name} (${item.size})"
+        binding.title.text = model.displayTitle
     }
 
     override fun onActionStateChanged(position: Int, actionState: Int) {
@@ -29,6 +27,6 @@ class DownloadHeaderHolder(view: View, adapter: FlexibleAdapter<*>) : Expandable
         super.onItemReleased(position)
         binding.container.isDragged = false
         mAdapter.expandAll()
-        (mAdapter as DownloadAdapter).downloadItemListener.onItemReleased(position)
+        (mAdapter as DownloadQueueAdapter).downloadItemListener.onItemReleased(position)
     }
 }

@@ -135,7 +135,16 @@ object DownloadQueueScreen : Screen() {
                                             text = { Text(text = stringResource(MR.strings.action_newest)) },
                                             onClick = {
                                                 screenModel.reorderQueue(
-                                                    { it.download.chapter.dateUpload },
+                                                    { item ->
+                                                        when (item.model().contentType) {
+                                                            DownloadQueueContentType.MANGA_CHAPTER -> {
+                                                                item.payloadAsDownload().chapter.dateUpload
+                                                            }
+                                                            DownloadQueueContentType.ANIME_EPISODE -> {
+                                                                item.payloadAsAnimeDownload().episode.dateUpload
+                                                            }
+                                                        }
+                                                    },
                                                     true,
                                                 )
                                                 closeMenu()
@@ -145,7 +154,16 @@ object DownloadQueueScreen : Screen() {
                                             text = { Text(text = stringResource(MR.strings.action_oldest)) },
                                             onClick = {
                                                 screenModel.reorderQueue(
-                                                    { it.download.chapter.dateUpload },
+                                                    { item ->
+                                                        when (item.model().contentType) {
+                                                            DownloadQueueContentType.MANGA_CHAPTER -> {
+                                                                item.payloadAsDownload().chapter.dateUpload
+                                                            }
+                                                            DownloadQueueContentType.ANIME_EPISODE -> {
+                                                                item.payloadAsAnimeDownload().episode.dateUpload
+                                                            }
+                                                        }
+                                                    },
                                                     false,
                                                 )
                                                 closeMenu()
@@ -160,7 +178,16 @@ object DownloadQueueScreen : Screen() {
                                             text = { Text(text = stringResource(MR.strings.action_asc)) },
                                             onClick = {
                                                 screenModel.reorderQueue(
-                                                    { it.download.chapter.chapterNumber },
+                                                    { item ->
+                                                        when (item.model().contentType) {
+                                                            DownloadQueueContentType.MANGA_CHAPTER -> {
+                                                                item.payloadAsDownload().chapter.chapterNumber
+                                                            }
+                                                            DownloadQueueContentType.ANIME_EPISODE -> {
+                                                                item.payloadAsAnimeDownload().episode.episodeNumber
+                                                            }
+                                                        }
+                                                    },
                                                     false,
                                                 )
                                                 closeMenu()
@@ -170,7 +197,16 @@ object DownloadQueueScreen : Screen() {
                                             text = { Text(text = stringResource(MR.strings.action_desc)) },
                                             onClick = {
                                                 screenModel.reorderQueue(
-                                                    { it.download.chapter.chapterNumber },
+                                                    { item ->
+                                                        when (item.model().contentType) {
+                                                            DownloadQueueContentType.MANGA_CHAPTER -> {
+                                                                item.payloadAsDownload().chapter.chapterNumber
+                                                            }
+                                                            DownloadQueueContentType.ANIME_EPISODE -> {
+                                                                item.payloadAsAnimeDownload().episode.episodeNumber
+                                                            }
+                                                        }
+                                                    },
                                                     true,
                                                 )
                                                 closeMenu()
@@ -252,7 +288,7 @@ object DownloadQueueScreen : Screen() {
                     modifier = Modifier.fillMaxWidth(),
                     factory = { context ->
                         screenModel.controllerBinding = DownloadListBinding.inflate(LayoutInflater.from(context))
-                        screenModel.adapter = DownloadAdapter(screenModel.listener)
+                        screenModel.adapter = DownloadQueueAdapter(screenModel.listener)
                         screenModel.controllerBinding.root.adapter = screenModel.adapter
                         screenModel.adapter?.isHandleDragEnabled = true
                         screenModel.controllerBinding.root.layoutManager = LinearLayoutManager(context)
@@ -266,6 +302,14 @@ object DownloadQueueScreen : Screen() {
                         scope.launchUI {
                             screenModel.getDownloadProgressFlow()
                                 .collect(screenModel::onUpdateDownloadedPages)
+                        }
+                        scope.launchUI {
+                            screenModel.getAnimeDownloadStatusFlow()
+                                .collect(screenModel::onAnimeStatusChange)
+                        }
+                        scope.launchUI {
+                            screenModel.getAnimeDownloadProgressFlow()
+                                .collect(screenModel::onAnimeUpdateProgress)
                         }
 
                         screenModel.controllerBinding.root

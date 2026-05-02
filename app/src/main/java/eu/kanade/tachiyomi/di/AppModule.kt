@@ -9,6 +9,10 @@ import com.eygraber.sqldelight.androidx.driver.AndroidxSqliteDatabaseType
 import com.eygraber.sqldelight.androidx.driver.AndroidxSqliteDriver
 import com.eygraber.sqldelight.androidx.driver.FileProvider
 import eu.kanade.domain.track.store.DelayedTrackingStore
+import eu.kanade.tachiyomi.data.anime.download.AnimeDownloadCache
+import eu.kanade.tachiyomi.data.anime.download.AnimeDownloadManager
+import eu.kanade.tachiyomi.data.anime.download.AnimeDownloadProvider
+import eu.kanade.tachiyomi.data.anime.download.AnimeDownloader
 import eu.kanade.tachiyomi.data.cache.ChapterCache
 import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.data.download.DownloadCache
@@ -146,6 +150,10 @@ class AppModule(val app: Application) : InjektModule {
         addSingletonFactory<VideoStreamResolver> { get<ResolveVideoStream>() }
 
         addSingletonFactory { DownloadProvider(app) }
+        addSingletonFactory { AnimeDownloadProvider(app) }
+        addSingletonFactory { AnimeDownloadCache(app) }
+        addSingletonFactory { AnimeDownloader(get(), get(), get(), get(), get()) }
+        addSingletonFactory { AnimeDownloadManager(app, get(), get(), get()) }
         addSingletonFactory { DownloadManager(app) }
         addSingletonFactory { DownloadCache(app) }
 
@@ -168,6 +176,7 @@ class AppModule(val app: Application) : InjektModule {
 
             get<Database>()
 
+            get<AnimeDownloadManager>()
             get<DownloadManager>()
         }
     }

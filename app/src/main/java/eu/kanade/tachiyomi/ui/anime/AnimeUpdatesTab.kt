@@ -26,6 +26,7 @@ import eu.kanade.presentation.util.Tab
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.ui.anime.updates.AnimeUpdatesItem
 import eu.kanade.tachiyomi.ui.anime.updates.AnimeUpdatesScreenModel
+import eu.kanade.tachiyomi.ui.download.DownloadQueueScreen
 import eu.kanade.tachiyomi.ui.home.HomeScreen
 import eu.kanade.tachiyomi.ui.main.MainActivity
 import eu.kanade.tachiyomi.ui.updates.UpdatesSettingsScreenModel
@@ -51,7 +52,9 @@ data object AnimeUpdatesTab : Tab {
             )
         }
 
-    override suspend fun onReselect(navigator: Navigator) = Unit
+    override suspend fun onReselect(navigator: Navigator) {
+        navigator.push(DownloadQueueScreen)
+    }
 
     @Composable
     override fun Content() {

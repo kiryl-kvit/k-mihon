@@ -745,6 +745,7 @@ class VideoPlayerViewModel @JvmOverloads constructor(
             ResolveVideoStream.Reason.SourceNotFound -> "Video source not available"
             ResolveVideoStream.Reason.NoStreams -> "No playable streams returned"
             ResolveVideoStream.Reason.StreamFetchTimeout -> "Timed out while resolving streams"
+            ResolveVideoStream.Reason.OfflineNoDownload -> "Device is offline and episode is not downloaded"
             is ResolveVideoStream.Reason.StreamFetchFailed -> listOfNotNull(
                 cause::class.simpleName,
                 cause.message,

@@ -145,6 +145,8 @@ internal fun VideoPlayerEpisodesDrawer(
                                 selectedEpisodeIds = setOf(currentEpisodeId),
                                 selectionMode = false,
                                 playbackStateByEpisodeId = playbackStateByEpisodeId,
+                                downloadStateByEpisodeId = emptyMap(),
+                                downloadProgressByEpisodeId = emptyMap(),
                                 showPlaybackStatus = false,
                                 onEpisodeClick = onEpisodeClick,
                             )

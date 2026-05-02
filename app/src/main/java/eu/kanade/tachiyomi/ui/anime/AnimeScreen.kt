@@ -16,6 +16,7 @@ import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.core.util.ifAnimeSourcesLoaded
 import eu.kanade.domain.anime.model.toMangaCover
+import eu.kanade.presentation.anime.AnimeDownloadSettingsDialog
 import eu.kanade.presentation.anime.AnimeMergeTargetPickerDialog
 import eu.kanade.presentation.anime.AnimeScheduleSheet
 import eu.kanade.presentation.anime.AnimeScreen
@@ -123,6 +124,7 @@ data class AnimeScreen(
                     },
                     onCoverClicked = screenModel::showCoverDialog,
                     onFilterClicked = screenModel::showSettingsDialog,
+                    onDownloadActionClicked = screenModel::runDownloadAction.takeIf { current.sourceAvailable },
                     onManageMergeClicked = screenModel::showManageMergeDialog.takeIf { current.isPartOfMerge },
                     onOpenMergedEntryClicked = {
                         navigator.push(AnimeScreen(current.mergeTargetId))
@@ -138,9 +140,14 @@ data class AnimeScreen(
                         }
                     },
                     onEpisodeSelected = screenModel::toggleSelection,
+                    onEpisodeDownloadAction = { episode, action ->
+                        screenModel.runEpisodeDownloadAction(episode.id, action)
+                    },
                     onAllEpisodesSelected = screenModel::toggleAllSelection,
                     onInvertSelection = screenModel::invertSelection,
                     onMarkSelectedWatched = screenModel::markSelectedEpisodesWatched,
+                    onDownloadSelectedEpisodes = screenModel::showDownloadSettingsDialogForSelection,
+                    onDeleteSelectedEpisodes = screenModel::deleteSelectedDownloadedEpisodes,
                 )
 
                 when (val dialog = current.dialog) {
@@ -266,6 +273,28 @@ data class AnimeScreen(
                             onDismissRequest = screenModel::dismissDialog,
                             onQueryChange = screenModel::updateMergeTargetQuery,
                             onSelectTarget = screenModel::openMergeEditor,
+                        )
+                    }
+                    is AnimeScreenModel.Dialog.DownloadSettings -> {
+                        AnimeDownloadSettingsDialog(
+                            initialDubKey = dialog.dubKey,
+                            initialStreamKey = dialog.streamKey,
+                            initialSubtitleKey = dialog.subtitleKey,
+                            initialQualityMode = dialog.qualityMode,
+                            selectedCount = dialog.episodeIds.size,
+                            dubOptions = dialog.dubOptions,
+                            streamOptions = dialog.streamOptions,
+                            subtitleOptions = dialog.subtitleOptions,
+                            isLoadingOptions = dialog.isLoadingOptions,
+                            onDismissRequest = screenModel::dismissDialog,
+                            onConfirm = { dubKey, streamKey, subtitleKey, qualityMode ->
+                                screenModel.queueSelectedEpisodesDownload(
+                                    dubKey = dubKey,
+                                    streamKey = streamKey,
+                                    subtitleKey = subtitleKey,
+                                    qualityMode = qualityMode,
+                                )
+                            },
                         )
                     }
                     null -> Unit

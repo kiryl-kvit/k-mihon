@@ -7,11 +7,9 @@ import eu.davidea.flexibleadapter.items.AbstractExpandableHeaderItem
 import eu.davidea.flexibleadapter.items.IFlexible
 import eu.kanade.tachiyomi.R
 
-data class DownloadHeaderItem(
-    val id: Long,
-    val name: String,
-    val size: Int,
-) : AbstractExpandableHeaderItem<DownloadHeaderHolder, DownloadItem>() {
+data class DownloadQueueHeaderItem(
+    val model: DownloadQueueHeaderModel,
+) : AbstractExpandableHeaderItem<DownloadQueueHeaderHolder, DownloadQueueItem>() {
 
     override fun getLayoutRes(): Int {
         return R.layout.download_header
@@ -20,28 +18,26 @@ data class DownloadHeaderItem(
     override fun createViewHolder(
         view: View,
         adapter: FlexibleAdapter<IFlexible<RecyclerView.ViewHolder>>,
-    ): DownloadHeaderHolder {
-        return DownloadHeaderHolder(view, adapter)
+    ): DownloadQueueHeaderHolder {
+        return DownloadQueueHeaderHolder(view, adapter)
     }
 
     override fun bindViewHolder(
         adapter: FlexibleAdapter<IFlexible<RecyclerView.ViewHolder>>,
-        holder: DownloadHeaderHolder,
+        holder: DownloadQueueHeaderHolder,
         position: Int,
         payloads: List<Any?>?,
     ) {
-        holder.bind(this)
+        holder.bind(model)
     }
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
 
-        other as DownloadHeaderItem
+        other as DownloadQueueHeaderItem
 
-        if (id != other.id) return false
-        if (name != other.name) return false
-        if (size != other.size) return false
+        if (model != other.model) return false
         if (subItemsCount != other.subItemsCount) return false
         if (subItems !== other.subItems) return false
 
@@ -49,9 +45,7 @@ data class DownloadHeaderItem(
     }
 
     override fun hashCode(): Int {
-        var result = id.hashCode()
-        result = 31 * result + name.hashCode()
-        result = 31 * result + size
+        var result = model.hashCode()
         result = 31 * result + subItems.hashCode()
         return result
     }

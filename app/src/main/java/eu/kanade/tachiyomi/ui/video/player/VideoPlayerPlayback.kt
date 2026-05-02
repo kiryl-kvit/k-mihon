@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.ui.video.player
 import android.content.Context
 import android.graphics.Color
 import android.net.Uri
+import android.provider.DocumentsContract
 import androidx.annotation.OptIn
 import androidx.media3.common.C
 import androidx.media3.common.Format
@@ -70,6 +71,7 @@ internal fun buildVideoPlayer(
     subtitles: List<VideoSubtitle>,
 ): ExoPlayer {
     val requestHeaders = stream.request.headers
+    val streamUri = Uri.parse(stream.request.url)
     val userAgent = requestHeaders.entries.firstOrNull { it.key.equals("User-Agent", ignoreCase = true) }?.value
         ?: networkHelper.defaultUserAgentProvider()
 
@@ -77,16 +79,22 @@ internal fun buildVideoPlayer(
         .setUserAgent(userAgent)
         .setDefaultRequestProperties(requestHeaders)
     val subtitleHeadersByUrl = subtitles.associate { it.request.url to it.request.headers }
-    val resolvedDataSourceFactory = ResolvingDataSource.Factory(okHttpDataSourceFactory) { dataSpec ->
-        val headers = subtitleHeadersByUrl[dataSpec.uri.toString()].orEmpty()
-        if (headers.isEmpty()) {
+    val defaultDataSourceFactory = DefaultDataSource.Factory(context, okHttpDataSourceFactory)
+    val resolvedDataSourceFactory = ResolvingDataSource.Factory(defaultDataSourceFactory) { dataSpec ->
+        val resolvedUri = rewriteDownloadedHlsContentUri(baseUri = streamUri, candidateUri = dataSpec.uri)
+        val resolvedDataSpec = if (resolvedUri == dataSpec.uri) {
             dataSpec
         } else {
-            dataSpec.withAdditionalHeaders(headers)
+            dataSpec.buildUpon().setUri(resolvedUri).build()
+        }
+        val headers = subtitleHeadersByUrl[resolvedUri.toString()].orEmpty()
+        if (headers.isEmpty()) {
+            resolvedDataSpec
+        } else {
+            resolvedDataSpec.withAdditionalHeaders(headers)
         }
     }
-    val dataSourceFactory = DefaultDataSource.Factory(context, resolvedDataSourceFactory)
-    val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
+    val mediaSourceFactory = DefaultMediaSourceFactory(resolvedDataSourceFactory)
 
     return ExoPlayer.Builder(context, mediaSourceFactory)
         .build()
@@ -435,6 +443,23 @@ private fun inferSubtitleMimeType(url: String): String? {
         url.endsWith(".ass", ignoreCase = true) || url.endsWith(".ssa", ignoreCase = true) -> MimeTypes.TEXT_SSA
         else -> null
     }
+}
+
+private fun rewriteDownloadedHlsContentUri(baseUri: Uri, candidateUri: Uri): Uri {
+    if (baseUri.scheme != "content" || candidateUri.scheme != "content") return candidateUri
+
+    val baseDocumentId = runCatching { DocumentsContract.getDocumentId(baseUri) }.getOrNull() ?: return candidateUri
+    val candidateDocumentId =
+        runCatching { DocumentsContract.getDocumentId(candidateUri) }.getOrNull() ?: return candidateUri
+    val baseParentDocumentId = baseDocumentId.substringBeforeLast('/', missingDelimiterValue = "")
+    if (baseParentDocumentId.isBlank() || candidateDocumentId.startsWith("$baseParentDocumentId/")) {
+        return candidateUri
+    }
+
+    return DocumentsContract.buildDocumentUriUsingTree(
+        baseUri,
+        "$baseParentDocumentId/$candidateDocumentId",
+    )
 }
 
 private fun embeddedSubtitleChoiceKey(groupIndex: Int, trackIndex: Int): String {

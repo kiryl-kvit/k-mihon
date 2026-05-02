@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.DoneAll
+import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Pause
@@ -57,13 +58,16 @@ import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.SmallExtendedFloatingActionButton
 import androidx.compose.material3.SnackbarHost
@@ -111,9 +115,12 @@ import eu.kanade.domain.anime.model.toMangaCover
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.anime.animeEpisodeItems
 import eu.kanade.presentation.components.AdaptiveSheet
+import eu.kanade.presentation.components.AnimeDownloadDropdownMenu
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.components.AppBarTitle
+import eu.kanade.presentation.components.DownloadIndicatorAction
+import eu.kanade.presentation.components.DownloadIndicatorState
 import eu.kanade.presentation.components.DropdownMenu
 import eu.kanade.presentation.components.relativeDateText
 import eu.kanade.presentation.manga.components.DISALLOWED_MARKDOWN_TYPES
@@ -135,6 +142,7 @@ import kotlinx.collections.immutable.toImmutableList
 import org.intellij.markdown.MarkdownElementTypes
 import org.intellij.markdown.MarkdownTokenTypes
 import org.intellij.markdown.ast.findChildOfType
+import tachiyomi.domain.anime.model.AnimeDownloadQualityMode
 import tachiyomi.domain.anime.model.AnimeEpisode
 import tachiyomi.domain.anime.model.AnimeTitle
 import tachiyomi.i18n.MR
@@ -177,13 +185,17 @@ fun AnimeScreen(
     onDuplicatesClicked: (() -> Unit)?,
     onCoverClicked: () -> Unit,
     onFilterClicked: (() -> Unit)?,
+    onDownloadActionClicked: ((AnimeDownloadAction) -> Unit)?,
     onManageMergeClicked: (() -> Unit)?,
     onOpenMergedEntryClicked: (() -> Unit)?,
     onEpisodeClick: (AnimeEpisode) -> Unit,
     onEpisodeSelected: (AnimeEpisode, Boolean, Boolean) -> Unit,
+    onEpisodeDownloadAction: (AnimeEpisode, DownloadIndicatorAction) -> Unit,
     onAllEpisodesSelected: (Boolean) -> Unit,
     onInvertSelection: () -> Unit,
     onMarkSelectedWatched: (Boolean) -> Unit,
+    onDownloadSelectedEpisodes: () -> Unit,
+    onDeleteSelectedEpisodes: () -> Unit,
 ) {
     if (isTabletUi()) {
         AnimeScreenLargeImpl(
@@ -204,13 +216,17 @@ fun AnimeScreen(
             onDuplicatesClicked = onDuplicatesClicked,
             onCoverClicked = onCoverClicked,
             onFilterClicked = onFilterClicked,
+            onDownloadActionClicked = onDownloadActionClicked,
             onManageMergeClicked = onManageMergeClicked,
             onOpenMergedEntryClicked = onOpenMergedEntryClicked,
             onEpisodeClick = onEpisodeClick,
             onEpisodeSelected = onEpisodeSelected,
+            onEpisodeDownloadAction = onEpisodeDownloadAction,
             onAllEpisodesSelected = onAllEpisodesSelected,
             onInvertSelection = onInvertSelection,
             onMarkSelectedWatched = onMarkSelectedWatched,
+            onDownloadSelectedEpisodes = onDownloadSelectedEpisodes,
+            onDeleteSelectedEpisodes = onDeleteSelectedEpisodes,
         )
     } else {
         AnimeScreenSmallImpl(
@@ -231,13 +247,17 @@ fun AnimeScreen(
             onDuplicatesClicked = onDuplicatesClicked,
             onCoverClicked = onCoverClicked,
             onFilterClicked = onFilterClicked,
+            onDownloadActionClicked = onDownloadActionClicked,
             onManageMergeClicked = onManageMergeClicked,
             onOpenMergedEntryClicked = onOpenMergedEntryClicked,
             onEpisodeClick = onEpisodeClick,
             onEpisodeSelected = onEpisodeSelected,
+            onEpisodeDownloadAction = onEpisodeDownloadAction,
             onAllEpisodesSelected = onAllEpisodesSelected,
             onInvertSelection = onInvertSelection,
             onMarkSelectedWatched = onMarkSelectedWatched,
+            onDownloadSelectedEpisodes = onDownloadSelectedEpisodes,
+            onDeleteSelectedEpisodes = onDeleteSelectedEpisodes,
         )
     }
 }
@@ -261,13 +281,17 @@ private fun AnimeScreenSmallImpl(
     onDuplicatesClicked: (() -> Unit)?,
     onCoverClicked: () -> Unit,
     onFilterClicked: (() -> Unit)?,
+    onDownloadActionClicked: ((AnimeDownloadAction) -> Unit)?,
     onManageMergeClicked: (() -> Unit)?,
     onOpenMergedEntryClicked: (() -> Unit)?,
     onEpisodeClick: (AnimeEpisode) -> Unit,
     onEpisodeSelected: (AnimeEpisode, Boolean, Boolean) -> Unit,
+    onEpisodeDownloadAction: (AnimeEpisode, DownloadIndicatorAction) -> Unit,
     onAllEpisodesSelected: (Boolean) -> Unit,
     onInvertSelection: () -> Unit,
     onMarkSelectedWatched: (Boolean) -> Unit,
+    onDownloadSelectedEpisodes: () -> Unit,
+    onDeleteSelectedEpisodes: () -> Unit,
 ) {
     val episodeListState = rememberLazyListState()
 
@@ -297,6 +321,7 @@ private fun AnimeScreenSmallImpl(
                 onRefresh = onRefresh,
                 hasFilters = state.filterActive,
                 onFilterClicked = onFilterClicked,
+                onClickDownload = onDownloadActionClicked,
                 onEditCategoryClicked = onEditCategoryClicked,
                 onEditDisplayNameClicked = onEditDisplayNameClicked,
                 onShareClicked = onShareClicked,
@@ -314,6 +339,8 @@ private fun AnimeScreenSmallImpl(
                 visible = state.isSelectionMode,
                 selectedEpisodes = state.episodes.filter { it.id in state.selection },
                 onMarkSelectedWatched = onMarkSelectedWatched,
+                onDownloadClicked = onDownloadSelectedEpisodes,
+                onDeleteClicked = onDeleteSelectedEpisodes.takeIf { state.hasDownloadedSelection },
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -427,8 +454,11 @@ private fun AnimeScreenSmallImpl(
                         selectedEpisodeIds = state.selection,
                         selectionMode = state.isSelectionMode,
                         playbackStateByEpisodeId = state.playbackStateByEpisodeId,
+                        downloadStateByEpisodeId = state.downloadStateByEpisodeId,
+                        downloadProgressByEpisodeId = state.downloadProgressByEpisodeId,
                         onEpisodeClick = onEpisodeClick,
                         onEpisodeSelected = onEpisodeSelected,
+                        onEpisodeDownloadAction = onEpisodeDownloadAction,
                     )
                 }
             }
@@ -455,13 +485,17 @@ private fun AnimeScreenLargeImpl(
     onDuplicatesClicked: (() -> Unit)?,
     onCoverClicked: () -> Unit,
     onFilterClicked: (() -> Unit)?,
+    onDownloadActionClicked: ((AnimeDownloadAction) -> Unit)?,
     onManageMergeClicked: (() -> Unit)?,
     onOpenMergedEntryClicked: (() -> Unit)?,
     onEpisodeClick: (AnimeEpisode) -> Unit,
     onEpisodeSelected: (AnimeEpisode, Boolean, Boolean) -> Unit,
+    onEpisodeDownloadAction: (AnimeEpisode, DownloadIndicatorAction) -> Unit,
     onAllEpisodesSelected: (Boolean) -> Unit,
     onInvertSelection: () -> Unit,
     onMarkSelectedWatched: (Boolean) -> Unit,
+    onDownloadSelectedEpisodes: () -> Unit,
+    onDeleteSelectedEpisodes: () -> Unit,
 ) {
     val episodeListState = rememberLazyListState()
     val layoutDirection = LocalLayoutDirection.current
@@ -479,6 +513,7 @@ private fun AnimeScreenLargeImpl(
                 onRefresh = onRefresh,
                 hasFilters = state.filterActive,
                 onFilterClicked = onFilterClicked,
+                onClickDownload = onDownloadActionClicked,
                 onEditCategoryClicked = onEditCategoryClicked,
                 onEditDisplayNameClicked = onEditDisplayNameClicked,
                 onShareClicked = onShareClicked,
@@ -496,6 +531,8 @@ private fun AnimeScreenLargeImpl(
                 visible = state.isSelectionMode,
                 selectedEpisodes = state.episodes.filter { it.id in state.selection },
                 onMarkSelectedWatched = onMarkSelectedWatched,
+                onDownloadClicked = onDownloadSelectedEpisodes,
+                onDeleteClicked = onDeleteSelectedEpisodes.takeIf { state.hasDownloadedSelection },
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -614,8 +651,11 @@ private fun AnimeScreenLargeImpl(
                                 selectedEpisodeIds = state.selection,
                                 selectionMode = state.isSelectionMode,
                                 playbackStateByEpisodeId = state.playbackStateByEpisodeId,
+                                downloadStateByEpisodeId = state.downloadStateByEpisodeId,
+                                downloadProgressByEpisodeId = state.downloadProgressByEpisodeId,
                                 onEpisodeClick = onEpisodeClick,
                                 onEpisodeSelected = onEpisodeSelected,
+                                onEpisodeDownloadAction = onEpisodeDownloadAction,
                             )
                         }
                     }
@@ -632,6 +672,7 @@ private fun AnimeToolbar(
     onRefresh: () -> Unit,
     hasFilters: Boolean,
     onFilterClicked: (() -> Unit)?,
+    onClickDownload: ((AnimeDownloadAction) -> Unit)?,
     onEditCategoryClicked: (() -> Unit)?,
     onEditDisplayNameClicked: (() -> Unit)?,
     onShareClicked: (() -> Unit)?,
@@ -660,6 +701,16 @@ private fun AnimeToolbar(
         isActionMode = actionModeCounter > 0,
         onCancelActionMode = onCancelActionMode,
         actions = {
+            var downloadExpanded by remember { mutableStateOf(false) }
+            if (onClickDownload != null) {
+                val onDismissRequest = { downloadExpanded = false }
+                AnimeDownloadDropdownMenu(
+                    expanded = downloadExpanded,
+                    onDismissRequest = onDismissRequest,
+                    onDownloadClicked = onClickDownload,
+                )
+            }
+
             if (actionModeCounter > 0) {
                 AppBarActions(
                     actions = persistentListOf<AppBar.AppBarAction>(
@@ -679,13 +730,15 @@ private fun AnimeToolbar(
                 AppBarActions(
                     actions = persistentListOf<AppBar.AppBarAction>().builder()
                         .apply {
-                            add(
-                                AppBar.Action(
-                                    title = stringResource(MR.strings.action_retry),
-                                    icon = Icons.Outlined.Refresh,
-                                    onClick = onRefresh,
-                                ),
-                            )
+                            if (onClickDownload != null) {
+                                add(
+                                    AppBar.Action(
+                                        title = stringResource(MR.strings.manga_download),
+                                        icon = Icons.Outlined.Download,
+                                        onClick = { downloadExpanded = !downloadExpanded },
+                                    ),
+                                )
+                            }
                             if (onFilterClicked != null) {
                                 add(
                                     AppBar.Action(
@@ -696,6 +749,12 @@ private fun AnimeToolbar(
                                     ),
                                 )
                             }
+                            add(
+                                AppBar.OverflowAction(
+                                    title = stringResource(MR.strings.action_webview_refresh),
+                                    onClick = onRefresh,
+                                ),
+                            )
                             if (onEditCategoryClicked != null) {
                                 add(
                                     AppBar.OverflowAction(
@@ -1459,6 +1518,8 @@ private fun AnimeBottomActionMenu(
     visible: Boolean,
     selectedEpisodes: List<AnimeEpisode>,
     onMarkSelectedWatched: (Boolean) -> Unit,
+    onDownloadClicked: () -> Unit,
+    onDeleteClicked: (() -> Unit)? = null,
 ) {
     MangaBottomActionMenu(
         visible = visible,
@@ -1470,7 +1531,143 @@ private fun AnimeBottomActionMenu(
         }.takeIf { selectedEpisodes.any { it.completed || it.watched } },
         markAsReadLabel = MR.strings.action_mark_as_watched,
         markAsUnreadLabel = MR.strings.action_mark_as_unwatched,
+        onDownloadClicked = onDownloadClicked,
+        onDeleteClicked = onDeleteClicked,
     )
+}
+
+@Composable
+fun AnimeDownloadSettingsDialog(
+    initialDubKey: String?,
+    initialStreamKey: String?,
+    initialSubtitleKey: String?,
+    initialQualityMode: AnimeDownloadQualityMode,
+    selectedCount: Int,
+    dubOptions: List<AnimeScreenModel.Dialog.Option>,
+    streamOptions: List<AnimeScreenModel.Dialog.Option>,
+    subtitleOptions: List<AnimeScreenModel.Dialog.Option>,
+    isLoadingOptions: Boolean,
+    onDismissRequest: () -> Unit,
+    onConfirm: (String?, String?, String?, AnimeDownloadQualityMode) -> Unit,
+) {
+    var dubKey by rememberSaveable { mutableStateOf(initialDubKey.orEmpty()) }
+    var streamKey by rememberSaveable { mutableStateOf(initialStreamKey.orEmpty()) }
+    var subtitleKey by rememberSaveable { mutableStateOf(initialSubtitleKey.orEmpty()) }
+    var qualityMode by rememberSaveable { mutableStateOf(initialQualityMode) }
+
+    AdaptiveSheet(onDismissRequest = onDismissRequest) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = stringResource(MR.strings.action_download),
+                style = MaterialTheme.typography.titleLarge,
+            )
+            Text(
+                text = "Apply to all selected episodes",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (isLoadingOptions) {
+                Text(
+                    text = "Loading source options...",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (selectedCount >= 5) {
+                Text(
+                    text = "Downloading many episodes can use significant storage",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+
+            val isDubValid = dubOptions.isEmpty() || dubKey.isNotBlank()
+            val isValid = !isLoadingOptions && isDubValid
+
+            OptionChipGroup(
+                label = "Quality mode",
+                value = qualityMode.name,
+                options = listOf(
+                    AnimeScreenModel.Dialog.Option(AnimeDownloadQualityMode.BEST.name, "Best quality"),
+                    AnimeScreenModel.Dialog.Option(AnimeDownloadQualityMode.BALANCED.name, "Balanced"),
+                    AnimeScreenModel.Dialog.Option(AnimeDownloadQualityMode.DATA_SAVING.name, "Data saving"),
+                ),
+                onValueChange = { selected ->
+                    qualityMode = AnimeDownloadQualityMode.entries.first { it.name == selected }
+                },
+                visible = true,
+            )
+
+            OptionChipGroup(
+                label = "Dub",
+                value = dubKey,
+                options = dubOptions,
+                onValueChange = { dubKey = it },
+                visible = dubOptions.isNotEmpty(),
+            )
+            OptionChipGroup(
+                label = "Subtitle",
+                value = subtitleKey,
+                options = subtitleOptions,
+                onValueChange = { subtitleKey = it },
+                visible = subtitleOptions.isNotEmpty(),
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            ) {
+                Button(onClick = onDismissRequest) { Text(stringResource(MR.strings.action_cancel)) }
+                Button(
+                    enabled = isValid,
+                    onClick = {
+                        onConfirm(
+                            dubKey.trim().ifBlank { null },
+                            streamKey.trim().ifBlank { null },
+                            subtitleKey.trim().ifBlank { null },
+                            qualityMode,
+                        )
+                    },
+                ) { Text(stringResource(MR.strings.action_download)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OptionChipGroup(
+    label: String,
+    value: String,
+    options: List<AnimeScreenModel.Dialog.Option>,
+    onValueChange: (String) -> Unit,
+    visible: Boolean,
+) {
+    if (!visible) return
+
+    Text(text = label, style = MaterialTheme.typography.titleSmall)
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        options.forEach { option ->
+            FilterChip(
+                selected = value == option.key,
+                onClick = {
+                    if (value == option.key) {
+                        onValueChange("")
+                    } else {
+                        onValueChange(option.key)
+                    }
+                },
+                label = { Text(option.label) },
+            )
+        }
+    }
 }
 
 @Composable

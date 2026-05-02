@@ -49,6 +49,7 @@ import mihon.domain.extensionrepo.service.ExtensionRepoService
 import mihon.domain.migration.usecases.MigrateMangaUseCase
 import mihon.domain.upcoming.interactor.GetUpcomingManga
 import tachiyomi.data.ActiveProfileProvider
+import tachiyomi.data.anime.AnimeDownloadPreferencesRepositoryImpl
 import tachiyomi.data.anime.AnimeEpisodeRepositoryImpl
 import tachiyomi.data.anime.AnimeHistoryRepositoryImpl
 import tachiyomi.data.anime.AnimePlaybackPreferencesRepositoryImpl
@@ -77,6 +78,7 @@ import tachiyomi.domain.anime.interactor.SetAnimeDefaultEpisodeFlags
 import tachiyomi.domain.anime.interactor.SetAnimeEpisodeFlags
 import tachiyomi.domain.anime.interactor.SyncAnimeWithSource
 import tachiyomi.domain.anime.interactor.UpdateMergedAnime
+import tachiyomi.domain.anime.repository.AnimeDownloadPreferencesRepository
 import tachiyomi.domain.anime.repository.AnimeEpisodeRepository
 import tachiyomi.domain.anime.repository.AnimeHistoryRepository
 import tachiyomi.domain.anime.repository.AnimePlaybackPreferencesRepository
@@ -246,6 +248,7 @@ class DomainModule : InjektModule {
         addSingletonFactory<AnimeRepository> { AnimeRepositoryImpl(get(), get()) }
         addSingletonFactory<AnimeEpisodeRepository> { AnimeEpisodeRepositoryImpl(get(), get()) }
         addSingletonFactory<AnimeHistoryRepository> { AnimeHistoryRepositoryImpl(get(), get()) }
+        addSingletonFactory<AnimeDownloadPreferencesRepository> { AnimeDownloadPreferencesRepositoryImpl(get(), get()) }
         addSingletonFactory<AnimePlaybackPreferencesRepository> { AnimePlaybackPreferencesRepositoryImpl(get(), get()) }
         addSingletonFactory<AnimePlaybackStateRepository> { AnimePlaybackStateRepositoryImpl(get(), get()) }
         addSingletonFactory<AnimeUpdatesRepository> { AnimeUpdatesRepositoryImpl(get(), get()) }

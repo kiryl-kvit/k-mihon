@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.core.net.toUri
+import eu.kanade.tachiyomi.data.anime.download.AnimeDownloadManager
 import eu.kanade.tachiyomi.data.backup.restore.BackupRestoreJob
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.library.AnimeLibraryUpdateJob
@@ -54,6 +55,7 @@ class NotificationReceiver : BroadcastReceiver() {
     private val getChapter: GetChapter by injectLazy()
     private val updateChapter: UpdateChapter by injectLazy()
     private val downloadManager: DownloadManager by injectLazy()
+    private val animeDownloadManager: AnimeDownloadManager by injectLazy()
     private val animeEpisodeRepository: AnimeEpisodeRepository by injectLazy()
     private val animePlaybackStateRepository: AnimePlaybackStateRepository by injectLazy()
     private val getMergedAnime: GetMergedAnime by injectLazy()
@@ -63,11 +65,20 @@ class NotificationReceiver : BroadcastReceiver() {
             // Dismiss notification
             ACTION_DISMISS_NOTIFICATION -> dismissNotification(context, intent.getIntExtra(EXTRA_NOTIFICATION_ID, -1))
             // Resume the download service
-            ACTION_RESUME_DOWNLOADS -> downloadManager.startDownloads()
+            ACTION_RESUME_DOWNLOADS -> {
+                downloadManager.startDownloads()
+                animeDownloadManager.startDownloads()
+            }
             // Pause the download service
-            ACTION_PAUSE_DOWNLOADS -> downloadManager.pauseDownloads()
+            ACTION_PAUSE_DOWNLOADS -> {
+                downloadManager.pauseDownloads()
+                animeDownloadManager.pauseDownloads()
+            }
             // Clear the download queue
-            ACTION_CLEAR_DOWNLOADS -> downloadManager.clearQueue()
+            ACTION_CLEAR_DOWNLOADS -> {
+                downloadManager.clearQueue()
+                animeDownloadManager.clearQueue()
+            }
             // Launch share activity and dismiss notification
             ACTION_SHARE_IMAGE ->
                 shareImage(
