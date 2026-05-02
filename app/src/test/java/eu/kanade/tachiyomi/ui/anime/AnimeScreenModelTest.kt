@@ -4,6 +4,7 @@ package eu.kanade.tachiyomi.ui.anime
 
 import android.app.Application
 import android.content.Context
+import eu.kanade.tachiyomi.data.anime.download.AnimeDownloadManager
 import eu.kanade.tachiyomi.source.AnimeScheduleSource
 import eu.kanade.tachiyomi.source.model.SAnime
 import eu.kanade.tachiyomi.source.model.SAnimeScheduleEpisode
@@ -23,6 +24,7 @@ import io.mockk.unmockkAll
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flowOf
@@ -45,12 +47,14 @@ import tachiyomi.domain.anime.interactor.SetAnimeDefaultEpisodeFlags
 import tachiyomi.domain.anime.interactor.SetAnimeEpisodeFlags
 import tachiyomi.domain.anime.interactor.SyncAnimeWithSource
 import tachiyomi.domain.anime.interactor.UpdateMergedAnime
+import tachiyomi.domain.anime.model.AnimeDownloadPreferences
 import tachiyomi.domain.anime.model.AnimeEpisode
 import tachiyomi.domain.anime.model.AnimeEpisodeUpdate
 import tachiyomi.domain.anime.model.AnimeMerge
 import tachiyomi.domain.anime.model.AnimePlaybackState
 import tachiyomi.domain.anime.model.AnimeTitle
 import tachiyomi.domain.anime.model.AnimeTitleUpdate
+import tachiyomi.domain.anime.repository.AnimeDownloadPreferencesRepository
 import tachiyomi.domain.anime.repository.AnimeEpisodeRepository
 import tachiyomi.domain.anime.repository.AnimePlaybackStateRepository
 import tachiyomi.domain.anime.repository.AnimeRepository
@@ -1098,6 +1102,8 @@ class AnimeScreenModelTest {
         libraryPreferences: LibraryPreferences = testLibraryPreferences(),
         mergedRepository: MergedAnimeRepository = FakeMergedAnimeRepository(emptyList()),
         duplicatePreferences: DuplicatePreferences = DuplicatePreferences(InMemoryPreferenceStore()),
+        animeDownloadPreferencesRepository: AnimeDownloadPreferencesRepository =
+            FakeAnimeDownloadPreferencesRepository(),
     ): AnimeScreenModel {
         val setAnimeEpisodeFlags = SetAnimeEpisodeFlags(animeRepository)
         val getAnimeWithEpisodes = GetAnimeWithEpisodes(animeRepository, episodeRepository, mergedRepository)
@@ -1112,6 +1118,7 @@ class AnimeScreenModelTest {
             animeId = anime.id,
             animeRepository = animeRepository,
             animeEpisodeRepository = episodeRepository,
+            animeDownloadPreferencesRepository = animeDownloadPreferencesRepository,
             animePlaybackStateRepository = playbackRepository,
             animeSourceManager = animeSourceManager,
             getCategories = GetCategories(FakeCategoryRepository()),
@@ -1131,6 +1138,10 @@ class AnimeScreenModelTest {
                 animeEpisodeRepository = episodeRepository,
                 animeSourceManager = animeSourceManager,
             ),
+            animeDownloadManager = mockk<AnimeDownloadManager>(relaxed = true) {
+                every { queueState } returns MutableStateFlow(emptyList())
+                every { cacheChanges } returns MutableSharedFlow<Unit>(replay = 1).apply { tryEmit(Unit) }
+            },
         ).also(createdModels::add)
     }
 
@@ -1276,6 +1287,12 @@ class AnimeScreenModelTest {
             upserts += state
         }
         override suspend fun upsertAndSyncEpisodeState(state: AnimePlaybackState) = Unit
+    }
+
+    private class FakeAnimeDownloadPreferencesRepository : AnimeDownloadPreferencesRepository {
+        override suspend fun getByAnimeId(animeId: Long): AnimeDownloadPreferences? = null
+        override fun getByAnimeIdAsFlow(animeId: Long): Flow<AnimeDownloadPreferences?> = flowOf(null)
+        override suspend fun upsert(preferences: AnimeDownloadPreferences) = Unit
     }
 
     private class FakeAnimeSourceManager : AnimeSourceManager {
