@@ -176,7 +176,7 @@ class AnimeExtensionsScreenModel(
         screenModelScope.launchIO {
             mutableState.update { it.copy(isRefreshing = true) }
 
-            extensionManager.findAvailableExtensions()
+            extensionManager.findAvailableExtensions(forceRefresh = true)
 
             delay(1.seconds)
 

@@ -197,9 +197,9 @@ class ExtensionManager(
     /**
      * Finds the available extensions in the [api] and updates [availableExtensionMapFlow].
      */
-    suspend fun findAvailableExtensions() {
+    suspend fun findAvailableExtensions(forceRefresh: Boolean = false) {
         val extensions: List<Extension.Available> = try {
-            api.findExtensions()
+            api.findExtensions(forceRefresh)
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e)
             withUIContext { context.toast(MR.strings.extension_api_error) }
