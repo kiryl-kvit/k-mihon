@@ -48,20 +48,25 @@ internal class ExtensionApi {
         val available: Extension.Available,
     )
 
-    suspend fun findExtensions(): List<Extension.Available> {
+    suspend fun findExtensions(forceRefresh: Boolean = false): List<Extension.Available> {
         return withIOContext {
             getExtensionRepo.getAll()
-                .map { async { getExtensions(it) } }
+                .map { async { getExtensions(it, forceRefresh) } }
                 .awaitAll()
                 .flatten()
         }
     }
 
-    private suspend fun getExtensions(extRepo: ExtensionRepo): List<Extension.Available> {
+    private suspend fun getExtensions(extRepo: ExtensionRepo, forceRefresh: Boolean): List<Extension.Available> {
         val repoBaseUrl = extRepo.baseUrl
         return try {
+            val request = if (forceRefresh) {
+                GET("$repoBaseUrl/index.min.json", cache = okhttp3.CacheControl.FORCE_NETWORK)
+            } else {
+                GET("$repoBaseUrl/index.min.json")
+            }
             val response = networkService.client
-                .newCall(GET("$repoBaseUrl/index.min.json"))
+                .newCall(request)
                 .awaitSuccess()
 
             with(json) {
