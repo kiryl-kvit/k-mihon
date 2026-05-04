@@ -688,8 +688,8 @@ class BrowseSourceScreenModel(
         if (!feedsEnabled) return false
         val trimmed = name.trim()
         return browseFeedService.stateSnapshot().presets.any {
-            it.sourceId == sourceId && it.id != excludingPresetId && it.name.equals(trimmed, ignoreCase = true)
-                && it.kind == SourceFeedKind.MANGA
+            it.sourceId == sourceId && it.id != excludingPresetId && it.name.equals(trimmed, ignoreCase = true) &&
+                it.kind == SourceFeedKind.MANGA
         }
     }
 

@@ -1,14 +1,14 @@
 package eu.kanade.tachiyomi.ui.anime.browse
 
 import android.app.Application
+import eu.kanade.domain.source.interactor.GetIncognitoState
 import eu.kanade.domain.source.model.FeedListingMode
 import eu.kanade.domain.source.model.snapshot
 import eu.kanade.domain.source.service.BrowseFeedService
-import eu.kanade.domain.source.interactor.GetIncognitoState
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.source.AnimeCatalogueSource
-import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.AnimesPage
+import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.SAnime
 import eu.kanade.tachiyomi.source.model.SEpisode
@@ -144,7 +144,8 @@ class AnimeBrowseSourceScreenModelTest {
 
         eventually(2.seconds) {
             browseFeedService.stateSnapshot().presets.single().name shouldBe "Saved"
-            browseFeedService.stateSnapshot().presets.single().kind shouldBe eu.kanade.domain.source.model.SourceFeedKind.ANIME
+            browseFeedService.stateSnapshot().presets.single().kind shouldBe
+                eu.kanade.domain.source.model.SourceFeedKind.ANIME
             (model.state.value.listing as AnimeBrowseSourceScreenModel.Listing.Search).query shouldBe "hero"
             model.state.value.appliedCustomPresetId shouldBe browseFeedService.stateSnapshot().presets.single().id
         }

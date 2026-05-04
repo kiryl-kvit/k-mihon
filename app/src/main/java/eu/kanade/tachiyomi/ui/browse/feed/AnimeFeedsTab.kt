@@ -78,13 +78,13 @@ import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.TabContent
 import eu.kanade.presentation.util.animateItemFastScroll
 import eu.kanade.tachiyomi.source.ConfigurableAnimeSource
-import eu.kanade.tachiyomi.source.resolveFilterList
 import eu.kanade.tachiyomi.source.online.AnimeHttpSource
+import eu.kanade.tachiyomi.source.resolveFilterList
 import eu.kanade.tachiyomi.ui.anime.AnimeScreen
-import eu.kanade.tachiyomi.ui.anime.pushSourceAnimeScreen
-import eu.kanade.tachiyomi.ui.anime.browse.BrowseFilterUiState
 import eu.kanade.tachiyomi.ui.anime.browse.AnimeBrowseSourceScreenModel
 import eu.kanade.tachiyomi.ui.anime.browse.AnimeSourcePreferencesScreen
+import eu.kanade.tachiyomi.ui.anime.browse.BrowseFilterUiState
+import eu.kanade.tachiyomi.ui.anime.pushSourceAnimeScreen
 import eu.kanade.tachiyomi.ui.browse.source.SourceCatalogKind
 import eu.kanade.tachiyomi.ui.category.CategoryScreen
 import eu.kanade.tachiyomi.ui.webview.WebViewScreen
@@ -97,6 +97,7 @@ import mihon.presentation.core.util.collectAsLazyPagingItems
 import sh.calvin.reorderable.ReorderableCollectionItemScope
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
+import tachiyomi.domain.source.model.Source
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.ScrollbarLazyColumn
 import tachiyomi.presentation.core.components.material.PullRefresh
@@ -106,7 +107,6 @@ import tachiyomi.presentation.core.components.material.topSmallPaddingValues
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.screens.EmptyScreen
 import tachiyomi.presentation.core.screens.LoadingScreen
-import tachiyomi.domain.source.model.Source
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -261,8 +261,10 @@ private fun AnimeFeedsTabContent(
 
                     val currentFilters = browseModelState.filters.snapshot()
                     val shouldApplyPreset = when (activePreset.listingMode) {
-                        FeedListingMode.Popular -> browseModelState.listing != AnimeBrowseSourceScreenModel.Listing.Popular
-                        FeedListingMode.Latest -> browseModelState.listing != AnimeBrowseSourceScreenModel.Listing.Latest
+                        FeedListingMode.Popular ->
+                            browseModelState.listing != AnimeBrowseSourceScreenModel.Listing.Popular
+                        FeedListingMode.Latest ->
+                            browseModelState.listing != AnimeBrowseSourceScreenModel.Listing.Latest
                         FeedListingMode.Search -> {
                             val listing = browseModelState.listing as? AnimeBrowseSourceScreenModel.Listing.Search
                             listing?.query != activePreset.query || currentFilters != activePreset.filters
@@ -383,7 +385,9 @@ private fun AnimeFeedsTabContent(
                                 } else {
                                     AnimeBrowseSourceContent(
                                         animeList = animeList,
-                                        columns = browseModel.getColumnsPreference(LocalConfiguration.current.orientation),
+                                        columns = browseModel.getColumnsPreference(
+                                            LocalConfiguration.current.orientation,
+                                        ),
                                         displayMode = browseModel.displayMode,
                                         snackbarHostState = snackbarHostState,
                                         contentPadding = feedContentPadding,
@@ -480,8 +484,12 @@ private fun AnimeFeedsTabContent(
                     screenModel = screenModel,
                     canGoPrevious = hasPreviousFeed,
                     canGoNext = hasNextFeed,
-                    onPreviousClick = { enabledFeeds.getOrNull(activeIndex - 1)?.let { screenModel.selectFeed(it.id) } },
-                    onNextClick = { enabledFeeds.getOrNull(activeIndex + 1)?.let { screenModel.selectFeed(it.id) } },
+                    onPreviousClick = {
+                        enabledFeeds.getOrNull(activeIndex - 1)?.let { screenModel.selectFeed(it.id) }
+                    },
+                    onNextClick = {
+                        enabledFeeds.getOrNull(activeIndex + 1)?.let { screenModel.selectFeed(it.id) }
+                    },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -603,7 +611,8 @@ private fun rememberAnimeChronologicalFeedScreenModel(
 ): AnimeChronologicalFeedScreenModel {
     val profileKey = activeProfileId?.toString() ?: "none"
     return object : Screen {
-        override val key: ScreenKey = "anime-chronological-feed-screen-model-$profileKey-$activeFeedId-$presetBehaviorKey"
+        override val key: ScreenKey =
+            "anime-chronological-feed-screen-model-$profileKey-$activeFeedId-$presetBehaviorKey"
 
         @Composable
         override fun Content() {
@@ -719,8 +728,16 @@ private fun AnimeFeedChip(
     AssistChip(
         onClick = onClick,
         colors = AssistChipDefaults.assistChipColors(
-            containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
-            labelColor = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface,
+            containerColor = if (selected) {
+                MaterialTheme.colorScheme.secondaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerHigh
+            },
+            labelColor = if (selected) {
+                MaterialTheme.colorScheme.onSecondaryContainer
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
         ),
         border = null,
         leadingIcon = {
