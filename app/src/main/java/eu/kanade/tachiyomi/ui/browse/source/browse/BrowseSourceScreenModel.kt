@@ -21,6 +21,7 @@ import eu.kanade.domain.source.model.BUILTIN_LATEST_PRESET_ID
 import eu.kanade.domain.source.model.BUILTIN_POPULAR_PRESET_ID
 import eu.kanade.domain.source.model.FeedListingMode
 import eu.kanade.domain.source.model.FilterStateNode
+import eu.kanade.domain.source.model.SourceFeedKind
 import eu.kanade.domain.source.model.SourceFeedPreset
 import eu.kanade.domain.source.model.applySnapshot
 import eu.kanade.domain.source.model.latestFeedPreset
@@ -613,7 +614,7 @@ class BrowseSourceScreenModel(
         if (!feedsEnabled) return emptyList()
 
         val custom = browseFeedService.stateSnapshot().presets
-            .filter { it.sourceId == sourceId }
+            .filter { it.sourceId == sourceId && it.kind == SourceFeedKind.MANGA }
             .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
 
         if (source !is CatalogueSource) return custom
@@ -687,7 +688,8 @@ class BrowseSourceScreenModel(
         if (!feedsEnabled) return false
         val trimmed = name.trim()
         return browseFeedService.stateSnapshot().presets.any {
-            it.sourceId == sourceId && it.id != excludingPresetId && it.name.equals(trimmed, ignoreCase = true)
+            it.sourceId == sourceId && it.id != excludingPresetId && it.name.equals(trimmed, ignoreCase = true) &&
+                it.kind == SourceFeedKind.MANGA
         }
     }
 
@@ -707,6 +709,7 @@ class BrowseSourceScreenModel(
                     val presetState = state.value.toSavedPresetState(defaultFilters = defaultFilters)
                     val preset = SourceFeedPreset(
                         id = UUID.randomUUID().toString(),
+                        kind = SourceFeedKind.MANGA,
                         sourceId = sourceId,
                         name = trimmed,
                         listingMode = presetState.listingMode,
@@ -767,7 +770,7 @@ class BrowseSourceScreenModel(
     private fun customPreset(presetId: String?): SourceFeedPreset? {
         val targetPresetId = presetId ?: return null
         return browseFeedService.stateSnapshot().presets.firstOrNull {
-            it.id == targetPresetId && it.sourceId == sourceId
+            it.id == targetPresetId && it.sourceId == sourceId && it.kind == SourceFeedKind.MANGA
         }
     }
 

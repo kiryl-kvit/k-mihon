@@ -31,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -43,8 +44,10 @@ import eu.kanade.core.util.ifAnimeSourcesLoaded
 import eu.kanade.presentation.anime.AnimeBrowseSourceContent
 import eu.kanade.presentation.anime.AnimeMergeTargetPickerDialog
 import eu.kanade.presentation.anime.DuplicateAnimeDialog
+import eu.kanade.presentation.browse.components.BrowseFeedNameDialog
 import eu.kanade.presentation.browse.components.BrowseLibraryActionDialog
 import eu.kanade.presentation.browse.components.BrowseMergeEditorDialog
+import eu.kanade.presentation.browse.components.DeleteBrowsePresetDialog
 import eu.kanade.presentation.category.components.ChangeCategoryDialog
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
@@ -127,8 +130,10 @@ data class AnimeBrowseSourceScreen(
         val scope = rememberCoroutineScope()
         val haptic = LocalHapticFeedback.current
         val animeList = screenModel.animePagerFlow.collectAsLazyPagingItems()
+        val feedsEnabled = screenModel.feedsEnabled
         val httpSource = source as? AnimeHttpSource
         val configurableSource = source as? ConfigurableAnimeSource
+        var presetPendingDeletion by rememberSaveable { mutableStateOf<String?>(null) }
         val onWebViewClick = httpSource?.let {
             {
                 navigator.push(
@@ -142,6 +147,15 @@ data class AnimeBrowseSourceScreen(
         }
         val onSettingsClick = configurableSource?.let {
             { navigator.push(AnimeSourcePreferencesScreen(sourceId, source.name)) }
+        }
+
+        LaunchedEffect(feedsEnabled, state.dialog) {
+            if (!feedsEnabled) {
+                if (state.dialog is AnimeBrowseSourceScreenModel.Dialog.SavePreset) {
+                    screenModel.dismissDialog()
+                }
+                presetPendingDeletion = null
+            }
         }
 
         Scaffold(
@@ -255,28 +269,50 @@ data class AnimeBrowseSourceScreen(
             }
         }
 
+        val onDismissRequest = screenModel::dismissDialog
+        val appliedCustomPreset = if (feedsEnabled) screenModel.appliedCustomPreset() else null
         when (val dialog = state.dialog) {
             AnimeBrowseSourceScreenModel.Dialog.Filter -> {
                 SourceFilterDialog(
-                    onDismissRequest = screenModel::dismissDialog,
+                    onDismissRequest = onDismissRequest,
                     filters = state.filters,
                     isLoading = state.filterState is BrowseFilterUiState.Loading,
                     errorMessage = (state.filterState as? BrowseFilterUiState.Error)?.throwable?.message,
-                    presets = emptyList(),
+                    presets = if (feedsEnabled) screenModel.feedPresets() else emptyList(),
                     onReset = screenModel::resetFilters,
-                    onApplyPreset = {},
-                    onEditPreset = {},
-                    onDeletePreset = {},
-                    canDeletePreset = { false },
+                    onApplyPreset = screenModel::applyPreset,
+                    onEditPreset = screenModel::showEditPresetDialog,
+                    onDeletePreset = { presetPendingDeletion = it },
+                    canDeletePreset = screenModel::canDeletePreset,
+                    onSaveAsNewPreset = if (feedsEnabled) screenModel::showSavePresetDialog else null,
+                    currentPresetName = appliedCustomPreset?.name,
+                    onUpdateCurrentPreset = if (feedsEnabled) screenModel::showUpdateCurrentPresetDialog else null,
                     onFilter = { screenModel.search(filters = state.filters) },
                     onUpdate = screenModel::setFilters,
                     onRetry = screenModel::retryFilterLoad,
                 )
             }
+            is AnimeBrowseSourceScreenModel.Dialog.SavePreset -> if (feedsEnabled) {
+                BrowseFeedNameDialog(
+                    title = when (dialog.mode) {
+                        AnimeBrowseSourceScreenModel.Dialog.SavePreset.Mode.Create -> MR.strings.browse_feed_save_preset
+                        AnimeBrowseSourceScreenModel.Dialog.SavePreset.Mode.EditMetadata -> MR.strings.action_edit
+                        AnimeBrowseSourceScreenModel.Dialog.SavePreset.Mode.UpdateFromCurrentState ->
+                            MR.strings.browse_feed_update_preset
+                    },
+                    initialValue = dialog.name,
+                    initialChronological = dialog.chronological,
+                    duplicateName = { name ->
+                        screenModel.hasPresetName(name, excludingPresetId = dialog.presetId)
+                    },
+                    onDismissRequest = onDismissRequest,
+                    onConfirm = screenModel::savePreset,
+                )
+            }
             is AnimeBrowseSourceScreenModel.Dialog.ChangeAnimeCategory -> {
                 ChangeCategoryDialog(
                     initialSelection = dialog.initialSelection,
-                    onDismissRequest = screenModel::dismissDialog,
+                    onDismissRequest = onDismissRequest,
                     onEditCategories = { navigator.push(CategoryScreen()) },
                     onConfirm = { include, _ ->
                         screenModel.changeAnimeFavorite(dialog.anime)
@@ -286,7 +322,7 @@ data class AnimeBrowseSourceScreen(
             }
             is AnimeBrowseSourceScreenModel.Dialog.RemoveAnime -> {
                 RemoveAnimeDialog(
-                    onDismissRequest = screenModel::dismissDialog,
+                    onDismissRequest = onDismissRequest,
                     onConfirm = { screenModel.changeAnimeFavorite(dialog.anime) },
                 )
             }
@@ -294,7 +330,7 @@ data class AnimeBrowseSourceScreen(
                 BrowseLibraryActionDialog(
                     mangaTitle = dialog.anime.displayTitle,
                     favorite = dialog.anime.favorite,
-                    onDismissRequest = screenModel::dismissDialog,
+                    onDismissRequest = onDismissRequest,
                     onLibraryAction = {
                         screenModel.dismissDialog()
                         screenModel.confirmBrowseLibraryAction(dialog.anime)
@@ -305,7 +341,7 @@ data class AnimeBrowseSourceScreen(
             is AnimeBrowseSourceScreenModel.Dialog.DuplicateAnime -> {
                 DuplicateAnimeDialog(
                     duplicates = dialog.duplicates,
-                    onDismissRequest = screenModel::dismissDialog,
+                    onDismissRequest = onDismissRequest,
                     onConfirm = { screenModel.addFavorite(dialog.anime) },
                     onOpenAnime = { navigator.push(AnimeScreen(it.id)) },
                 )
@@ -315,7 +351,7 @@ data class AnimeBrowseSourceScreen(
                     title = stringResource(MR.strings.action_merge_into_library),
                     query = dialog.query,
                     visibleTargets = dialog.visibleTargets,
-                    onDismissRequest = screenModel::dismissDialog,
+                    onDismissRequest = onDismissRequest,
                     onQueryChange = screenModel::updateMergeTargetQuery,
                     onSelectTarget = screenModel::openMergeEditor,
                 )
@@ -328,7 +364,7 @@ data class AnimeBrowseSourceScreen(
                     removedIds = dialog.removedIds,
                     libraryRemovalIds = dialog.libraryRemovalIds,
                     confirmEnabled = dialog.enabled,
-                    onDismissRequest = screenModel::dismissDialog,
+                    onDismissRequest = onDismissRequest,
                     onMove = screenModel::moveMergeEntry,
                     onSelectTarget = screenModel::setMergeTarget,
                     onToggleRemove = screenModel::toggleMergeEntryRemoval,
@@ -338,6 +374,17 @@ data class AnimeBrowseSourceScreen(
             }
             null -> Unit
         }
+
+        presetPendingDeletion
+            ?.takeIf { feedsEnabled }
+            ?.let { presetId -> screenModel.feedPresets().firstOrNull { it.id == presetId } }
+            ?.let { preset ->
+                DeleteBrowsePresetDialog(
+                    presetName = preset.name,
+                    onDismissRequest = { presetPendingDeletion = null },
+                    onConfirm = { screenModel.removePreset(preset.id) },
+                )
+            }
 
         LaunchedEffect(Unit) {
             queryEvent.receiveAsFlow()

@@ -2,9 +2,13 @@ package eu.kanade.tachiyomi.ui.anime.browse
 
 import android.app.Application
 import eu.kanade.domain.source.interactor.GetIncognitoState
+import eu.kanade.domain.source.model.FeedListingMode
+import eu.kanade.domain.source.model.snapshot
+import eu.kanade.domain.source.service.BrowseFeedService
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.source.AnimeCatalogueSource
 import eu.kanade.tachiyomi.source.model.AnimesPage
+import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.SAnime
 import eu.kanade.tachiyomi.source.model.SEpisode
@@ -27,6 +31,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.serialization.json.Json
+import mihon.core.common.CustomPreferences
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -76,6 +81,85 @@ class AnimeBrowseSourceScreenModelTest {
         createdModels.clear()
         dispatcher.scheduler.advanceUntilIdle()
         Dispatchers.resetMain()
+    }
+
+    @Test
+    fun `edited filters from popular save as search preset without sentinel query`() {
+        val (filters, textFilter) = testFilters()
+        textFilter.state = "romance"
+
+        val saved = AnimeBrowseSourceScreenModel.State(
+            listing = AnimeBrowseSourceScreenModel.Listing.Popular,
+            filters = filters,
+        ).toSavedPresetState(defaultFilters = testFilters().first)
+
+        saved.listingMode shouldBe FeedListingMode.Search
+        saved.query shouldBe null
+        saved.filters shouldBe filters.snapshot()
+    }
+
+    @Test
+    fun `search listing initializes with saved filter snapshot`() {
+        val (savedFilters, savedTextFilter) = testFilters()
+        savedTextFilter.state = "romance"
+        val snapshot = savedFilters.snapshot()
+
+        val initialized = AnimeBrowseSourceScreenModel.State(
+            listing = AnimeBrowseSourceScreenModel.Listing.Search(
+                query = null,
+                filters = FilterList(),
+            ),
+        ).initializeForSource(
+            sourceFilters = testFilters().first,
+            initialFilterSnapshot = snapshot,
+        )
+
+        initialized.filters.snapshot() shouldBe snapshot
+        (initialized.listing as AnimeBrowseSourceScreenModel.Listing.Search).query shouldBe null
+        initialized.listing.filters.snapshot() shouldBe snapshot
+    }
+
+    @Test
+    fun `save preset persists and apply restores anime filters`() = runTest(dispatcher) {
+        val anime = anime(id = 50L, favorite = false)
+        val sourcePreferences = SourcePreferences(InMemoryPreferenceStore(), testJson)
+        val customPreferences = CustomPreferences(InMemoryPreferenceStore())
+        val browseFeedService = BrowseFeedService(sourcePreferences)
+        val (filters, textFilter) = testFilters()
+        val source = FakeAnimeCatalogueSource(anime.source, filters)
+
+        val model = createModel(
+            anime = anime,
+            sourcePreferences = sourcePreferences,
+            customPreferences = customPreferences,
+            browseFeedService = browseFeedService,
+            animeSourceManager = FakeAnimeSourceManager(source),
+        )
+
+        textFilter.state = "frieren"
+        model.setFilters(filters)
+        model.search(query = "hero", filters = filters)
+        model.showSavePresetDialog()
+        model.savePreset(name = "Saved", chronological = true)
+
+        eventually(2.seconds) {
+            browseFeedService.stateSnapshot().presets.single().name shouldBe "Saved"
+            browseFeedService.stateSnapshot().presets.single().kind shouldBe
+                eu.kanade.domain.source.model.SourceFeedKind.ANIME
+            (model.state.value.listing as AnimeBrowseSourceScreenModel.Listing.Search).query shouldBe "hero"
+            model.state.value.appliedCustomPresetId shouldBe browseFeedService.stateSnapshot().presets.single().id
+        }
+
+        val preset = browseFeedService.stateSnapshot().presets.single()
+        model.resetFilters()
+        model.setListing(AnimeBrowseSourceScreenModel.Listing.Popular)
+        model.applyPreset(preset.id)
+
+        eventually(2.seconds) {
+            val listing = model.state.value.listing as AnimeBrowseSourceScreenModel.Listing.Search
+            listing.query shouldBe "hero"
+            model.state.value.filters.snapshot() shouldBe preset.filters
+        }
     }
 
     @Test
@@ -342,6 +426,10 @@ class AnimeBrowseSourceScreenModelTest {
         anime: AnimeTitle,
         animeRepository: FakeAnimeRepository = FakeAnimeRepository(listOf(anime)),
         categoryRepository: FakeCategoryRepository = FakeCategoryRepository(),
+        sourcePreferences: SourcePreferences = SourcePreferences(InMemoryPreferenceStore(), testJson),
+        customPreferences: CustomPreferences = CustomPreferences(InMemoryPreferenceStore()),
+        browseFeedService: BrowseFeedService = BrowseFeedService(sourcePreferences),
+        animeSourceManager: AnimeSourceManager = FakeAnimeSourceManager(FakeAnimeCatalogueSource(anime.source)),
         libraryPreferences: LibraryPreferences = LibraryPreferences(InMemoryPreferenceStore()),
         getDuplicateLibraryAnime: GetDuplicateLibraryAnime = GetDuplicateLibraryAnime(
             animeRepository = animeRepository,
@@ -359,8 +447,10 @@ class AnimeBrowseSourceScreenModelTest {
         return AnimeBrowseSourceScreenModel(
             sourceId = anime.source,
             listingQuery = null,
-            animeSourceManager = FakeAnimeSourceManager(anime.source),
+            animeSourceManager = animeSourceManager,
             sourcePreferences = sourcePreferences,
+            customPreferences = customPreferences,
+            browseFeedService = browseFeedService,
             libraryPreferences = libraryPreferences,
             getRemoteAnime = GetRemoteAnime(FakeAnimeSourceRepository()),
             getAnime = GetAnime(animeRepository),
@@ -452,16 +542,17 @@ class AnimeBrowseSourceScreenModelTest {
     }
 
     private class FakeAnimeSourceManager(
-        private val sourceId: Long,
+        private val source: AnimeCatalogueSource,
     ) : AnimeSourceManager {
         override val isInitialized = MutableStateFlow(true)
-        override val catalogueSources = flowOf(listOf(FakeAnimeCatalogueSource(sourceId)))
-        override fun get(sourceKey: Long) = FakeAnimeCatalogueSource(sourceKey)
-        override fun getCatalogueSources(): List<AnimeCatalogueSource> = listOf(FakeAnimeCatalogueSource(sourceId))
+        override val catalogueSources = flowOf(listOf(source))
+        override fun get(sourceKey: Long) = source.takeIf { it.id == sourceKey }
+        override fun getCatalogueSources(): List<AnimeCatalogueSource> = listOf(source)
     }
 
     private class FakeAnimeCatalogueSource(
         override val id: Long,
+        private val filters: FilterList = FilterList(),
     ) : AnimeCatalogueSource {
         override val name: String = "Fake Anime Source"
         override val lang: String = "en"
@@ -473,7 +564,7 @@ class AnimeBrowseSourceScreenModelTest {
             filters: FilterList,
         ): AnimesPage = AnimesPage(emptyList(), false)
         override suspend fun getLatestUpdates(page: Int): AnimesPage = AnimesPage(emptyList(), false)
-        override fun getFilterList(): FilterList = FilterList()
+        override fun getFilterList(): FilterList = filters
         override suspend fun getAnimeDetails(anime: SAnime): SAnime = anime
         override suspend fun getEpisodeList(anime: SAnime): List<SEpisode> = emptyList()
         override suspend fun getPlaybackData(
@@ -558,3 +649,10 @@ class AnimeBrowseSourceScreenModelTest {
         }
     }
 }
+
+private fun testFilters(): Pair<FilterList, TestTextFilter> {
+    val text = TestTextFilter()
+    return FilterList(text) to text
+}
+
+private class TestTextFilter : Filter.Text("Genre")

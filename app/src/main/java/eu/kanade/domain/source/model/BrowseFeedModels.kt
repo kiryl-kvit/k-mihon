@@ -10,8 +10,18 @@ const val BUILTIN_POPULAR_PRESET_ID = "builtin:popular"
 const val BUILTIN_LATEST_PRESET_ID = "builtin:latest"
 
 @Serializable
+enum class SourceFeedKind {
+    @SerialName("manga")
+    MANGA,
+
+    @SerialName("anime")
+    ANIME,
+}
+
+@Serializable
 data class SourceFeedPreset(
     val id: String,
+    val kind: SourceFeedKind = SourceFeedKind.MANGA,
     val sourceId: Long,
     val name: String,
     val listingMode: FeedListingMode,
@@ -23,14 +33,16 @@ data class SourceFeedPreset(
 @Serializable
 data class SourceFeed(
     val id: String,
+    val kind: SourceFeedKind = SourceFeedKind.MANGA,
     val sourceId: Long,
     val presetId: String,
     val enabled: Boolean = true,
 )
 
-fun popularFeedPreset(sourceId: Long, name: String): SourceFeedPreset {
+fun popularFeedPreset(sourceId: Long, name: String, kind: SourceFeedKind = SourceFeedKind.MANGA): SourceFeedPreset {
     return SourceFeedPreset(
         id = BUILTIN_POPULAR_PRESET_ID,
+        kind = kind,
         sourceId = sourceId,
         name = name,
         listingMode = FeedListingMode.Popular,
@@ -38,9 +50,10 @@ fun popularFeedPreset(sourceId: Long, name: String): SourceFeedPreset {
     )
 }
 
-fun latestFeedPreset(sourceId: Long, name: String): SourceFeedPreset {
+fun latestFeedPreset(sourceId: Long, name: String, kind: SourceFeedKind = SourceFeedKind.MANGA): SourceFeedPreset {
     return SourceFeedPreset(
         id = BUILTIN_LATEST_PRESET_ID,
+        kind = kind,
         sourceId = sourceId,
         name = name,
         listingMode = FeedListingMode.Latest,

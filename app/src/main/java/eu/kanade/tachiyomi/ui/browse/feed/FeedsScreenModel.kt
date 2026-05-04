@@ -3,14 +3,17 @@ package eu.kanade.tachiyomi.ui.browse.feed
 import androidx.compose.runtime.Immutable
 import cafe.adriel.voyager.core.model.StateScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
+import eu.kanade.domain.source.interactor.GetEnabledAnimeSources
 import eu.kanade.domain.source.interactor.GetEnabledSources
 import eu.kanade.domain.source.model.BUILTIN_LATEST_PRESET_ID
 import eu.kanade.domain.source.model.BUILTIN_POPULAR_PRESET_ID
 import eu.kanade.domain.source.model.SourceFeed
+import eu.kanade.domain.source.model.SourceFeedKind
 import eu.kanade.domain.source.model.SourceFeedPreset
 import eu.kanade.domain.source.model.latestFeedPreset
 import eu.kanade.domain.source.model.popularFeedPreset
 import eu.kanade.domain.source.service.BrowseFeedService
+import eu.kanade.tachiyomi.ui.browse.source.SourceCatalogKind
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -29,8 +32,10 @@ import uy.kohesive.injekt.api.get
 import java.util.UUID
 
 class FeedsScreenModel(
+    private val kind: SourceCatalogKind = SourceCatalogKind.MANGA,
     private val browseFeedService: BrowseFeedService = Injekt.get(),
     private val getEnabledSources: GetEnabledSources = Injekt.get(),
+    private val getEnabledAnimeSources: GetEnabledAnimeSources = Injekt.get(),
     private val sourceManager: SourceManager = Injekt.get(),
     private val activeProfileProvider: ActiveProfileProvider = Injekt.get(),
 ) : StateScreenModel<FeedsScreenModel.State>(State()) {
@@ -39,9 +44,15 @@ class FeedsScreenModel(
         screenModelScope.launchIO {
             observeProfileAwareFeedState(
                 activeProfileIdFlow = activeProfileProvider.activeProfileIdFlow,
-                enabledSources = { getEnabledSources.subscribe() },
+                enabledSources = {
+                    when (kind) {
+                        SourceCatalogKind.MANGA -> getEnabledSources.subscribe()
+                        SourceCatalogKind.ANIME -> getEnabledAnimeSources.subscribe()
+                    }
+                },
                 browseState = { browseFeedService.state() },
                 sourcesLoaded = sourceManager.isInitialized,
+                kind = kind.feedKind,
             ).collectLatest { observedState ->
                 mutableState.update { state ->
                     val nextState = state.copy(
@@ -110,6 +121,7 @@ class FeedsScreenModel(
         browseFeedService.createFeed(
             SourceFeed(
                 id = UUID.randomUUID().toString(),
+                kind = kind.feedKind,
                 sourceId = sourceId,
                 presetId = presetId,
                 enabled = true,
@@ -127,15 +139,19 @@ class FeedsScreenModel(
         browseFeedService.removeFeed(feedId)
     }
 
-    fun reorderFeed(fromIndex: Int, toIndex: Int) {
+    fun reorderFeed(fromFeedId: String, toFeedId: String) {
+        val allFeeds = browseFeedService.stateSnapshot().feeds
+        val fromIndex = allFeeds.indexOfFirst { it.id == fromFeedId }
+        val toIndex = allFeeds.indexOfFirst { it.id == toFeedId }
+        if (fromIndex == -1 || toIndex == -1) return
         browseFeedService.reorderFeed(fromIndex, toIndex)
     }
 
     fun presetsFor(source: Source): List<SourceFeedPreset> {
         val builtin = buildList {
-            add(popularFeedPreset(source.id, "Popular"))
+            add(popularFeedPreset(source.id, "Popular", kind.feedKind))
             if (source.supportsLatest) {
-                add(latestFeedPreset(source.id, "Latest"))
+                add(latestFeedPreset(source.id, "Latest", kind.feedKind))
             }
         }
         val custom = state.value.presets.filter { it.sourceId == source.id }
@@ -151,11 +167,11 @@ class FeedsScreenModel(
     fun presetFor(feed: SourceFeed): SourceFeedPreset? {
         val source = state.value.sources.firstOrNull { it.id == feed.sourceId } ?: return null
         return when (feed.presetId) {
-            BUILTIN_POPULAR_PRESET_ID -> popularFeedPreset(source.id, "Popular")
+            BUILTIN_POPULAR_PRESET_ID -> popularFeedPreset(source.id, "Popular", kind.feedKind)
             BUILTIN_LATEST_PRESET_ID ->
                 source
                     .takeIf(Source::supportsLatest)
-                    ?.let { latestFeedPreset(it.id, "Latest") }
+                    ?.let { latestFeedPreset(it.id, "Latest", kind.feedKind) }
 
             else -> state.value.presets.firstOrNull {
                 it.id == feed.presetId && it.sourceId == source.id
@@ -224,6 +240,7 @@ internal fun observeProfileAwareFeedState(
     enabledSources: (Long) -> Flow<List<Source>>,
     browseState: (Long) -> Flow<BrowseFeedService.State>,
     sourcesLoaded: Flow<Boolean>,
+    kind: SourceFeedKind = SourceFeedKind.MANGA,
 ): Flow<FeedsScreenModel.State> {
     return activeProfileIdFlow
         .distinctUntilChanged()
@@ -242,11 +259,17 @@ internal fun observeProfileAwareFeedState(
                         }
                         .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
                         .toImmutableList(),
-                    presets = browseState.presets.toImmutableList(),
-                    feeds = browseState.feeds.toImmutableList(),
+                    presets = browseState.presets.filter { it.kind == kind }.toImmutableList(),
+                    feeds = browseState.feeds.filter { it.kind == kind }.toImmutableList(),
                     sourcesLoaded = sourcesLoaded,
                     selectedFeedId = browseState.selectedFeedId,
                 )
             }
         }
 }
+
+private val SourceCatalogKind.feedKind: SourceFeedKind
+    get() = when (this) {
+        SourceCatalogKind.MANGA -> SourceFeedKind.MANGA
+        SourceCatalogKind.ANIME -> SourceFeedKind.ANIME
+    }

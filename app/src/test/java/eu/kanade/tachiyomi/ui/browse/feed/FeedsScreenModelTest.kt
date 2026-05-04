@@ -4,6 +4,7 @@ import eu.kanade.domain.source.model.BUILTIN_LATEST_PRESET_ID
 import eu.kanade.domain.source.model.BUILTIN_POPULAR_PRESET_ID
 import eu.kanade.domain.source.model.FeedListingMode
 import eu.kanade.domain.source.model.SourceFeed
+import eu.kanade.domain.source.model.SourceFeedKind
 import eu.kanade.domain.source.model.SourceFeedPreset
 import eu.kanade.domain.source.service.BrowseFeedService
 import io.kotest.matchers.shouldBe
@@ -182,6 +183,74 @@ class FeedsScreenModelTest {
         advanceUntilIdle()
 
         states.last().selectedFeedId shouldBe "feed-2"
+
+        job.cancel()
+    }
+
+    @Test
+    fun `anime feed state ignores manga feeds and presets with matching source id`() = runTest {
+        val activeProfileIdFlow = MutableStateFlow(1L)
+        val sourcesLoaded = MutableStateFlow(true)
+        val sourcesByProfile = mapOf(
+            1L to MutableSharedFlow<List<Source>>(replay = 1),
+        )
+        val browseStateByProfile = mapOf(
+            1L to MutableSharedFlow<BrowseFeedService.State>(replay = 1),
+        )
+        val states = mutableListOf<FeedsScreenModel.State>()
+
+        val job = launch {
+            observeProfileAwareFeedState(
+                activeProfileIdFlow = activeProfileIdFlow,
+                enabledSources = { sourcesByProfile.getValue(it) },
+                browseState = { browseStateByProfile.getValue(it) },
+                sourcesLoaded = sourcesLoaded,
+                kind = SourceFeedKind.ANIME,
+            ).toList(states)
+        }
+
+        sourcesByProfile.getValue(1L).emit(
+            listOf(Source(id = 1L, lang = "en", name = "Anime Source", supportsLatest = true, isStub = false)),
+        )
+        browseStateByProfile.getValue(1L).emit(
+            BrowseFeedService.State(
+                presets = listOf(
+                    SourceFeedPreset(
+                        id = "manga-preset",
+                        kind = SourceFeedKind.MANGA,
+                        sourceId = 1L,
+                        name = "Manga",
+                        listingMode = FeedListingMode.Search,
+                    ),
+                    SourceFeedPreset(
+                        id = "anime-preset",
+                        kind = SourceFeedKind.ANIME,
+                        sourceId = 1L,
+                        name = "Anime",
+                        listingMode = FeedListingMode.Search,
+                    ),
+                ),
+                feeds = listOf(
+                    SourceFeed(
+                        id = "manga-feed",
+                        kind = SourceFeedKind.MANGA,
+                        sourceId = 1L,
+                        presetId = BUILTIN_POPULAR_PRESET_ID,
+                    ),
+                    SourceFeed(
+                        id = "anime-feed",
+                        kind = SourceFeedKind.ANIME,
+                        sourceId = 1L,
+                        presetId = BUILTIN_POPULAR_PRESET_ID,
+                    ),
+                ),
+                selectedFeedId = "anime-feed",
+            ),
+        )
+        advanceUntilIdle()
+
+        states.last().feeds.map(SourceFeed::id) shouldBe listOf("anime-feed")
+        states.last().presets.map(SourceFeedPreset::id) shouldBe listOf("anime-preset")
 
         job.cancel()
     }
