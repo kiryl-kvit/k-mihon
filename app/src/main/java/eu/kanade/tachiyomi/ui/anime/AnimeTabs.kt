@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -28,12 +29,17 @@ import eu.kanade.presentation.util.Tab
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.ui.anime.browse.extension.AnimeExtensionsScreenModel
 import eu.kanade.tachiyomi.ui.anime.browse.extension.animeExtensionsTab
+import eu.kanade.tachiyomi.ui.browse.feed.animeFeedsTab
 import eu.kanade.tachiyomi.ui.browse.source.SourceCatalogKind
 import eu.kanade.tachiyomi.ui.browse.source.sourcesTab
 import eu.kanade.tachiyomi.ui.main.MainActivity
 import kotlinx.collections.immutable.persistentListOf
+import mihon.core.common.CustomPreferences
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
+import tachiyomi.presentation.core.util.collectAsState
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 
 sealed class AnimePlaceholderTab(
     private val index: UShort,
@@ -92,12 +98,22 @@ data object AnimeBrowseTab : Tab {
     @Composable
     override fun Content() {
         val context = LocalContext.current
+        val customPreferences = remember { Injekt.get<CustomPreferences>() }
+        val feedsEnabled by customPreferences.enableFeeds.collectAsState()
         val extensionsScreenModel = rememberScreenModel { AnimeExtensionsScreenModel() }
         val extensionsState by extensionsScreenModel.state.collectAsState()
-        val tabs = persistentListOf(
-            sourcesTab(SourceCatalogKind.ANIME),
-            animeExtensionsTab(extensionsScreenModel),
-        )
+        val tabs = if (feedsEnabled) {
+            persistentListOf(
+                animeFeedsTab(),
+                sourcesTab(SourceCatalogKind.ANIME),
+                animeExtensionsTab(extensionsScreenModel),
+            )
+        } else {
+            persistentListOf(
+                sourcesTab(SourceCatalogKind.ANIME),
+                animeExtensionsTab(extensionsScreenModel),
+            )
+        }
         val state = rememberPagerState { tabs.size }
 
         TabbedScreen(

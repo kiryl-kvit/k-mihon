@@ -15,7 +15,18 @@ import androidx.paging.map
 import cafe.adriel.voyager.core.model.StateScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import eu.kanade.core.preference.asState
+import eu.kanade.domain.source.model.BUILTIN_LATEST_PRESET_ID
+import eu.kanade.domain.source.model.BUILTIN_POPULAR_PRESET_ID
+import eu.kanade.domain.source.model.FeedListingMode
+import eu.kanade.domain.source.model.FilterStateNode
+import eu.kanade.domain.source.model.SourceFeedKind
+import eu.kanade.domain.source.model.SourceFeedPreset
+import eu.kanade.domain.source.model.applySnapshot
+import eu.kanade.domain.source.model.latestFeedPreset
+import eu.kanade.domain.source.model.popularFeedPreset
+import eu.kanade.domain.source.model.snapshot
 import eu.kanade.domain.source.interactor.GetIncognitoState
+import eu.kanade.domain.source.service.BrowseFeedService
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.presentation.anime.AnimeMergeTarget
 import eu.kanade.presentation.anime.buildAnimeMergeTargets
@@ -37,6 +48,7 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import mihon.core.common.CustomPreferences
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.preference.CheckboxState
 import tachiyomi.core.common.preference.mapAsCheckboxState
@@ -64,12 +76,16 @@ import tachiyomi.i18n.MR
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.time.Instant
+import java.util.UUID
 
 class AnimeBrowseSourceScreenModel(
     private val sourceId: Long,
     listingQuery: String?,
+    private val initialFilterSnapshot: List<FilterStateNode> = emptyList(),
     private val animeSourceManager: AnimeSourceManager = Injekt.get(),
     sourcePreferences: SourcePreferences = Injekt.get(),
+    customPreferences: CustomPreferences = Injekt.get(),
+    private val browseFeedService: BrowseFeedService = Injekt.get(),
     private val libraryPreferences: LibraryPreferences = Injekt.get(),
     private val getRemoteAnime: GetRemoteAnime = Injekt.get(),
     private val getAnime: GetAnime = Injekt.get(),
@@ -88,6 +104,7 @@ class AnimeBrowseSourceScreenModel(
 ) : StateScreenModel<AnimeBrowseSourceScreenModel.State>(State(Listing.valueOf(listingQuery))) {
 
     var displayMode by sourcePreferences.sourceDisplayMode.asState(screenModelScope)
+    var feedsEnabled by customPreferences.enableFeeds.asState(screenModelScope)
 
     val source = animeSourceManager.get(sourceId) as? AnimeCatalogueSource
 
@@ -202,13 +219,10 @@ class AnimeBrowseSourceScreenModel(
             animeSource.resolveFilterList()
         }.onSuccess { filters ->
             mutableState.update { currentState ->
-                val updatedListing = when (val listing = currentState.listing) {
-                    is Listing.Search -> listing.copy(filters = filters)
-                    else -> listing
-                }
-                currentState.copy(
-                    filters = filters,
-                    listing = updatedListing,
+                currentState.initializeForSource(
+                    sourceFilters = filters,
+                    initialFilterSnapshot = initialFilterSnapshot,
+                ).copy(
                     filterState = BrowseFilterUiState.Ready,
                     isWaitingForInitialFilterLoad = false,
                 )
@@ -432,11 +446,223 @@ class AnimeBrowseSourceScreenModel(
             .orEmpty()
     }
 
+    fun showSavePresetDialog() {
+        if (!feedsEnabled) return
+        setDialog(
+            Dialog.SavePreset(
+                mode = Dialog.SavePreset.Mode.Create,
+                name = "",
+                chronological = state.value.listing != Listing.Popular,
+            ),
+        )
+    }
+
+    fun showUpdateCurrentPresetDialog() {
+        if (!feedsEnabled) return
+
+        val preset = appliedCustomPreset() ?: return
+        setDialog(
+            Dialog.SavePreset(
+                mode = Dialog.SavePreset.Mode.UpdateFromCurrentState,
+                presetId = preset.id,
+                name = preset.name,
+                chronological = preset.chronological,
+            ),
+        )
+    }
+
+    fun showEditPresetDialog(presetId: String) {
+        if (!feedsEnabled) return
+
+        val preset = customPreset(presetId) ?: return
+        setDialog(
+            Dialog.SavePreset(
+                mode = Dialog.SavePreset.Mode.EditMetadata,
+                presetId = preset.id,
+                name = preset.name,
+                chronological = preset.chronological,
+            ),
+        )
+    }
+
+    fun appliedCustomPreset(): SourceFeedPreset? {
+        if (!feedsEnabled) return null
+        return customPreset(state.value.appliedCustomPresetId)
+    }
+
+    fun feedPresets(): List<SourceFeedPreset> {
+        if (!feedsEnabled) return emptyList()
+
+        val custom = browseFeedService.stateSnapshot().presets
+            .filter { it.sourceId == sourceId && it.kind == SourceFeedKind.ANIME }
+            .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
+
+        val animeSource = source ?: return custom
+        return buildList {
+            add(popularFeedPreset(sourceId, "Popular", SourceFeedKind.ANIME))
+            if (animeSource.supportsLatest) {
+                add(latestFeedPreset(sourceId, "Latest", SourceFeedKind.ANIME))
+            }
+            addAll(custom)
+        }
+    }
+
+    fun applyPreset(presetId: String) {
+        if (!feedsEnabled) return
+        if (source == null) return
+
+        val preset = feedPresets().firstOrNull { it.id == presetId } ?: return
+        when (preset.listingMode) {
+            FeedListingMode.Popular -> {
+                resetFilters()
+                setListing(Listing.Popular)
+            }
+            FeedListingMode.Latest -> {
+                resetFilters()
+                setListing(Listing.Latest)
+            }
+            FeedListingMode.Search -> {
+                screenModelScope.launchIO {
+                    val filters = freshResolvedFilters()?.applySnapshot(preset.filters) ?: return@launchIO
+                    mutableState.update {
+                        it.copy(
+                            filters = filters,
+                            listing = Listing.Search(query = preset.query, filters = filters),
+                            toolbarQuery = preset.query,
+                            appliedCustomPresetId = preset.id.takeIf(::canDeletePreset),
+                            filterState = BrowseFilterUiState.Ready,
+                        )
+                    }
+                }
+                return
+            }
+        }
+
+        mutableState.update {
+            it.copy(appliedCustomPresetId = preset.id.takeIf(::canDeletePreset))
+        }
+    }
+
+    fun canDeletePreset(presetId: String): Boolean {
+        return presetId != BUILTIN_POPULAR_PRESET_ID && presetId != BUILTIN_LATEST_PRESET_ID
+    }
+
+    fun removePreset(presetId: String) {
+        if (!feedsEnabled) return
+        if (!canDeletePreset(presetId)) return
+
+        browseFeedService.removePreset(presetId)
+        mutableState.update {
+            if (it.appliedCustomPresetId == presetId) {
+                it.copy(appliedCustomPresetId = null)
+            } else {
+                it
+            }
+        }
+    }
+
+    fun hasPresetName(name: String, excludingPresetId: String? = null): Boolean {
+        if (!feedsEnabled) return false
+
+        val trimmed = name.trim()
+        return browseFeedService.stateSnapshot().presets.any {
+            it.sourceId == sourceId &&
+                it.kind == SourceFeedKind.ANIME &&
+                it.id != excludingPresetId &&
+                it.name.equals(trimmed, ignoreCase = true)
+        }
+    }
+
+    fun savePreset(name: String, chronological: Boolean) {
+        if (!feedsEnabled) return
+
+        val trimmed = name.trim()
+        if (trimmed.isBlank()) return
+
+        val dialog = state.value.dialog as? Dialog.SavePreset ?: return
+        when (dialog.mode) {
+            Dialog.SavePreset.Mode.Create -> {
+                if (source == null) return
+
+                screenModelScope.launchIO {
+                    val defaultFilters = freshResolvedFilters() ?: return@launchIO
+                    val presetState = state.value.toSavedPresetState(defaultFilters)
+                    val preset = SourceFeedPreset(
+                        id = UUID.randomUUID().toString(),
+                        kind = SourceFeedKind.ANIME,
+                        sourceId = sourceId,
+                        name = trimmed,
+                        listingMode = presetState.listingMode,
+                        chronological = chronological,
+                        query = presetState.query,
+                        filters = presetState.filters,
+                    )
+                    browseFeedService.savePreset(preset)
+                    mutableState.update {
+                        it.copy(
+                            appliedCustomPresetId = preset.id,
+                            dialog = null,
+                            filterState = BrowseFilterUiState.Ready,
+                        )
+                    }
+                }
+                return
+            }
+            Dialog.SavePreset.Mode.EditMetadata -> {
+                val preset = customPreset(dialog.presetId) ?: return
+                browseFeedService.savePreset(
+                    preset.copy(
+                        name = trimmed,
+                        chronological = chronological,
+                    ),
+                )
+                setDialog(null)
+            }
+            Dialog.SavePreset.Mode.UpdateFromCurrentState -> {
+                if (source == null) return
+
+                val preset = customPreset(dialog.presetId) ?: return
+                screenModelScope.launchIO {
+                    val defaultFilters = freshResolvedFilters() ?: return@launchIO
+                    val presetState = state.value.toSavedPresetState(defaultFilters)
+                    browseFeedService.savePreset(
+                        preset.copy(
+                            name = trimmed,
+                            chronological = chronological,
+                            listingMode = presetState.listingMode,
+                            query = presetState.query,
+                            filters = presetState.filters,
+                        ),
+                    )
+                    mutableState.update {
+                        it.copy(
+                            appliedCustomPresetId = preset.id,
+                            dialog = null,
+                            filterState = BrowseFilterUiState.Ready,
+                        )
+                    }
+                }
+                return
+            }
+        }
+    }
+
     private suspend fun showLibraryActionChooserOrHandle(anime: AnimeTitle) {
         if (animeRepository.getFavorites().isEmpty()) {
             handleAnimeLibraryAction(anime)
         } else {
             setDialog(Dialog.LibraryActionChooser(anime))
+        }
+    }
+
+    private suspend fun freshResolvedFilters(): FilterList? {
+        return source?.resolveFilterList()
+    }
+
+    private fun customPreset(presetId: String?): SourceFeedPreset? {
+        val targetPresetId = presetId ?: return null
+        return browseFeedService.stateSnapshot().presets.firstOrNull {
+            it.id == targetPresetId && it.sourceId == sourceId && it.kind == SourceFeedKind.ANIME
         }
     }
 
@@ -590,6 +816,19 @@ class AnimeBrowseSourceScreenModel(
     sealed interface Dialog {
         data object Filter : Dialog
 
+        data class SavePreset(
+            val mode: Mode,
+            val presetId: String? = null,
+            val name: String = "",
+            val chronological: Boolean,
+        ) : Dialog {
+            enum class Mode {
+                Create,
+                EditMetadata,
+                UpdateFromCurrentState,
+            }
+        }
+
         data class LibraryActionChooser(val anime: AnimeTitle) : Dialog
 
         data class RemoveAnime(val anime: AnimeTitle) : Dialog
@@ -632,6 +871,7 @@ class AnimeBrowseSourceScreenModel(
         val filterState: BrowseFilterUiState = BrowseFilterUiState.Uninitialized,
         val isWaitingForInitialFilterLoad: Boolean = false,
         val toolbarQuery: String? = null,
+        val appliedCustomPresetId: String? = null,
         val dialog: Dialog? = null,
     ) {
         val isUserQuery get() = listing is Listing.Search && !listing.query.isNullOrEmpty()
@@ -645,4 +885,48 @@ sealed interface BrowseFilterUiState {
     data object Ready : BrowseFilterUiState
     data class Error(val throwable: Throwable) : BrowseFilterUiState
     data object Unavailable : BrowseFilterUiState
+}
+
+internal fun AnimeBrowseSourceScreenModel.State.initializeForSource(
+    sourceFilters: FilterList,
+    initialFilterSnapshot: List<FilterStateNode> = emptyList(),
+): AnimeBrowseSourceScreenModel.State {
+    val filters = sourceFilters.applySnapshot(initialFilterSnapshot)
+    val query = (listing as? AnimeBrowseSourceScreenModel.Listing.Search)?.query
+    val updatedListing = when (listing) {
+        is AnimeBrowseSourceScreenModel.Listing.Search -> AnimeBrowseSourceScreenModel.Listing.Search(query, filters)
+        else -> listing
+    }
+
+    return copy(
+        listing = updatedListing,
+        filters = filters,
+        toolbarQuery = query,
+    )
+}
+
+internal data class AnimeSavedPresetState(
+    val listingMode: FeedListingMode,
+    val query: String?,
+    val filters: List<FilterStateNode>,
+)
+
+internal fun AnimeBrowseSourceScreenModel.State.toSavedPresetState(defaultFilters: FilterList): AnimeSavedPresetState {
+    val filterSnapshot = filters.snapshot()
+    val hasEditedFilters = filterSnapshot != defaultFilters.snapshot()
+    val listingMode = when {
+        listing is AnimeBrowseSourceScreenModel.Listing.Search || hasEditedFilters -> FeedListingMode.Search
+        listing == AnimeBrowseSourceScreenModel.Listing.Popular -> FeedListingMode.Popular
+        else -> FeedListingMode.Latest
+    }
+    val query = (listing as? AnimeBrowseSourceScreenModel.Listing.Search)
+        ?.query
+        ?.trim()
+        ?.takeIf { listingMode == FeedListingMode.Search && it.isNotEmpty() }
+
+    return AnimeSavedPresetState(
+        listingMode = listingMode,
+        query = query,
+        filters = filterSnapshot,
+    )
 }

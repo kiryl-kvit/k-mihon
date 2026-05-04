@@ -25,6 +25,7 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.DragHandle
 import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.NewReleases
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.FilterChipDefaults
@@ -48,10 +49,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.paging.LoadState
@@ -66,64 +65,59 @@ import eu.kanade.domain.source.model.SourceFeed
 import eu.kanade.domain.source.model.SourceFeedPreset
 import eu.kanade.domain.source.model.applySnapshot
 import eu.kanade.domain.source.model.snapshot
-import eu.kanade.domain.source.model.toListing
-import eu.kanade.presentation.browse.BrowseSourceContent
+import eu.kanade.presentation.anime.AnimeBrowseSourceContent
+import eu.kanade.presentation.anime.AnimeMergeTargetPickerDialog
+import eu.kanade.presentation.anime.DuplicateAnimeDialog
 import eu.kanade.presentation.browse.components.BaseSourceItem
 import eu.kanade.presentation.browse.components.BrowseLibraryActionDialog
-import eu.kanade.presentation.browse.components.BrowseMangaPreviewSheet
 import eu.kanade.presentation.browse.components.BrowseMergeEditorDialog
-import eu.kanade.presentation.browse.components.MergeTargetPickerDialog
-import eu.kanade.presentation.browse.components.RemoveMangaDialog
 import eu.kanade.presentation.browse.components.SourceIcon
 import eu.kanade.presentation.category.components.ChangeCategoryDialog
 import eu.kanade.presentation.components.AdaptiveSheet
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.TabContent
-import eu.kanade.presentation.manga.DuplicateMangaDialog
 import eu.kanade.presentation.util.animateItemFastScroll
-import eu.kanade.tachiyomi.source.CatalogueSource
-import eu.kanade.tachiyomi.source.online.HttpSource
+import eu.kanade.tachiyomi.source.ConfigurableAnimeSource
 import eu.kanade.tachiyomi.source.resolveFilterList
-import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceScreen
-import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceScreenModel
-import eu.kanade.tachiyomi.ui.browse.source.browse.FilterUiState
+import eu.kanade.tachiyomi.source.online.AnimeHttpSource
+import eu.kanade.tachiyomi.ui.anime.AnimeScreen
+import eu.kanade.tachiyomi.ui.anime.pushSourceAnimeScreen
+import eu.kanade.tachiyomi.ui.anime.browse.BrowseFilterUiState
+import eu.kanade.tachiyomi.ui.anime.browse.AnimeBrowseSourceScreenModel
+import eu.kanade.tachiyomi.ui.anime.browse.AnimeSourcePreferencesScreen
+import eu.kanade.tachiyomi.ui.browse.source.SourceCatalogKind
 import eu.kanade.tachiyomi.ui.category.CategoryScreen
-import eu.kanade.tachiyomi.ui.manga.MangaScreen
-import eu.kanade.tachiyomi.ui.manga.pushSourceMangaScreen
 import eu.kanade.tachiyomi.ui.webview.WebViewScreen
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import mihon.feature.migration.dialog.MigrateMangaDialog
 import mihon.feature.profiles.core.ProfileManager
 import mihon.presentation.core.util.collectAsLazyPagingItems
 import sh.calvin.reorderable.ReorderableCollectionItemScope
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
-import tachiyomi.core.common.Constants
-import tachiyomi.core.common.util.lang.launchIO
-import tachiyomi.domain.manga.interactor.GetMergedManga
-import tachiyomi.domain.manga.model.presentationTitle
-import tachiyomi.domain.source.model.Source
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.ScrollbarLazyColumn
 import tachiyomi.presentation.core.components.material.PullRefresh
+import tachiyomi.presentation.core.components.material.TextButton
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.components.material.topSmallPaddingValues
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.screens.EmptyScreen
 import tachiyomi.presentation.core.screens.LoadingScreen
-import tachiyomi.source.local.LocalSource
+import tachiyomi.domain.source.model.Source
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 @Composable
-fun Screen.feedsTab(): TabContent {
+fun Screen.animeFeedsTab(): TabContent {
     val navigator = LocalNavigator.currentOrThrow
     val profileManager = remember { Injekt.get<ProfileManager>() }
     val activeProfile by profileManager.activeProfile.collectAsState()
-    val screenModel = rememberScreenModel { FeedsScreenModel() }
+    val screenModel = rememberScreenModel(tag = SourceCatalogKind.ANIME.name) {
+        FeedsScreenModel(SourceCatalogKind.ANIME)
+    }
     val state by screenModel.state.collectAsState()
     val singleEnabledFeed = state.enabledFeeds.singleOrNull()
     val singleEnabledFeedSource = singleEnabledFeed?.let { screenModel.sourceFor(it.sourceId) }
@@ -133,7 +127,7 @@ fun Screen.feedsTab(): TabContent {
         titleRes = MR.strings.browse_feeds,
         tabLabel = if (singleEnabledFeedSource != null && singleEnabledFeedPreset != null) {
             {
-                SingleFeedTabLabel(
+                AnimeSingleFeedTabLabel(
                     source = singleEnabledFeedSource,
                     preset = singleEnabledFeedPreset,
                 )
@@ -153,7 +147,7 @@ fun Screen.feedsTab(): TabContent {
             ),
         ),
         content = { contentPadding, snackbarHostState ->
-            FeedsTabContent(
+            AnimeFeedsTabContent(
                 activeProfileId = activeProfile?.id,
                 state = state,
                 screenModel = screenModel,
@@ -166,14 +160,14 @@ fun Screen.feedsTab(): TabContent {
 }
 
 @Composable
-private fun SingleFeedTabLabel(
+private fun AnimeSingleFeedTabLabel(
     source: Source,
     preset: SourceFeedPreset,
 ) {
     Row(
         modifier = Modifier.wrapContentWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
     ) {
         SourceIcon(
             source = source,
@@ -191,7 +185,7 @@ private fun SingleFeedTabLabel(
 }
 
 @Composable
-private fun FeedsTabContent(
+private fun AnimeFeedsTabContent(
     activeProfileId: Long?,
     state: FeedsScreenModel.State,
     screenModel: FeedsScreenModel,
@@ -209,11 +203,10 @@ private fun FeedsTabContent(
     val activePreset = activeFeed?.let(screenModel::presetFor)
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
-    val uriHandler = LocalUriHandler.current
-    val getMergedManga = remember { Injekt.get<GetMergedManga>() }
-    val openSourceManga: (Long) -> Unit = { mangaId ->
+    val getMergedAnime = remember { Injekt.get<tachiyomi.domain.anime.interactor.GetMergedAnime>() }
+    val openSourceAnime: (Long) -> Unit = { animeId ->
         scope.launch {
-            navigator.pushSourceMangaScreen(mangaId, getMergedManga)
+            navigator.pushSourceAnimeScreen(animeId, getMergedAnime)
         }
     }
 
@@ -233,27 +226,24 @@ private fun FeedsTabContent(
         val hasPreviousFeed = activeIndex > 0
         val hasNextFeed = activeIndex in 0 until enabledFeeds.lastIndex
 
-        Column(
-            modifier = Modifier.pointerInput(Unit) {},
-        ) {
+        Column {
             key(activeProfileId, activeFeed.id, presetBehaviorKey) {
-                val browseModel = rememberActiveFeedScreenModel(
+                val browseModel = rememberActiveAnimeFeedScreenModel(
                     activeProfileId = activeProfileId,
                     activeFeedId = activeFeed.id,
                     presetBehaviorKey = presetBehaviorKey,
                     sourceId = activeSource.id,
-                    listingQuery = activePreset.toListing().requestQuery,
+                    listingQuery = SourceCatalogKind.ANIME.requestQuery(activePreset),
                     initialFilterSnapshot = activePreset.filters,
                 )
                 val browseModelState by browseModel.state.collectAsState()
-                val source = browseModel.source as CatalogueSource
                 val chronologicalFeedModel = if (activePreset.chronological) {
-                    rememberChronologicalFeedScreenModel(
+                    rememberAnimeChronologicalFeedScreenModel(
                         activeProfileId = activeProfileId,
                         activeFeedId = activeFeed.id,
                         presetBehaviorKey = presetBehaviorKey,
                         sourceId = activeSource.id,
-                        listingQuery = activePreset.toListing().requestQuery,
+                        listingQuery = SourceCatalogKind.ANIME.requestQuery(activePreset),
                         initialFilterSnapshot = activePreset.filters,
                     )
                 } else {
@@ -269,14 +259,13 @@ private fun FeedsTabContent(
                 LaunchedEffect(activeFeed.id, activePreset.id, presetBehaviorKey) {
                     if (browseModelState.isWaitingForInitialFilterLoad) return@LaunchedEffect
 
-                    val savedListing = activePreset.toListing()
                     val currentFilters = browseModelState.filters.snapshot()
                     val shouldApplyPreset = when (activePreset.listingMode) {
-                        FeedListingMode.Popular -> browseModelState.listing != BrowseSourceScreenModel.Listing.Popular
-                        FeedListingMode.Latest -> browseModelState.listing != BrowseSourceScreenModel.Listing.Latest
+                        FeedListingMode.Popular -> browseModelState.listing != AnimeBrowseSourceScreenModel.Listing.Popular
+                        FeedListingMode.Latest -> browseModelState.listing != AnimeBrowseSourceScreenModel.Listing.Latest
                         FeedListingMode.Search -> {
-                            val listing = browseModelState.listing as? BrowseSourceScreenModel.Listing.Search
-                            listing?.query != activePreset.query || currentFilters != savedListing.filters
+                            val listing = browseModelState.listing as? AnimeBrowseSourceScreenModel.Listing.Search
+                            listing?.query != activePreset.query || currentFilters != activePreset.filters
                         }
                     }
 
@@ -285,13 +274,14 @@ private fun FeedsTabContent(
                     when (activePreset.listingMode) {
                         FeedListingMode.Popular -> {
                             browseModel.resetFilters()
-                            browseModel.setListing(BrowseSourceScreenModel.Listing.Popular)
+                            browseModel.setListing(AnimeBrowseSourceScreenModel.Listing.Popular)
                         }
                         FeedListingMode.Latest -> {
                             browseModel.resetFilters()
-                            browseModel.setListing(BrowseSourceScreenModel.Listing.Latest)
+                            browseModel.setListing(AnimeBrowseSourceScreenModel.Listing.Latest)
                         }
                         FeedListingMode.Search -> {
+                            val source = browseModel.source ?: return@LaunchedEffect
                             val filters = source.resolveFilterList().applySnapshot(activePreset.filters)
                             browseModel.setFilters(filters)
                             browseModel.search(
@@ -307,15 +297,32 @@ private fun FeedsTabContent(
                         .weight(1f)
                         .fillMaxWidth(),
                 ) {
-                    val feedContentPadding = PaddingValues(
-                        bottom = contentPadding.calculateBottomPadding(),
-                    )
-                    FeedBrowseContent(
+                    val feedContentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding())
+                    AnimeFeedBrowseContent(
                         stateHolder = browseContentStateHolder,
                         activeProfileId = activeProfileId,
                         activeFeedId = activeFeed.id,
                         presetBehaviorKey = presetBehaviorKey,
                     ) {
+                        val httpSource = browseModel.source as? AnimeHttpSource
+                        val configurableSource = browseModel.source as? ConfigurableAnimeSource
+                        val onWebViewClick = httpSource?.let {
+                            {
+                                navigator.push(
+                                    WebViewScreen(
+                                        url = it.baseUrl,
+                                        initialTitle = it.name,
+                                        headers = it.headers.toMultimap().mapValues { values ->
+                                            values.value.firstOrNull().orEmpty()
+                                        },
+                                    ),
+                                )
+                            }
+                        }
+                        val onSettingsClick = configurableSource?.let {
+                            { navigator.push(AnimeSourcePreferencesScreen(activeSource.id, activeSource.name)) }
+                        }
+
                         if (chronologicalFeedModel != null) {
                             PullRefresh(
                                 refreshing = chronologicalFeedState?.isRefreshing == true,
@@ -323,43 +330,31 @@ private fun FeedsTabContent(
                                 onRefresh = { chronologicalFeedModel.refresh(manual = true) },
                                 modifier = Modifier.fillMaxSize(),
                             ) {
-                                ChronologicalFeedBrowseContent(
-                                    source = browseModel.source,
+                                AnimeChronologicalFeedBrowseContent(
                                     screenModel = chronologicalFeedModel,
                                     columns = browseModel.getColumnsPreference(LocalConfiguration.current.orientation),
                                     displayMode = browseModel.displayMode,
                                     snackbarHostState = snackbarHostState,
                                     contentPadding = feedContentPadding,
-                                    onWebViewClick = {
-                                        val httpSource =
-                                            browseModel.source as? HttpSource ?: return@ChronologicalFeedBrowseContent
-                                        navigator.push(
-                                            WebViewScreen(
-                                                url = httpSource.baseUrl,
-                                                initialTitle = httpSource.name,
-                                                sourceId = httpSource.id,
-                                            ),
-                                        )
-                                    },
-                                    onHelpClick = { uriHandler.openUri(Constants.URL_HELP) },
-                                    onLocalSourceHelpClick = { uriHandler.openUri(LocalSource.HELP_URL) },
-                                    onMangaClick = { openSourceManga(it.id) },
-                                    onMangaLongClick = { manga ->
-                                        scope.launchIO {
-                                            if (browseModel.onMangaLongClick(manga)) {
+                                    onAnimeClick = { openSourceAnime(it.id) },
+                                    onAnimeLongClick = { anime ->
+                                        scope.launch {
+                                            if (browseModel.onAnimeLongClick(anime)) {
                                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                             }
                                         }
                                     },
+                                    onWebViewClick = onWebViewClick,
+                                    onSettingsClick = onSettingsClick,
                                 )
                             }
                         } else {
-                            val mangaList = browseModel.mangaPagerFlowFlow.collectAsLazyPagingItems()
+                            val animeList = browseModel.animePagerFlow.collectAsLazyPagingItems()
                             val isRefreshing = when {
                                 browseModelState.isWaitingForInitialFilterLoad -> {
-                                    browseModelState.filterState is FilterUiState.Loading
+                                    browseModelState.filterState is BrowseFilterUiState.Loading
                                 }
-                                else -> mangaList.itemCount > 0 && mangaList.loadState.refresh is LoadState.Loading
+                                else -> animeList.itemCount > 0 && animeList.loadState.refresh is LoadState.Loading
                             }
 
                             PullRefresh(
@@ -369,14 +364,14 @@ private fun FeedsTabContent(
                                     if (browseModelState.isWaitingForInitialFilterLoad) {
                                         browseModel.retryFilterLoad()
                                     } else {
-                                        mangaList.refresh()
+                                        animeList.refresh()
                                     }
                                 },
                                 modifier = Modifier.fillMaxSize(),
                             ) {
                                 if (browseModelState.isWaitingForInitialFilterLoad) {
                                     when (val filterState = browseModelState.filterState) {
-                                        is FilterUiState.Error -> {
+                                        is BrowseFilterUiState.Error -> {
                                             EmptyScreen(
                                                 message = filterState.throwable.message
                                                     ?: stringResource(MR.strings.unknown_error),
@@ -386,36 +381,22 @@ private fun FeedsTabContent(
                                         else -> LoadingScreen(Modifier.padding(feedContentPadding))
                                     }
                                 } else {
-                                    BrowseSourceContent(
-                                        source = browseModel.source,
-                                        mangaList = mangaList,
-                                        columns = browseModel.getColumnsPreference(
-                                            LocalConfiguration.current.orientation,
-                                        ),
+                                    AnimeBrowseSourceContent(
+                                        animeList = animeList,
+                                        columns = browseModel.getColumnsPreference(LocalConfiguration.current.orientation),
                                         displayMode = browseModel.displayMode,
                                         snackbarHostState = snackbarHostState,
                                         contentPadding = feedContentPadding,
-                                        onWebViewClick = {
-                                            val httpSource =
-                                                browseModel.source as? HttpSource ?: return@BrowseSourceContent
-                                            navigator.push(
-                                                WebViewScreen(
-                                                    url = httpSource.baseUrl,
-                                                    initialTitle = httpSource.name,
-                                                    sourceId = httpSource.id,
-                                                ),
-                                            )
-                                        },
-                                        onHelpClick = { uriHandler.openUri(Constants.URL_HELP) },
-                                        onLocalSourceHelpClick = { uriHandler.openUri(LocalSource.HELP_URL) },
-                                        onMangaClick = { openSourceManga(it.id) },
-                                        onMangaLongClick = { manga ->
-                                            scope.launchIO {
-                                                if (browseModel.onMangaLongClick(manga)) {
+                                        onAnimeClick = { openSourceAnime(it.id) },
+                                        onAnimeLongClick = { anime ->
+                                            scope.launch {
+                                                if (browseModel.onAnimeLongClick(anime)) {
                                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                                 }
                                             }
                                         },
+                                        onWebViewClick = onWebViewClick,
+                                        onSettingsClick = onSettingsClick,
                                     )
                                 }
                             }
@@ -424,41 +405,45 @@ private fun FeedsTabContent(
                 }
 
                 when (val dialog = browseModelState.dialog) {
-                    is BrowseSourceScreenModel.Dialog.MangaPreview -> {
-                        BrowseMangaPreviewSheet(
-                            mangaId = dialog.mangaId,
-                            previewSize = browseModel.mangaPreviewSizeUi(),
-                            onLibraryAction = browseModel::confirmBrowseLibraryAction,
-                            onMergeAction = browseModel::showMergeTargetPicker,
-                            onOpenManga = openSourceManga,
+                    is AnimeBrowseSourceScreenModel.Dialog.ChangeAnimeCategory -> {
+                        ChangeCategoryDialog(
+                            initialSelection = dialog.initialSelection,
                             onDismissRequest = browseModel::dismissDialog,
-                        )
-                    }
-                    is BrowseSourceScreenModel.Dialog.AddDuplicateManga -> {
-                        DuplicateMangaDialog(
-                            duplicates = dialog.duplicates,
-                            onDismissRequest = browseModel::dismissDialog,
-                            onConfirm = { browseModel.addFavorite(dialog.manga) },
-                            onOpenManga = { navigator.push(MangaScreen(it.id)) },
-                            onMigrate = {
-                                browseModel.setDialog(BrowseSourceScreenModel.Dialog.Migrate(dialog.manga, it))
+                            onEditCategories = { navigator.push(CategoryScreen()) },
+                            onConfirm = { include, _ ->
+                                browseModel.changeAnimeFavorite(dialog.anime)
+                                browseModel.moveAnimeToCategories(dialog.anime, include)
                             },
                         )
                     }
-                    is BrowseSourceScreenModel.Dialog.LibraryActionChooser -> {
+                    is AnimeBrowseSourceScreenModel.Dialog.RemoveAnime -> {
+                        RemoveAnimeDialog(
+                            onDismissRequest = browseModel::dismissDialog,
+                            onConfirm = { browseModel.changeAnimeFavorite(dialog.anime) },
+                        )
+                    }
+                    is AnimeBrowseSourceScreenModel.Dialog.LibraryActionChooser -> {
                         BrowseLibraryActionDialog(
-                            mangaTitle = dialog.manga.presentationTitle(),
-                            favorite = dialog.manga.favorite,
+                            mangaTitle = dialog.anime.displayTitle,
+                            favorite = dialog.anime.favorite,
                             onDismissRequest = browseModel::dismissDialog,
                             onLibraryAction = {
                                 browseModel.dismissDialog()
-                                browseModel.confirmBrowseLibraryAction(dialog.manga)
+                                browseModel.confirmBrowseLibraryAction(dialog.anime)
                             },
-                            onMergeIntoLibrary = { browseModel.showMergeTargetPicker(dialog.manga) },
+                            onMergeIntoLibrary = { browseModel.showMergeTargetPicker(dialog.anime) },
                         )
                     }
-                    is BrowseSourceScreenModel.Dialog.SelectMergeTarget -> {
-                        MergeTargetPickerDialog(
+                    is AnimeBrowseSourceScreenModel.Dialog.DuplicateAnime -> {
+                        DuplicateAnimeDialog(
+                            duplicates = dialog.duplicates,
+                            onDismissRequest = browseModel::dismissDialog,
+                            onConfirm = { browseModel.addFavorite(dialog.anime) },
+                            onOpenAnime = { navigator.push(AnimeScreen(it.id)) },
+                        )
+                    }
+                    is AnimeBrowseSourceScreenModel.Dialog.SelectMergeTarget -> {
+                        AnimeMergeTargetPickerDialog(
                             title = stringResource(MR.strings.action_merge_into_library),
                             query = dialog.query,
                             visibleTargets = dialog.visibleTargets,
@@ -467,7 +452,7 @@ private fun FeedsTabContent(
                             onSelectTarget = browseModel::openMergeEditor,
                         )
                     }
-                    is BrowseSourceScreenModel.Dialog.EditMerge -> {
+                    is AnimeBrowseSourceScreenModel.Dialog.EditMerge -> {
                         BrowseMergeEditorDialog(
                             entries = dialog.entries,
                             targetId = dialog.targetId,
@@ -483,52 +468,20 @@ private fun FeedsTabContent(
                             onConfirm = browseModel::confirmBrowseMerge,
                         )
                     }
-                    is BrowseSourceScreenModel.Dialog.Migrate -> {
-                        with(BrowseSourceScreen(activeSource.id, activePreset.toListing().requestQuery)) {
-                            MigrateMangaDialog(
-                                current = dialog.current,
-                                target = dialog.target,
-                                onClickTitle = { navigator.push(MangaScreen(dialog.current.id)) },
-                                onDismissRequest = browseModel::dismissDialog,
-                            )
-                        }
-                    }
-                    is BrowseSourceScreenModel.Dialog.RemoveManga -> {
-                        RemoveMangaDialog(
-                            onDismissRequest = browseModel::dismissDialog,
-                            onConfirm = { browseModel.changeMangaFavorite(dialog.manga) },
-                            mangaToRemove = dialog.manga,
-                        )
-                    }
-                    is BrowseSourceScreenModel.Dialog.ChangeMangaCategory -> {
-                        ChangeCategoryDialog(
-                            initialSelection = dialog.initialSelection,
-                            onDismissRequest = browseModel::dismissDialog,
-                            onEditCategories = { navigator.push(CategoryScreen()) },
-                            onConfirm = { include, _ ->
-                                browseModel.changeMangaFavorite(dialog.manga)
-                                browseModel.moveMangaToCategories(dialog.manga, include)
-                            },
-                        )
-                    }
                     else -> Unit
                 }
             }
 
             if (enabledFeeds.size > 1) {
-                FeedNavigationBar(
+                AnimeFeedNavigationBar(
                     feeds = enabledFeeds,
                     selectedFeedId = activeFeed.id,
                     chipListState = chipListState,
                     screenModel = screenModel,
                     canGoPrevious = hasPreviousFeed,
                     canGoNext = hasNextFeed,
-                    onPreviousClick = {
-                        enabledFeeds.getOrNull(activeIndex - 1)?.let { screenModel.selectFeed(it.id) }
-                    },
-                    onNextClick = {
-                        enabledFeeds.getOrNull(activeIndex + 1)?.let { screenModel.selectFeed(it.id) }
-                    },
+                    onPreviousClick = { enabledFeeds.getOrNull(activeIndex - 1)?.let { screenModel.selectFeed(it.id) } },
+                    onNextClick = { enabledFeeds.getOrNull(activeIndex + 1)?.let { screenModel.selectFeed(it.id) } },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -537,7 +490,7 @@ private fun FeedsTabContent(
 
     when (val dialog = state.dialog) {
         FeedsScreenModel.Dialog.SelectSource -> {
-            FeedSourcePickerDialog(
+            AnimeFeedSourcePickerDialog(
                 sources = state.sources,
                 onDismissRequest = screenModel::closeDialog,
                 onSelectSource = screenModel::selectSource,
@@ -546,7 +499,7 @@ private fun FeedsTabContent(
         is FeedsScreenModel.Dialog.SelectPreset -> {
             val source = screenModel.sourceFor(dialog.sourceId)
             if (source != null) {
-                FeedPresetPickerDialog(
+                AnimeFeedPresetPickerDialog(
                     source = source,
                     presets = screenModel.presetsFor(source),
                     onDismissRequest = screenModel::closeDialog,
@@ -555,7 +508,7 @@ private fun FeedsTabContent(
             }
         }
         FeedsScreenModel.Dialog.ManageFeeds -> {
-            ManageFeedsDialog(
+            AnimeManageFeedsDialog(
                 state = state,
                 screenModel = screenModel,
                 onDismissRequest = screenModel::closeDialog,
@@ -566,7 +519,38 @@ private fun FeedsTabContent(
 }
 
 @Composable
-private fun FeedBrowseContent(
+private fun RemoveAnimeDialog(
+    onDismissRequest: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text(text = stringResource(MR.strings.action_cancel))
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onDismissRequest()
+                    onConfirm()
+                },
+            ) {
+                Text(text = stringResource(MR.strings.action_remove))
+            }
+        },
+        title = {
+            Text(text = stringResource(MR.strings.action_remove))
+        },
+        text = {
+            Text(text = stringResource(MR.strings.remove_from_library))
+        },
+    )
+}
+
+@Composable
+private fun AnimeFeedBrowseContent(
     stateHolder: androidx.compose.runtime.saveable.SaveableStateHolder,
     activeProfileId: Long?,
     activeFeedId: String,
@@ -574,7 +558,7 @@ private fun FeedBrowseContent(
     content: @Composable () -> Unit,
 ) {
     stateHolder.SaveableStateProvider(
-        key = "feed-content-${activeProfileId ?: "none"}-$activeFeedId-$presetBehaviorKey",
+        key = "anime-feed-content-${activeProfileId ?: "none"}-$activeFeedId-$presetBehaviorKey",
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
             content()
@@ -583,7 +567,74 @@ private fun FeedBrowseContent(
 }
 
 @Composable
-private fun FeedNavigationBar(
+private fun rememberActiveAnimeFeedScreenModel(
+    activeProfileId: Long?,
+    activeFeedId: String,
+    presetBehaviorKey: String,
+    sourceId: Long,
+    listingQuery: String?,
+    initialFilterSnapshot: List<eu.kanade.domain.source.model.FilterStateNode>,
+): AnimeBrowseSourceScreenModel {
+    val profileKey = activeProfileId?.toString() ?: "none"
+    return object : Screen {
+        override val key: ScreenKey = "anime-feed-screen-model-$profileKey-$activeFeedId-$presetBehaviorKey"
+
+        @Composable
+        override fun Content() {
+            error("Not used")
+        }
+    }.rememberScreenModel(tag = "anime:$profileKey:$activeFeedId:$presetBehaviorKey") {
+        AnimeBrowseSourceScreenModel(
+            sourceId = sourceId,
+            listingQuery = listingQuery,
+            initialFilterSnapshot = initialFilterSnapshot,
+        )
+    }
+}
+
+@Composable
+private fun rememberAnimeChronologicalFeedScreenModel(
+    activeProfileId: Long?,
+    activeFeedId: String,
+    presetBehaviorKey: String,
+    sourceId: Long,
+    listingQuery: String?,
+    initialFilterSnapshot: List<eu.kanade.domain.source.model.FilterStateNode>,
+): AnimeChronologicalFeedScreenModel {
+    val profileKey = activeProfileId?.toString() ?: "none"
+    return object : Screen {
+        override val key: ScreenKey = "anime-chronological-feed-screen-model-$profileKey-$activeFeedId-$presetBehaviorKey"
+
+        @Composable
+        override fun Content() {
+            error("Not used")
+        }
+    }.rememberScreenModel(tag = "anime-chronological:$profileKey:$activeFeedId:$presetBehaviorKey") {
+        AnimeChronologicalFeedScreenModel(
+            feedId = activeFeedId,
+            sourceId = sourceId,
+            listingQuery = listingQuery,
+            initialFilterSnapshot = initialFilterSnapshot,
+        )
+    }
+}
+
+private fun SourceFeedPreset.behaviorKey(): String {
+    return buildString {
+        append(sourceId)
+        append(':')
+        append(listingMode.name)
+        append(':')
+        append(chronological)
+        append(':')
+        append(query.orEmpty())
+        append(':')
+        append(filters.hashCode())
+    }
+}
+
+@Composable
+private fun AnimeFeedNavigationBar(
     feeds: List<SourceFeed>,
     selectedFeedId: String,
     chipListState: LazyListState,
@@ -632,8 +683,7 @@ private fun FeedNavigationBar(
                 )
             }
             LazyRow(
-                modifier = Modifier
-                    .weight(1f),
+                modifier = Modifier.weight(1f),
                 state = chipListState,
                 horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
             ) {
@@ -641,7 +691,7 @@ private fun FeedNavigationBar(
                     val feed = feeds[index]
                     val source = screenModel.sourceFor(feed.sourceId) ?: return@items
                     val preset = screenModel.presetFor(feed) ?: return@items
-                    FeedChip(
+                    AnimeFeedChip(
                         source = source,
                         preset = preset,
                         selected = selectedFeedId == feed.id,
@@ -660,7 +710,7 @@ private fun FeedNavigationBar(
 }
 
 @Composable
-private fun FeedChip(
+private fun AnimeFeedChip(
     source: Source,
     preset: SourceFeedPreset,
     selected: Boolean,
@@ -669,16 +719,8 @@ private fun FeedChip(
     AssistChip(
         onClick = onClick,
         colors = AssistChipDefaults.assistChipColors(
-            containerColor = if (selected) {
-                MaterialTheme.colorScheme.secondaryContainer
-            } else {
-                MaterialTheme.colorScheme.surfaceContainerHigh
-            },
-            labelColor = if (selected) {
-                MaterialTheme.colorScheme.onSecondaryContainer
-            } else {
-                MaterialTheme.colorScheme.onSurface
-            },
+            containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+            labelColor = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface,
         ),
         border = null,
         leadingIcon = {
@@ -715,84 +757,14 @@ private fun FeedChip(
 }
 
 @Composable
-private fun rememberActiveFeedScreenModel(
-    activeProfileId: Long?,
-    activeFeedId: String,
-    presetBehaviorKey: String,
-    sourceId: Long,
-    listingQuery: String?,
-    initialFilterSnapshot: List<eu.kanade.domain.source.model.FilterStateNode>,
-): BrowseSourceScreenModel {
-    val profileKey = activeProfileId?.toString() ?: "none"
-    return object : Screen {
-        override val key: ScreenKey = "feed-screen-model-$profileKey-$activeFeedId-$presetBehaviorKey"
-
-        @Composable
-        override fun Content() {
-            error("Not used")
-        }
-    }.rememberScreenModel(tag = "$profileKey:$activeFeedId:$presetBehaviorKey") {
-        BrowseSourceScreenModel(
-            sourceId = sourceId,
-            listingQuery = listingQuery,
-            initialFilterSnapshot = initialFilterSnapshot,
-        )
-    }
-}
-
-@Composable
-private fun rememberChronologicalFeedScreenModel(
-    activeProfileId: Long?,
-    activeFeedId: String,
-    presetBehaviorKey: String,
-    sourceId: Long,
-    listingQuery: String?,
-    initialFilterSnapshot: List<eu.kanade.domain.source.model.FilterStateNode>,
-): ChronologicalFeedScreenModel {
-    val profileKey = activeProfileId?.toString() ?: "none"
-    return object : Screen {
-        override val key: ScreenKey = "chronological-feed-screen-model-$profileKey-$activeFeedId-$presetBehaviorKey"
-
-        @Composable
-        override fun Content() {
-            error("Not used")
-        }
-    }.rememberScreenModel(tag = "chronological:$profileKey:$activeFeedId:$presetBehaviorKey") {
-        ChronologicalFeedScreenModel(
-            feedId = activeFeedId,
-            sourceId = sourceId,
-            listingQuery = listingQuery,
-            initialFilterSnapshot = initialFilterSnapshot,
-        )
-    }
-}
-
-private fun SourceFeedPreset.behaviorKey(): String {
-    return buildString {
-        append(sourceId)
-        append(':')
-        append(listingMode.name)
-        append(':')
-        append(chronological)
-        append(':')
-        append(query.orEmpty())
-        append(':')
-        append(filters.hashCode())
-    }
-}
-
-@Composable
-private fun FeedSourcePickerDialog(
+private fun AnimeFeedSourcePickerDialog(
     sources: List<Source>,
     onDismissRequest: () -> Unit,
     onSelectSource: (Source) -> Unit,
 ) {
     AdaptiveSheet(onDismissRequest = onDismissRequest) {
         ScrollbarLazyColumn(contentPadding = topSmallPaddingValues) {
-            items(
-                items = sources,
-                key = { "feed-source-${it.id}" },
-            ) { source ->
+            items(items = sources, key = { "anime-feed-source-${it.id}" }) { source ->
                 BaseSourceItem(
                     source = source,
                     modifier = Modifier.animateItemFastScroll(),
@@ -804,7 +776,7 @@ private fun FeedSourcePickerDialog(
 }
 
 @Composable
-private fun FeedPresetPickerDialog(
+private fun AnimeFeedPresetPickerDialog(
     source: Source,
     presets: List<SourceFeedPreset>,
     onDismissRequest: () -> Unit,
@@ -821,7 +793,7 @@ private fun FeedPresetPickerDialog(
                 style = MaterialTheme.typography.titleMedium,
             )
             presets.forEach { preset ->
-                FeedPresetItem(
+                AnimeFeedPresetItem(
                     source = source,
                     preset = preset,
                     onClick = { onSelectPreset(preset) },
@@ -832,7 +804,7 @@ private fun FeedPresetPickerDialog(
 }
 
 @Composable
-private fun FeedPresetItem(
+private fun AnimeFeedPresetItem(
     source: Source,
     preset: SourceFeedPreset,
     onClick: () -> Unit,
@@ -842,9 +814,7 @@ private fun FeedPresetItem(
         showLanguageInContent = false,
         onClickItem = onClick,
         content = { _, _ ->
-            Column(
-                modifier = Modifier.weight(1f),
-            ) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = preset.name,
                     modifier = Modifier.padding(horizontal = MaterialTheme.padding.medium),
@@ -855,7 +825,7 @@ private fun FeedPresetItem(
 }
 
 @Composable
-private fun ManageFeedsDialog(
+private fun AnimeManageFeedsDialog(
     state: FeedsScreenModel.State,
     screenModel: FeedsScreenModel,
     onDismissRequest: () -> Unit,
@@ -870,14 +840,11 @@ private fun ManageFeedsDialog(
             state = listState,
             contentPadding = topSmallPaddingValues,
         ) {
-            items(
-                items = state.feeds,
-                key = { it.id },
-            ) { feed ->
+            items(items = state.feeds, key = { it.id }) { feed ->
                 val source = screenModel.sourceFor(feed.sourceId) ?: return@items
                 val preset = screenModel.presetFor(feed) ?: return@items
                 ReorderableItem(reorderableState, feed.id, enabled = state.feeds.size > 1) {
-                    ManageFeedItem(
+                    AnimeManageFeedItem(
                         feed = feed,
                         source = source,
                         preset = preset,
@@ -892,7 +859,7 @@ private fun ManageFeedsDialog(
 }
 
 @Composable
-private fun ReorderableCollectionItemScope.ManageFeedItem(
+private fun ReorderableCollectionItemScope.AnimeManageFeedItem(
     feed: SourceFeed,
     source: Source,
     preset: SourceFeedPreset,

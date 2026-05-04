@@ -2,6 +2,8 @@ package eu.kanade.tachiyomi.ui.browse.source
 
 import cafe.adriel.voyager.core.screen.Screen
 import eu.kanade.domain.source.interactor.SourceListListing
+import eu.kanade.domain.source.model.FeedListingMode
+import eu.kanade.domain.source.model.SourceFeedPreset
 import eu.kanade.tachiyomi.ui.anime.browse.AnimeBrowseSourceScreen
 import eu.kanade.tachiyomi.ui.anime.browse.globalsearch.AnimeGlobalSearchScreen
 import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceScreen
@@ -37,6 +39,21 @@ enum class SourceCatalogKind {
             ANIME -> when (listing) {
                 SourceListListing.Popular -> GetRemoteAnime.QUERY_POPULAR
                 SourceListListing.Latest -> GetRemoteAnime.QUERY_LATEST
+            }
+        }
+    }
+
+    fun requestQuery(preset: SourceFeedPreset): String? {
+        return when (this) {
+            MANGA -> when (preset.listingMode) {
+                FeedListingMode.Popular -> GetRemoteManga.QUERY_POPULAR
+                FeedListingMode.Latest -> GetRemoteManga.QUERY_LATEST
+                FeedListingMode.Search -> preset.query
+            }
+            ANIME -> when (preset.listingMode) {
+                FeedListingMode.Popular -> GetRemoteAnime.QUERY_POPULAR
+                FeedListingMode.Latest -> GetRemoteAnime.QUERY_LATEST
+                FeedListingMode.Search -> preset.query
             }
         }
     }
