@@ -34,6 +34,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import mihon.core.common.CustomPreferences
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -68,7 +69,6 @@ import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.service.DuplicatePreferences
 import tachiyomi.domain.source.service.AnimeSourceManager
 import kotlin.time.Duration.Companion.seconds
-import mihon.core.common.CustomPreferences
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AnimeScreenModelTest {
