@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -56,8 +57,10 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.media3.common.C
 import androidx.media3.common.DeviceInfo
 import androidx.media3.common.ForwardingPlayer
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.text.Cue
 import androidx.media3.common.util.UnstableApi
@@ -83,6 +86,7 @@ import kotlinx.coroutines.launch
 import mihon.core.common.CustomPreferences
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.i18n.MR
+import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import kotlin.math.abs
@@ -112,11 +116,17 @@ private const val HOLD_SPEED_TOP_ZONE_LEFT_FRACTION = 0.1f
 private const val HOLD_SPEED_TOP_ZONE_RIGHT_FRACTION = 0.9f
 private const val HOLD_SPEED_TOP_ZONE_TOP_FRACTION = 0f
 private const val HOLD_SPEED_TOP_ZONE_BOTTOM_FRACTION = 0.2f
+private const val SEEK_PREVIEW_FIRST_DEBOUNCE_MS = 300L
+private const val SEEK_PREVIEW_THROTTLE_MS = 700L
+private const val SEEK_PREVIEW_MIN_DELTA_MS = 3_000L
+private const val SEEK_PREVIEW_MAX_WIDTH = 320
+private const val SEEK_PREVIEW_MAX_HEIGHT = 180
 
 class VideoPlayerActivity : BaseActivity() {
 
     private val viewModel by viewModels<VideoPlayerViewModel>()
     private val networkHelper: NetworkHelper by lazy { Injekt.get() }
+    private val mediaCache: VideoPlayerMediaCache by lazy { Injekt.get() }
     private val customPreferences: CustomPreferences by lazy { Injekt.get() }
     private val audioManager: AudioManager by lazy {
         getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -273,6 +283,7 @@ class VideoPlayerActivity : BaseActivity() {
                         }
                     }
                 }
+                val seekPreviewEnabled by customPreferences.enableAnimeSeekPreview.collectAsState()
 
                 val subtitlePayloadKey = remember(current.playback.subtitles) {
                     current.playback.subtitles.joinToString(separator = "||") { subtitleChoiceKey(it) }
@@ -349,6 +360,18 @@ class VideoPlayerActivity : BaseActivity() {
                 var sideGestureFeedbackState by remember(current.episodeId, current.streamUrl, subtitlePayloadKey) {
                     mutableStateOf<VideoPlayerSideGestureFeedbackState?>(null)
                 }
+                var seekPreviewState by remember(current.episodeId, current.streamUrl, subtitlePayloadKey) {
+                    mutableStateOf(VideoPlayerSeekPreviewState())
+                }
+                var seekPreviewFailed by remember(current.episodeId, current.streamUrl, subtitlePayloadKey) {
+                    mutableStateOf(false)
+                }
+                var lastSeekPreviewRequestAtMs by remember(current.episodeId, current.streamUrl, subtitlePayloadKey) {
+                    mutableStateOf(0L)
+                }
+                var lastSeekPreviewPositionMs by remember(current.episodeId, current.streamUrl, subtitlePayloadKey) {
+                    mutableStateOf<Long?>(null)
+                }
                 var nextEpisodeCountdownProgress by remember { mutableStateOf(0f) }
                 var nextEpisodeCountdownStartedAtMs by remember { mutableStateOf<Long?>(null) }
                 var nextEpisodeAdvanceInFlight by remember { mutableStateOf(false) }
@@ -412,6 +435,7 @@ class VideoPlayerActivity : BaseActivity() {
                     buildVideoPlayer(
                         context = context,
                         networkHelper = networkHelper,
+                        mediaCache = mediaCache,
                         stream = current.stream,
                         subtitles = current.playback.subtitles,
                     ).also { exoPlayer ->
@@ -678,6 +702,54 @@ class VideoPlayerActivity : BaseActivity() {
                         )
                     }
                 }
+                val seekPreviewPlayer = remember(
+                    current.episodeId,
+                    current.streamUrl,
+                    seekPreviewEnabled,
+                ) {
+                    if (!seekPreviewEnabled) {
+                        null
+                    } else {
+                        buildVideoPlayer(
+                            context = context,
+                            networkHelper = networkHelper,
+                            mediaCache = mediaCache,
+                            stream = current.stream,
+                            subtitles = emptyList(),
+                        ).also { exoPlayer ->
+                            exoPlayer.volume = 0f
+                            exoPlayer.playWhenReady = false
+                            exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
+                                .buildUpon()
+                                .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true)
+                                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                                .setMaxVideoSize(SEEK_PREVIEW_MAX_WIDTH, SEEK_PREVIEW_MAX_HEIGHT)
+                                .build()
+                            exoPlayer.addListener(
+                                object : Player.Listener {
+                                    override fun onPlaybackStateChanged(playbackState: Int) {
+                                        if (playbackState == Player.STATE_READY) {
+                                            seekPreviewState = seekPreviewState.copy(
+                                                loading = false,
+                                                available = true,
+                                            )
+                                        }
+                                    }
+
+                                    override fun onPlayerError(error: PlaybackException) {
+                                        seekPreviewFailed = true
+                                        seekPreviewState = VideoPlayerSeekPreviewState()
+                                    }
+                                },
+                            )
+                        }
+                    }
+                }
+                DisposableEffect(seekPreviewPlayer) {
+                    onDispose {
+                        seekPreviewPlayer?.release()
+                    }
+                }
 
                 LaunchedEffect(
                     controlsVisible,
@@ -709,6 +781,74 @@ class VideoPlayerActivity : BaseActivity() {
                     scrubPositionMs.coerceToPlaybackDuration(playbackSnapshot.durationMs)
                 } else {
                     playbackSnapshot.positionMs
+                }
+                LaunchedEffect(
+                    seekPreviewEnabled,
+                    seekPreviewPlayer,
+                    isScrubbing,
+                    scrubPositionMs,
+                    playbackSnapshot.durationMs,
+                    isInPictureInPictureMode,
+                    controlsLocked,
+                    startupOverlayVisible,
+                    current.isSourceSwitching,
+                    seekPreviewFailed,
+                ) {
+                    val previewPlayer = seekPreviewPlayer
+                    val durationMs = playbackSnapshot.durationMs
+                    if (
+                        !seekPreviewEnabled ||
+                        previewPlayer == null ||
+                        !isScrubbing ||
+                        durationMs <= 0L ||
+                        isInPictureInPictureMode ||
+                        controlsLocked ||
+                        startupOverlayVisible ||
+                        current.isSourceSwitching ||
+                        seekPreviewFailed
+                    ) {
+                        seekPreviewState = VideoPlayerSeekPreviewState()
+                        return@LaunchedEffect
+                    }
+
+                    val targetPositionMs = scrubPositionMs.coerceToPlaybackDuration(durationMs)
+                    val lastPreviewPosition = lastSeekPreviewPositionMs
+                    if (
+                        lastPreviewPosition != null &&
+                        abs(targetPositionMs - lastPreviewPosition) < SEEK_PREVIEW_MIN_DELTA_MS
+                    ) {
+                        return@LaunchedEffect
+                    }
+
+                    val now = SystemClock.elapsedRealtime()
+                    val delayMs = if (lastSeekPreviewRequestAtMs == 0L) {
+                        SEEK_PREVIEW_FIRST_DEBOUNCE_MS
+                    } else {
+                        (SEEK_PREVIEW_THROTTLE_MS - (now - lastSeekPreviewRequestAtMs)).coerceAtLeast(0L)
+                    }
+                    delay(delayMs)
+
+                    val latestTargetPositionMs = scrubPositionMs.coerceToPlaybackDuration(durationMs)
+                    val latestLastPreviewPosition = lastSeekPreviewPositionMs
+                    if (
+                        latestLastPreviewPosition != null &&
+                        abs(latestTargetPositionMs - latestLastPreviewPosition) < SEEK_PREVIEW_MIN_DELTA_MS
+                    ) {
+                        return@LaunchedEffect
+                    }
+
+                    seekPreviewState = VideoPlayerSeekPreviewState(
+                        positionMs = latestTargetPositionMs,
+                        visible = true,
+                        loading = true,
+                        available = seekPreviewState.available,
+                    )
+                    lastSeekPreviewRequestAtMs = SystemClock.elapsedRealtime()
+                    lastSeekPreviewPositionMs = latestTargetPositionMs
+                    previewPlayer.seekTo(latestTargetPositionMs)
+                    if (previewPlayer.playbackState == Player.STATE_IDLE) {
+                        previewPlayer.prepare()
+                    }
                 }
                 val latestSettingsVisible by rememberUpdatedState(settingsVisible)
                 val latestControlsVisible by rememberUpdatedState(controlsVisible)
@@ -1109,6 +1249,8 @@ class VideoPlayerActivity : BaseActivity() {
                             hasPreviousEpisode = current.previousEpisodeId != null,
                             hasNextEpisode = current.nextEpisodeId != null,
                             seekFeedbackState = seekFeedbackState,
+                            seekPreviewState = seekPreviewState,
+                            seekPreviewPlayer = seekPreviewPlayer,
                             sideGestureFeedbackState = sideGestureFeedbackState,
                             hideChromeForSeekFeedback = hidePlayerChrome,
                             onSeekFeedbackDismissed = {
@@ -1176,15 +1318,46 @@ class VideoPlayerActivity : BaseActivity() {
                                 registerControllerInteraction(true)
                                 isScrubbing = true
                                 scrubPositionMs = playbackSnapshot.positionMs
+                                seekPreviewState = if (
+                                    seekPreviewEnabled &&
+                                    !seekPreviewFailed &&
+                                    playbackSnapshot.durationMs > 0L
+                                ) {
+                                    VideoPlayerSeekPreviewState(
+                                        positionMs = playbackSnapshot.positionMs,
+                                        visible = true,
+                                        loading = true,
+                                    )
+                                } else {
+                                    VideoPlayerSeekPreviewState()
+                                }
                             },
                             onScrubPositionChange = { positionMs ->
-                                scrubPositionMs = positionMs.coerceToPlaybackDuration(playbackSnapshot.durationMs)
+                                val targetPositionMs = positionMs.coerceToPlaybackDuration(playbackSnapshot.durationMs)
+                                scrubPositionMs = targetPositionMs
+                                val lastPreviewPosition = lastSeekPreviewPositionMs
+                                if (
+                                    seekPreviewEnabled &&
+                                    !seekPreviewFailed &&
+                                    playbackSnapshot.durationMs > 0L &&
+                                    (
+                                        lastPreviewPosition == null ||
+                                            abs(targetPositionMs - lastPreviewPosition) >= SEEK_PREVIEW_MIN_DELTA_MS
+                                        )
+                                ) {
+                                    seekPreviewState = seekPreviewState.copy(
+                                        positionMs = targetPositionMs,
+                                        visible = true,
+                                        loading = true,
+                                    )
+                                }
                             },
                             onScrubFinished = {
                                 val targetPositionMs = scrubPositionMs.coerceToPlaybackDuration(
                                     playbackSnapshot.durationMs,
                                 )
                                 isScrubbing = false
+                                seekPreviewState = VideoPlayerSeekPreviewState()
                                 scrubPositionMs = targetPositionMs
                                 playbackSnapshot = playbackSnapshot.copy(positionMs = targetPositionMs)
                                 latestPlaybackSnapshot = playbackSnapshot

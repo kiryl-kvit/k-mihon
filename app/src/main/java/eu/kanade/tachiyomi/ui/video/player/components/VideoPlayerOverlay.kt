@@ -23,9 +23,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
+import androidx.media3.exoplayer.ExoPlayer
 import eu.kanade.tachiyomi.ui.anime.AnimeEpisodeListEntry
 import eu.kanade.tachiyomi.ui.video.player.VideoPlayerPlaybackSnapshot
 import eu.kanade.tachiyomi.ui.video.player.VideoPlayerSeekFeedbackState
+import eu.kanade.tachiyomi.ui.video.player.VideoPlayerSeekPreviewState
 import tachiyomi.domain.anime.model.AnimeEpisode
 import tachiyomi.domain.anime.model.AnimePlaybackState
 import tachiyomi.domain.anime.model.AnimeTitle
@@ -53,6 +56,8 @@ internal fun VideoPlayerOverlay(
     hasPreviousEpisode: Boolean,
     hasNextEpisode: Boolean,
     seekFeedbackState: VideoPlayerSeekFeedbackState?,
+    seekPreviewState: VideoPlayerSeekPreviewState?,
+    seekPreviewPlayer: ExoPlayer?,
     sideGestureFeedbackState: eu.kanade.tachiyomi.ui.video.player.VideoPlayerSideGestureFeedbackState?,
     hideChromeForSeekFeedback: Boolean,
     onSeekFeedbackDismissed: () -> Unit,
@@ -79,7 +84,11 @@ internal fun VideoPlayerOverlay(
     val lockedChromeVisible = visible && !hideChromeForSeekFeedback && locked
 
     Box(modifier = modifier.fillMaxSize()) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .zIndex(2f),
+        ) {
             AnimatedVisibility(
                 visible = chromeVisible,
                 enter = slideInVertically(
@@ -127,6 +136,8 @@ internal fun VideoPlayerOverlay(
                         durationMs = playbackSnapshot.durationMs,
                         bufferedPositionMs = playbackSnapshot.bufferedPositionMs,
                         isScrubbing = isScrubbing,
+                        seekPreviewState = seekPreviewState,
+                        seekPreviewPlayer = seekPreviewPlayer,
                         onScrubStarted = onScrubStarted,
                         onScrubPositionChange = onScrubPositionChange,
                         onScrubFinished = onScrubFinished,
@@ -140,7 +151,9 @@ internal fun VideoPlayerOverlay(
 
         AnimatedVisibility(
             visible = chromeVisible,
-            modifier = Modifier.align(Alignment.Center),
+            modifier = Modifier
+                .align(Alignment.Center)
+                .zIndex(1f),
             enter = fadeIn(animationSpec = overlayCenterFadeAnimationSpec) +
                 scaleIn(
                     animationSpec = tween(120),
