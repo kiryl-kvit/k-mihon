@@ -3,8 +3,10 @@ package eu.kanade.tachiyomi.ui.anime
 import android.content.Context
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.getValue
 import cafe.adriel.voyager.core.model.StateScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
+import eu.kanade.core.preference.asState
 import eu.kanade.core.util.addOrRemove
 import eu.kanade.domain.anime.model.episodesFiltered
 import eu.kanade.domain.anime.model.toSEpisode
@@ -19,9 +21,11 @@ import eu.kanade.presentation.manga.components.buildMergeTargetQuery
 import eu.kanade.presentation.manga.components.rankMergeTargets
 import eu.kanade.presentation.updates.UpdatesSelectionState
 import eu.kanade.presentation.util.formattedMessage
+import eu.kanade.tachiyomi.source.AnimePreviewSource
 import eu.kanade.tachiyomi.source.AnimeScheduleSource
 import eu.kanade.tachiyomi.source.AnimeSubtitleSource
 import eu.kanade.tachiyomi.source.AnimeWebViewSource
+import eu.kanade.tachiyomi.source.model.SAnimePreview
 import eu.kanade.tachiyomi.source.model.SAnimeScheduleEpisode
 import eu.kanade.tachiyomi.source.model.VideoPlaybackSelection
 import eu.kanade.tachiyomi.util.lang.toStoredDisplayName
@@ -44,6 +48,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import logcat.LogPriority
+import mihon.core.common.CustomPreferences
 import mihon.domain.anime.model.toSAnime
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.preference.CheckboxState
@@ -114,6 +119,7 @@ class AnimeScreenModel(
     private val libraryPreferences: LibraryPreferences = Injekt.get(),
     private val duplicatePreferences: DuplicatePreferences = Injekt.get(),
     private val syncAnimeWithSource: SyncAnimeWithSource = Injekt.get(),
+    private val customPreferences: CustomPreferences = Injekt.get(),
     private val animeDownloadManager: eu.kanade.tachiyomi.data.anime.download.AnimeDownloadManager = Injekt.get(),
     val snackbarHostState: SnackbarHostState = SnackbarHostState(),
 ) : StateScreenModel<AnimeScreenModel.State>(State.Loading) {
@@ -121,13 +127,24 @@ class AnimeScreenModel(
     private val selectionState = UpdatesSelectionState()
     private val selectedEpisodeIds = HashSet<Long>()
     private val deletingEpisodeIds = MutableStateFlow<Set<Long>>(emptySet())
+    private val previewLoaderState =
+        MutableStateFlow(AnimePreviewState(pageCount = customPreferences.animePreviewPageCount.get()))
+    val previewState = previewLoaderState
     private var duplicateObservationJob: Job? = null
+    private var previewLoadJob: Job? = null
+
+    val isAnimePreviewEnabled by customPreferences.enableAnimePreview.asState(screenModelScope)
+    val animePreviewPageCount by customPreferences.animePreviewPageCount.asState(screenModelScope)
+    val animePreviewSize by customPreferences.animePreviewSize.asState(screenModelScope)
 
     val webViewSource: AnimeWebViewSource?
         get() = successState?.anime?.let { animeSourceManager.get(it.source) as? AnimeWebViewSource }
 
     val scheduleSource: AnimeScheduleSource?
         get() = successState?.anime?.let { animeSourceManager.get(it.source) as? AnimeScheduleSource }
+
+    val previewSource: AnimePreviewSource?
+        get() = successState?.anime?.let { animeSourceManager.get(it.source) as? AnimePreviewSource }
 
     private val successState: State.Success?
         get() = state.value as? State.Success
@@ -143,10 +160,104 @@ class AnimeScreenModel(
     }
 
     init {
+        screenModelScope.launchIO {
+            customPreferences.animePreviewPageCount.changes().collectLatest { newCount ->
+                previewLoaderState.update { preview ->
+                    val updatedPages = if (preview.isExpanded && preview.pages.isNotEmpty()) {
+                        preview.pages.take(newCount)
+                    } else {
+                        preview.pages
+                    }
+                    preview.copy(pageCount = newCount, pages = updatedPages)
+                }
+                if (previewLoaderState.value.isExpanded) {
+                    loadPreview(force = true)
+                }
+            }
+        }
         observeAnime()
         observeAnimeDownloadUpdates()
         observeDuplicateCandidates()
         refresh(initial = true)
+    }
+
+    fun setPreviewExpanded(expanded: Boolean) {
+        if (!isAnimePreviewEnabled || previewSource == null) {
+            collapsePreview()
+            return
+        }
+
+        if (expanded) {
+            previewLoaderState.update { it.copy(isExpanded = true) }
+            if (!previewLoaderState.value.hasLoadedContent) {
+                loadPreview()
+            }
+        } else {
+            collapsePreview()
+        }
+    }
+
+    fun retryPreview() {
+        if (!previewLoaderState.value.isExpanded) return
+        loadPreview(force = true)
+    }
+
+    private fun loadPreview(force: Boolean = false) {
+        if (!isAnimePreviewEnabled) return
+
+        previewLoadJob?.cancel()
+        previewLoadJob = screenModelScope.launchIO {
+            previewLoaderState.update {
+                it.copy(
+                    isExpanded = true,
+                    isLoading = true,
+                    error = null,
+                    pages = emptyList(),
+                    pageCount = animePreviewPageCount,
+                )
+            }
+
+            val state = successState ?: return@launchIO
+            if (!force && previewLoaderState.value.hasLoadedContent) {
+                previewLoaderState.update { it.copy(isLoading = false) }
+                return@launchIO
+            }
+
+            runCatching {
+                val source = animeSourceManager.get(state.anime.source) as? AnimePreviewSource
+                    ?: error(context.stringResource(MR.strings.source_not_installed, state.anime.source.toString()))
+                source.getAnimePreview(state.anime.toSAnime()).take(animePreviewPageCount)
+            }.onSuccess { pages ->
+                previewLoaderState.update {
+                    it.copy(
+                        isExpanded = true,
+                        isLoading = false,
+                        error = null,
+                        pages = pages,
+                        pageCount = animePreviewPageCount,
+                    )
+                }
+            }.onFailure { error ->
+                previewLoaderState.update {
+                    it.copy(
+                        isExpanded = true,
+                        isLoading = false,
+                        error = error,
+                        pages = emptyList(),
+                        pageCount = animePreviewPageCount,
+                    )
+                }
+            }
+        }
+    }
+
+    private fun collapsePreview() {
+        previewLoadJob?.cancel()
+        previewLoadJob = null
+        previewLoaderState.value = AnimePreviewState(
+            isExpanded = false,
+            pageCount = animePreviewPageCount,
+        )
     }
 
     private fun observeAnimeDownloadUpdates() {
@@ -1804,7 +1915,19 @@ class AnimeScreenModel(
 
     override fun onDispose() {
         duplicateObservationJob?.cancel()
+        previewLoadJob?.cancel()
         super.onDispose()
+    }
+
+    data class AnimePreviewState(
+        val isExpanded: Boolean = false,
+        val isLoading: Boolean = false,
+        val error: Throwable? = null,
+        val pages: List<SAnimePreview> = emptyList(),
+        val pageCount: Int,
+    ) {
+        val hasLoadedContent: Boolean
+            get() = pages.isNotEmpty() || error != null
     }
 }
 

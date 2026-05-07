@@ -44,6 +44,7 @@ import eu.kanade.core.util.ifAnimeSourcesLoaded
 import eu.kanade.presentation.anime.AnimeBrowseSourceContent
 import eu.kanade.presentation.anime.AnimeMergeTargetPickerDialog
 import eu.kanade.presentation.anime.DuplicateAnimeDialog
+import eu.kanade.presentation.browse.components.BrowseAnimePreviewSheet
 import eu.kanade.presentation.browse.components.BrowseFeedNameDialog
 import eu.kanade.presentation.browse.components.BrowseLibraryActionDialog
 import eu.kanade.presentation.browse.components.BrowseMergeEditorDialog
@@ -290,6 +291,16 @@ data class AnimeBrowseSourceScreen(
                     onFilter = { screenModel.search(filters = state.filters) },
                     onUpdate = screenModel::setFilters,
                     onRetry = screenModel::retryFilterLoad,
+                )
+            }
+            is AnimeBrowseSourceScreenModel.Dialog.AnimePreview -> {
+                BrowseAnimePreviewSheet(
+                    animeId = dialog.animeId,
+                    previewSize = screenModel.animePreviewSizeUi(),
+                    onLibraryAction = screenModel::confirmBrowseLibraryAction,
+                    onMergeAction = screenModel::showMergeTargetPicker,
+                    onOpenAnime = { animeId -> navigator.push(AnimeScreen(animeId)) },
+                    onDismissRequest = onDismissRequest,
                 )
             }
             is AnimeBrowseSourceScreenModel.Dialog.SavePreset -> if (feedsEnabled) {

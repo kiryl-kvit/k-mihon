@@ -29,6 +29,7 @@ import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.library.DeleteLibraryMangaDialog
 import eu.kanade.presentation.manga.components.EditDisplayNameDialog
 import eu.kanade.presentation.manga.components.MangaCoverDialog
+import eu.kanade.presentation.manga.components.PreviewSizeUi
 import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.ui.anime.browse.AnimeBrowseSourceScreen
 import eu.kanade.tachiyomi.ui.anime.browse.globalsearch.AnimeGlobalSearchScreen
@@ -39,6 +40,7 @@ import eu.kanade.tachiyomi.util.system.copyToClipboard
 import eu.kanade.tachiyomi.util.system.toShareIntent
 import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.coroutines.launch
+import mihon.core.common.CustomPreferences
 import mihon.domain.anime.model.toSAnime
 import tachiyomi.domain.anime.model.AnimeTitle
 import tachiyomi.i18n.MR
@@ -90,6 +92,14 @@ data class AnimeScreen(
             is AnimeScreenModel.State.Success -> {
                 AnimeScreen(
                     state = current,
+                    animePreviewEnabled = screenModel.isAnimePreviewEnabled && screenModel.previewSource != null,
+                    animePreviewSize = when (screenModel.animePreviewSize) {
+                        CustomPreferences.AnimePreviewSize.SMALL -> PreviewSizeUi.SMALL
+                        CustomPreferences.AnimePreviewSize.MEDIUM -> PreviewSizeUi.MEDIUM
+                        CustomPreferences.AnimePreviewSize.LARGE -> PreviewSizeUi.LARGE
+                        CustomPreferences.AnimePreviewSize.EXTRA_LARGE -> PreviewSizeUi.EXTRA_LARGE
+                    },
+                    animePreviewState = screenModel.previewState.collectAsState().value,
                     snackbarHostState = screenModel.snackbarHostState,
                     navigateUp = navigator::pop,
                     onRefresh = screenModel::refresh,
@@ -118,6 +128,8 @@ data class AnimeScreen(
                             performTagSearch(navigator, current.anime, tag)
                         }
                     },
+                    onPreviewExpandedChange = screenModel::setPreviewExpanded,
+                    onPreviewRetry = screenModel::retryPreview,
                     onScheduleClicked = screenModel::showScheduleDialog.takeIf { current.canOpenScheduleDialog },
                     onDuplicatesClicked = screenModel::showDuplicateDialog.takeIf {
                         current.isFromSource && current.anime.initialized && current.duplicateCandidates.isNotEmpty()

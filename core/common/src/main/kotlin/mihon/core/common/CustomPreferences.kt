@@ -13,6 +13,7 @@ class CustomPreferences(
 ) {
     companion object {
         val MANGA_PREVIEW_PAGE_COUNT_RANGE = 1..50
+        val ANIME_PREVIEW_PAGE_COUNT_RANGE = 1..50
     }
 
     val homeScreenStartupTab: Preference<HomeScreenTabs> = preferenceStore.getEnum(
@@ -47,6 +48,21 @@ class CustomPreferences(
         MangaPreviewSize.MEDIUM,
     )
 
+    val enableAnimePreview: Preference<Boolean> = preferenceStore.getBoolean(
+        Preference.appStateKey("enable_anime_preview"),
+        false,
+    )
+
+    val animePreviewPageCount: Preference<Int> = preferenceStore.getInt(
+        Preference.appStateKey("anime_preview_page_count"),
+        5,
+    ).coerceIn(ANIME_PREVIEW_PAGE_COUNT_RANGE)
+
+    val animePreviewSize: Preference<AnimePreviewSize> = preferenceStore.getEnum(
+        Preference.appStateKey("anime_preview_size"),
+        AnimePreviewSize.MEDIUM,
+    )
+
     val enableFeeds: Preference<Boolean> = preferenceStore.getBoolean(
         Preference.appStateKey("enable_feeds"),
         true,
@@ -57,9 +73,17 @@ class CustomPreferences(
         false,
     )
 
-    val browseLongPressAction: Preference<BrowseLongPressAction> = preferenceStore.getEnum(
+    val browseLongPressAction: Preference<BrowseLongPressAction> = preferenceStore.getObjectFromString(
         Preference.appStateKey("browse_long_press_action"),
         BrowseLongPressAction.LIBRARY_ACTION,
+        serializer = { it.name },
+        deserializer = {
+            when (it) {
+                "MANGA_PREVIEW" -> BrowseLongPressAction.PREVIEW
+                else -> runCatching { BrowseLongPressAction.valueOf(it) }
+                    .getOrDefault(BrowseLongPressAction.LIBRARY_ACTION)
+            }
+        },
     )
 
     enum class MangaPreviewSize(val titleRes: StringResource) {
@@ -69,8 +93,15 @@ class CustomPreferences(
         EXTRA_LARGE(MR.strings.pref_manga_preview_size_extra_large),
     }
 
+    enum class AnimePreviewSize(val titleRes: StringResource) {
+        SMALL(MR.strings.pref_manga_preview_size_small),
+        MEDIUM(MR.strings.pref_manga_preview_size_medium),
+        LARGE(MR.strings.pref_manga_preview_size_large),
+        EXTRA_LARGE(MR.strings.pref_manga_preview_size_extra_large),
+    }
+
     enum class BrowseLongPressAction(val titleRes: StringResource) {
         LIBRARY_ACTION(MR.strings.pref_browse_long_press_action_library_action),
-        MANGA_PREVIEW(MR.strings.pref_manga_preview),
+        PREVIEW(MR.strings.pref_browse_long_press_action_preview),
     }
 }

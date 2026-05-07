@@ -39,7 +39,7 @@ import eu.kanade.presentation.manga.components.DeleteChaptersDialog
 import eu.kanade.presentation.manga.components.EditDisplayNameDialog
 import eu.kanade.presentation.manga.components.ManageMergeDialog
 import eu.kanade.presentation.manga.components.MangaCoverDialog
-import eu.kanade.presentation.manga.components.MangaPreviewSizeUi
+import eu.kanade.presentation.manga.components.PreviewSizeUi
 import eu.kanade.presentation.manga.components.ScanlatorFilterDialog
 import eu.kanade.presentation.manga.components.SetIntervalDialog
 import eu.kanade.presentation.util.AssistContentScreen
@@ -204,10 +204,10 @@ class MangaScreen(
             onInvertSelection = screenModel::invertSelection,
             mangaPreviewEnabled = screenModel.isMangaPreviewEnabled,
             mangaPreviewSize = when (screenModel.mangaPreviewSize) {
-                mihon.core.common.CustomPreferences.MangaPreviewSize.SMALL -> MangaPreviewSizeUi.SMALL
-                mihon.core.common.CustomPreferences.MangaPreviewSize.MEDIUM -> MangaPreviewSizeUi.MEDIUM
-                mihon.core.common.CustomPreferences.MangaPreviewSize.LARGE -> MangaPreviewSizeUi.LARGE
-                mihon.core.common.CustomPreferences.MangaPreviewSize.EXTRA_LARGE -> MangaPreviewSizeUi.EXTRA_LARGE
+                mihon.core.common.CustomPreferences.MangaPreviewSize.SMALL -> PreviewSizeUi.SMALL
+                mihon.core.common.CustomPreferences.MangaPreviewSize.MEDIUM -> PreviewSizeUi.MEDIUM
+                mihon.core.common.CustomPreferences.MangaPreviewSize.LARGE -> PreviewSizeUi.LARGE
+                mihon.core.common.CustomPreferences.MangaPreviewSize.EXTRA_LARGE -> PreviewSizeUi.EXTRA_LARGE
             },
             mangaPreviewState = previewState,
             onPreviewExpandedChange = screenModel::setPreviewExpanded,

@@ -30,9 +30,9 @@ import eu.kanade.domain.source.model.snapshot
 import eu.kanade.domain.source.service.BrowseFeedService
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.domain.track.interactor.AddTracks
-import eu.kanade.presentation.manga.components.MangaPreviewSizeUi
 import eu.kanade.presentation.manga.components.MergeEditorEntry
 import eu.kanade.presentation.manga.components.MergeTarget
+import eu.kanade.presentation.manga.components.PreviewSizeUi
 import eu.kanade.presentation.manga.components.buildMergeTargetQuery
 import eu.kanade.presentation.manga.components.buildMergeTargets
 import eu.kanade.presentation.manga.components.rankMergeTargets
@@ -433,7 +433,7 @@ class BrowseSourceScreenModel(
                 showLibraryActionChooserOrHandle(manga)
                 true
             }
-            CustomPreferences.BrowseLongPressAction.MANGA_PREVIEW -> {
+            CustomPreferences.BrowseLongPressAction.PREVIEW -> {
                 if (!isMangaPreviewEnabled) {
                     false
                 } else {
@@ -542,12 +542,12 @@ class BrowseSourceScreenModel(
         }
     }
 
-    fun mangaPreviewSizeUi(): MangaPreviewSizeUi {
+    fun mangaPreviewSizeUi(): PreviewSizeUi {
         return when (mangaPreviewSize) {
-            CustomPreferences.MangaPreviewSize.SMALL -> MangaPreviewSizeUi.SMALL
-            CustomPreferences.MangaPreviewSize.MEDIUM -> MangaPreviewSizeUi.MEDIUM
-            CustomPreferences.MangaPreviewSize.LARGE -> MangaPreviewSizeUi.LARGE
-            CustomPreferences.MangaPreviewSize.EXTRA_LARGE -> MangaPreviewSizeUi.EXTRA_LARGE
+            CustomPreferences.MangaPreviewSize.SMALL -> PreviewSizeUi.SMALL
+            CustomPreferences.MangaPreviewSize.MEDIUM -> PreviewSizeUi.MEDIUM
+            CustomPreferences.MangaPreviewSize.LARGE -> PreviewSizeUi.LARGE
+            CustomPreferences.MangaPreviewSize.EXTRA_LARGE -> PreviewSizeUi.EXTRA_LARGE
         }
     }
 

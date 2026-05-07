@@ -83,6 +83,7 @@ internal fun visibleCustomSettingsSectionsForProfileType(profileType: ProfileTyp
         ProfileType.MANGA -> CustomSettingsSection.entries.toSet()
         ProfileType.ANIME -> setOf(
             CustomSettingsSection.General,
+            CustomSettingsSection.Browse,
             CustomSettingsSection.DuplicateDetection,
             CustomSettingsSection.Profiles,
             CustomSettingsSection.Advanced,
@@ -107,8 +108,10 @@ object CustomSettingsScreen : SearchableSettings {
         val activeProfile by profileManager.activeProfile.collectFlowAsState()
         val activeProfileType = activeProfile?.type ?: ProfileType.MANGA
         val browseLongPressAction by customPreferences.browseLongPressAction.collectAsState()
-        val previewEnabled by customPreferences.enableMangaPreview.collectAsState()
-        val previewPageCount by customPreferences.mangaPreviewPageCount.collectAsState()
+        val mangaPreviewEnabled by customPreferences.enableMangaPreview.collectAsState()
+        val mangaPreviewPageCount by customPreferences.mangaPreviewPageCount.collectAsState()
+        val animePreviewEnabled by customPreferences.enableAnimePreview.collectAsState()
+        val animePreviewPageCount by customPreferences.animePreviewPageCount.collectAsState()
         val autoScrollEnabled by readerPreferences.autoScrollEnabled.collectAsState()
         val autoScrollSpeed by readerPreferences.autoScrollSpeed.collectAsState()
         val startupTab by customPreferences.homeScreenStartupTab.collectAsState()
@@ -142,8 +145,13 @@ object CustomSettingsScreen : SearchableSettings {
             )
         }
 
+        val previewEnabled = when (activeProfileType) {
+            ProfileType.MANGA -> mangaPreviewEnabled
+            ProfileType.ANIME -> animePreviewEnabled
+        }
+
         LaunchedEffect(previewEnabled, browseLongPressAction) {
-            if (!previewEnabled && browseLongPressAction == CustomPreferences.BrowseLongPressAction.MANGA_PREVIEW) {
+            if (!previewEnabled && browseLongPressAction == CustomPreferences.BrowseLongPressAction.PREVIEW) {
                 customPreferences.browseLongPressAction.set(CustomPreferences.BrowseLongPressAction.LIBRARY_ACTION)
             }
         }
@@ -330,30 +338,63 @@ object CustomSettingsScreen : SearchableSettings {
                     Preference.PreferenceGroup(
                         title = stringResource(MR.strings.browse),
                         preferenceItems = persistentListOf(
-                            Preference.PreferenceItem.SwitchPreference(
-                                preference = customPreferences.enableMangaPreview,
-                                title = stringResource(MR.strings.pref_enable_manga_preview),
-                                subtitle = stringResource(MR.strings.pref_enable_manga_preview_summary),
-                            ),
-                            Preference.PreferenceItem.SliderPreference(
-                                value = previewPageCount,
-                                preference = customPreferences.mangaPreviewPageCount,
-                                valueRange = CustomPreferences.MANGA_PREVIEW_PAGE_COUNT_RANGE,
-                                title = stringResource(MR.strings.pref_manga_preview_page_count),
-                                valueString = previewPageCount.toString(),
-                                enabled = previewEnabled,
-                                onValueChanged = {
-                                    customPreferences.mangaPreviewPageCount.set(it)
-                                },
-                            ),
-                            Preference.PreferenceItem.ListPreference(
-                                preference = customPreferences.mangaPreviewSize,
-                                entries = CustomPreferences.MangaPreviewSize.entries
-                                    .associateWith { stringResource(it.titleRes) }
-                                    .toImmutableMap(),
-                                title = stringResource(MR.strings.pref_manga_preview_size),
-                                enabled = previewEnabled,
-                            ),
+                            if (activeProfileType == ProfileType.ANIME) {
+                                Preference.PreferenceItem.SwitchPreference(
+                                    preference = customPreferences.enableAnimePreview,
+                                    title = stringResource(MR.strings.pref_enable_anime_preview),
+                                    subtitle = stringResource(MR.strings.pref_enable_anime_preview_summary),
+                                )
+                            } else {
+                                Preference.PreferenceItem.SwitchPreference(
+                                    preference = customPreferences.enableMangaPreview,
+                                    title = stringResource(MR.strings.pref_enable_manga_preview),
+                                    subtitle = stringResource(MR.strings.pref_enable_manga_preview_summary),
+                                )
+                            },
+                            if (activeProfileType == ProfileType.ANIME) {
+                                Preference.PreferenceItem.SliderPreference(
+                                    value = animePreviewPageCount,
+                                    preference = customPreferences.animePreviewPageCount,
+                                    valueRange = CustomPreferences.ANIME_PREVIEW_PAGE_COUNT_RANGE,
+                                    title = stringResource(MR.strings.pref_anime_preview_page_count),
+                                    valueString = animePreviewPageCount.toString(),
+                                    enabled = previewEnabled,
+                                    onValueChanged = {
+                                        customPreferences.animePreviewPageCount.set(it)
+                                    },
+                                )
+                            } else {
+                                Preference.PreferenceItem.SliderPreference(
+                                    value = mangaPreviewPageCount,
+                                    preference = customPreferences.mangaPreviewPageCount,
+                                    valueRange = CustomPreferences.MANGA_PREVIEW_PAGE_COUNT_RANGE,
+                                    title = stringResource(MR.strings.pref_manga_preview_page_count),
+                                    valueString = mangaPreviewPageCount.toString(),
+                                    enabled = previewEnabled,
+                                    onValueChanged = {
+                                        customPreferences.mangaPreviewPageCount.set(it)
+                                    },
+                                )
+                            },
+                            if (activeProfileType == ProfileType.ANIME) {
+                                Preference.PreferenceItem.ListPreference(
+                                    preference = customPreferences.animePreviewSize,
+                                    entries = CustomPreferences.AnimePreviewSize.entries
+                                        .associateWith { stringResource(it.titleRes) }
+                                        .toImmutableMap(),
+                                    title = stringResource(MR.strings.pref_anime_preview_size),
+                                    enabled = previewEnabled,
+                                )
+                            } else {
+                                Preference.PreferenceItem.ListPreference(
+                                    preference = customPreferences.mangaPreviewSize,
+                                    entries = CustomPreferences.MangaPreviewSize.entries
+                                        .associateWith { stringResource(it.titleRes) }
+                                        .toImmutableMap(),
+                                    title = stringResource(MR.strings.pref_manga_preview_size),
+                                    enabled = previewEnabled,
+                                )
+                            },
                             Preference.PreferenceItem.ListPreference(
                                 preference = customPreferences.browseLongPressAction,
                                 entries = CustomPreferences.BrowseLongPressAction.entries
@@ -361,7 +402,7 @@ object CustomSettingsScreen : SearchableSettings {
                                     .toImmutableMap(),
                                 title = stringResource(MR.strings.pref_browse_long_press_action),
                                 entryEnabledProvider = {
-                                    previewEnabled || it != CustomPreferences.BrowseLongPressAction.MANGA_PREVIEW
+                                    previewEnabled || it != CustomPreferences.BrowseLongPressAction.PREVIEW
                                 },
                             ),
                         ),

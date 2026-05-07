@@ -298,7 +298,7 @@ fun ExpandableMangaDescription(
     onCopyTagToClipboard: (tag: String) -> Unit,
     onEditNotes: () -> Unit,
     mangaPreviewEnabled: Boolean,
-    mangaPreviewSize: MangaPreviewSizeUi,
+    mangaPreviewSize: PreviewSizeUi,
     mangaPreviewState: MangaScreenModel.MangaPreviewState,
     onPreviewExpandedChange: (Boolean) -> Unit,
     onPreviewRetry: () -> Unit,
@@ -401,28 +401,28 @@ fun ExpandableMangaDescription(
     }
 }
 
-enum class MangaPreviewSizeUi {
+enum class PreviewSizeUi {
     SMALL,
     MEDIUM,
     LARGE,
     EXTRA_LARGE,
 }
 
-private val MangaPreviewGridSpacing = 12.dp
+private val PreviewGridSpacing = 12.dp
 
-internal fun mangaPreviewGridColumnCount(
-    size: MangaPreviewSizeUi,
+internal fun previewGridColumnCount(
+    size: PreviewSizeUi,
     availableWidth: Dp,
 ): Int {
     val preferredTileWidth = when (size) {
-        MangaPreviewSizeUi.SMALL -> 88.dp
-        MangaPreviewSizeUi.MEDIUM -> 112.dp
-        MangaPreviewSizeUi.LARGE -> 140.dp
+        PreviewSizeUi.SMALL -> 88.dp
+        PreviewSizeUi.MEDIUM -> 112.dp
+        PreviewSizeUi.LARGE -> 140.dp
         // Matches the previous 560/840 dp focused-mode breakpoints with spacing-aware math.
-        MangaPreviewSizeUi.EXTRA_LARGE -> 272.dp
+        PreviewSizeUi.EXTRA_LARGE -> 272.dp
     }
 
-    return ((availableWidth + MangaPreviewGridSpacing) / (preferredTileWidth + MangaPreviewGridSpacing))
+    return ((availableWidth + PreviewGridSpacing) / (preferredTileWidth + PreviewGridSpacing))
         .toInt()
         .coerceAtLeast(1)
 }
@@ -430,7 +430,7 @@ internal fun mangaPreviewGridColumnCount(
 @Composable
 fun SharedMangaPreviewSection(
     state: MangaScreenModel.MangaPreviewState,
-    size: MangaPreviewSizeUi,
+    size: PreviewSizeUi,
     onExpandedChange: (Boolean) -> Unit,
     onRetry: () -> Unit,
     onPageLoad: (Int) -> Unit,
@@ -467,7 +467,7 @@ fun SharedMangaPreviewSection(
         }
 
         if (state.isExpanded) {
-            MangaPreviewContent(
+            PreviewContent(
                 state = state,
                 size = size,
                 onRetry = onRetry,
@@ -479,16 +479,16 @@ fun SharedMangaPreviewSection(
 }
 
 @Composable
-fun MangaPreviewContent(
+fun PreviewContent(
     state: MangaScreenModel.MangaPreviewState,
-    size: MangaPreviewSizeUi,
+    size: PreviewSizeUi,
     onRetry: () -> Unit,
     onPageLoad: (Int) -> Unit,
     onPageClick: (Long, Int) -> Unit,
     modifier: Modifier = Modifier,
     centerStates: Boolean = false,
     loadingContent: @Composable BoxScope.() -> Unit = {
-        MangaPreviewMessage(
+        PreviewMessage(
             icon = Icons.Default.Image,
             text = stringResource(MR.strings.transition_pages_loading),
             modifier = Modifier.align(Alignment.Center),
@@ -501,7 +501,7 @@ fun MangaPreviewContent(
                 loadingContent()
             }
             state.error != null -> {
-                MangaPreviewError(
+                PreviewError(
                     message = state.error.message ?: stringResource(MR.strings.unknown_error),
                     onRetry = onRetry,
                     modifier = if (centerStates) {
@@ -512,7 +512,7 @@ fun MangaPreviewContent(
                 )
             }
             state.pages.isEmpty() -> {
-                MangaPreviewMessage(
+                PreviewMessage(
                     icon = Icons.Default.Warning,
                     text = stringResource(MR.strings.manga_preview_empty),
                     modifier = if (centerStates) {
@@ -523,7 +523,7 @@ fun MangaPreviewContent(
                 )
             }
             else -> {
-                MangaPreviewGrid(
+                PreviewGrid(
                     pages = state.pages,
                     size = size,
                     chapterId = state.chapterId,
@@ -536,21 +536,21 @@ fun MangaPreviewContent(
 }
 
 @Composable
-fun MangaPreviewGrid(
+fun PreviewGrid(
     pages: List<MangaScreenModel.PreviewPage>,
-    size: MangaPreviewSizeUi,
+    size: PreviewSizeUi,
     chapterId: Long?,
     onPageLoad: (Int) -> Unit,
     onPageClick: (Long, Int) -> Unit,
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        val columns = mangaPreviewGridColumnCount(size, maxWidth)
+        val columns = previewGridColumnCount(size, maxWidth)
         val rows = pages.chunked(columns)
 
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             rows.forEach { row ->
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(MangaPreviewGridSpacing),
+                    horizontalArrangement = Arrangement.spacedBy(PreviewGridSpacing),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     row.forEach { previewPage ->
@@ -669,7 +669,7 @@ private fun MangaPreviewImage(
 }
 
 @Composable
-fun MangaPreviewError(
+fun PreviewError(
     message: String,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
@@ -679,7 +679,7 @@ fun MangaPreviewError(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        MangaPreviewMessage(
+        PreviewMessage(
             icon = Icons.Default.Warning,
             text = message,
             modifier = Modifier.weight(1f),
@@ -693,7 +693,7 @@ fun MangaPreviewError(
 }
 
 @Composable
-fun MangaPreviewMessage(
+fun PreviewMessage(
     icon: ImageVector,
     text: String,
     modifier: Modifier = Modifier,

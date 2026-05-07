@@ -69,6 +69,7 @@ import eu.kanade.presentation.anime.AnimeBrowseSourceContent
 import eu.kanade.presentation.anime.AnimeMergeTargetPickerDialog
 import eu.kanade.presentation.anime.DuplicateAnimeDialog
 import eu.kanade.presentation.browse.components.BaseSourceItem
+import eu.kanade.presentation.browse.components.BrowseAnimePreviewSheet
 import eu.kanade.presentation.browse.components.BrowseLibraryActionDialog
 import eu.kanade.presentation.browse.components.BrowseMergeEditorDialog
 import eu.kanade.presentation.browse.components.SourceIcon
@@ -418,6 +419,16 @@ private fun AnimeFeedsTabContent(
                                 browseModel.changeAnimeFavorite(dialog.anime)
                                 browseModel.moveAnimeToCategories(dialog.anime, include)
                             },
+                        )
+                    }
+                    is AnimeBrowseSourceScreenModel.Dialog.AnimePreview -> {
+                        BrowseAnimePreviewSheet(
+                            animeId = dialog.animeId,
+                            previewSize = browseModel.animePreviewSizeUi(),
+                            onLibraryAction = browseModel::confirmBrowseLibraryAction,
+                            onMergeAction = browseModel::showMergeTargetPicker,
+                            onOpenAnime = openSourceAnime,
+                            onDismissRequest = browseModel::dismissDialog,
                         )
                     }
                     is AnimeBrowseSourceScreenModel.Dialog.RemoveAnime -> {

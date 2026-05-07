@@ -32,10 +32,12 @@ import eu.kanade.presentation.anime.AnimeMergeTarget
 import eu.kanade.presentation.anime.buildAnimeMergeTargets
 import eu.kanade.presentation.anime.toMergeEditorEntry
 import eu.kanade.presentation.manga.components.MergeEditorEntry
+import eu.kanade.presentation.manga.components.PreviewSizeUi
 import eu.kanade.presentation.manga.components.buildMergeTargetQuery
 import eu.kanade.presentation.manga.components.rankMergeTargets
 import eu.kanade.presentation.util.ioCoroutineScope
 import eu.kanade.tachiyomi.source.AnimeCatalogueSource
+import eu.kanade.tachiyomi.source.AnimePreviewSource
 import eu.kanade.tachiyomi.source.AsyncAnimeCatalogueFilterSource
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.resolveFilterList
@@ -105,6 +107,9 @@ class AnimeBrowseSourceScreenModel(
 
     var displayMode by sourcePreferences.sourceDisplayMode.asState(screenModelScope)
     var feedsEnabled by customPreferences.enableFeeds.asState(screenModelScope)
+    val browseLongPressAction by customPreferences.browseLongPressAction.asState(screenModelScope)
+    val isAnimePreviewEnabled by customPreferences.enableAnimePreview.asState(screenModelScope)
+    val animePreviewSize by customPreferences.animePreviewSize.asState(screenModelScope)
 
     val source = animeSourceManager.get(sourceId) as? AnimeCatalogueSource
 
@@ -250,8 +255,23 @@ class AnimeBrowseSourceScreenModel(
     }
 
     suspend fun onAnimeLongClick(anime: AnimeTitle): Boolean {
+        if (browseLongPressAction == CustomPreferences.BrowseLongPressAction.PREVIEW) {
+            if (isAnimePreviewEnabled && source is AnimePreviewSource) {
+                mutableState.update { it.copy(dialog = Dialog.AnimePreview(anime.id)) }
+                return true
+            }
+        }
         showLibraryActionChooserOrHandle(anime)
         return true
+    }
+
+    fun animePreviewSizeUi(): PreviewSizeUi {
+        return when (animePreviewSize) {
+            CustomPreferences.AnimePreviewSize.SMALL -> PreviewSizeUi.SMALL
+            CustomPreferences.AnimePreviewSize.MEDIUM -> PreviewSizeUi.MEDIUM
+            CustomPreferences.AnimePreviewSize.LARGE -> PreviewSizeUi.LARGE
+            CustomPreferences.AnimePreviewSize.EXTRA_LARGE -> PreviewSizeUi.EXTRA_LARGE
+        }
     }
 
     fun dismissDialog() {
@@ -830,6 +850,8 @@ class AnimeBrowseSourceScreenModel(
         }
 
         data class LibraryActionChooser(val anime: AnimeTitle) : Dialog
+
+        data class AnimePreview(val animeId: Long) : Dialog
 
         data class RemoveAnime(val anime: AnimeTitle) : Dialog
 

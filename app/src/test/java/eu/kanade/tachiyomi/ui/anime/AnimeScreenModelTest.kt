@@ -34,6 +34,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import mihon.core.common.CustomPreferences
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -1104,6 +1105,7 @@ class AnimeScreenModelTest {
         duplicatePreferences: DuplicatePreferences = DuplicatePreferences(InMemoryPreferenceStore()),
         animeDownloadPreferencesRepository: AnimeDownloadPreferencesRepository =
             FakeAnimeDownloadPreferencesRepository(),
+        customPreferences: CustomPreferences = CustomPreferences(InMemoryPreferenceStore()),
     ): AnimeScreenModel {
         val setAnimeEpisodeFlags = SetAnimeEpisodeFlags(animeRepository)
         val getAnimeWithEpisodes = GetAnimeWithEpisodes(animeRepository, episodeRepository, mergedRepository)
@@ -1133,6 +1135,7 @@ class AnimeScreenModelTest {
             setAnimeDefaultEpisodeFlags = SetAnimeDefaultEpisodeFlags(libraryPreferences, setAnimeEpisodeFlags),
             libraryPreferences = libraryPreferences,
             duplicatePreferences = duplicatePreferences,
+            customPreferences = customPreferences,
             syncAnimeWithSource = SyncAnimeWithSource(
                 animeRepository = animeRepository,
                 animeEpisodeRepository = episodeRepository,

@@ -7,10 +7,12 @@ import eu.kanade.domain.source.model.snapshot
 import eu.kanade.domain.source.service.BrowseFeedService
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.source.AnimeCatalogueSource
+import eu.kanade.tachiyomi.source.AnimePreviewSource
 import eu.kanade.tachiyomi.source.model.AnimesPage
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.SAnime
+import eu.kanade.tachiyomi.source.model.SAnimePreview
 import eu.kanade.tachiyomi.source.model.SEpisode
 import eu.kanade.tachiyomi.source.model.VideoPlaybackData
 import eu.kanade.tachiyomi.source.model.VideoPlaybackSelection
@@ -167,6 +169,65 @@ class AnimeBrowseSourceScreenModelTest {
         val anime = anime(id = 1L, favorite = true)
 
         val model = createModel(anime = anime)
+
+        model.onAnimeLongClick(anime) shouldBe true
+
+        eventually(2.seconds) {
+            model.state.value.dialog shouldBe AnimeBrowseSourceScreenModel.Dialog.LibraryActionChooser(anime)
+        }
+    }
+
+    @Test
+    fun `preview long press opens anime preview when source supports preview`() = runTest(dispatcher) {
+        val anime = anime(id = 10L, favorite = false)
+        val customPreferences = CustomPreferences(InMemoryPreferenceStore()).apply {
+            enableAnimePreview.set(true)
+            browseLongPressAction.set(CustomPreferences.BrowseLongPressAction.PREVIEW)
+        }
+
+        val model = createModel(
+            anime = anime,
+            customPreferences = customPreferences,
+            animeSourceManager = FakeAnimeSourceManager(FakeAnimePreviewSource(anime.source)),
+        )
+
+        model.onAnimeLongClick(anime) shouldBe true
+
+        eventually(2.seconds) {
+            model.state.value.dialog shouldBe AnimeBrowseSourceScreenModel.Dialog.AnimePreview(anime.id)
+        }
+    }
+
+    @Test
+    fun `preview long press falls back to library action when source does not support preview`() = runTest(dispatcher) {
+        val anime = anime(id = 11L, favorite = true)
+        val customPreferences = CustomPreferences(InMemoryPreferenceStore()).apply {
+            enableAnimePreview.set(true)
+            browseLongPressAction.set(CustomPreferences.BrowseLongPressAction.PREVIEW)
+        }
+
+        val model = createModel(anime = anime, customPreferences = customPreferences)
+
+        model.onAnimeLongClick(anime) shouldBe true
+
+        eventually(2.seconds) {
+            model.state.value.dialog shouldBe AnimeBrowseSourceScreenModel.Dialog.LibraryActionChooser(anime)
+        }
+    }
+
+    @Test
+    fun `preview long press falls back to library action when anime preview is disabled`() = runTest(dispatcher) {
+        val anime = anime(id = 12L, favorite = true)
+        val customPreferences = CustomPreferences(InMemoryPreferenceStore()).apply {
+            enableAnimePreview.set(false)
+            browseLongPressAction.set(CustomPreferences.BrowseLongPressAction.PREVIEW)
+        }
+
+        val model = createModel(
+            anime = anime,
+            customPreferences = customPreferences,
+            animeSourceManager = FakeAnimeSourceManager(FakeAnimePreviewSource(anime.source)),
+        )
 
         model.onAnimeLongClick(anime) shouldBe true
 
@@ -550,7 +611,7 @@ class AnimeBrowseSourceScreenModelTest {
         override fun getCatalogueSources(): List<AnimeCatalogueSource> = listOf(source)
     }
 
-    private class FakeAnimeCatalogueSource(
+    private open class FakeAnimeCatalogueSource(
         override val id: Long,
         private val filters: FilterList = FilterList(),
     ) : AnimeCatalogueSource {
@@ -571,6 +632,14 @@ class AnimeBrowseSourceScreenModelTest {
             episode: SEpisode,
             selection: VideoPlaybackSelection,
         ): VideoPlaybackData = error("Not used")
+    }
+
+    private class FakeAnimePreviewSource(
+        id: Long,
+    ) : FakeAnimeCatalogueSource(id), AnimePreviewSource {
+        override suspend fun getAnimePreview(anime: SAnime): List<SAnimePreview> {
+            return listOf(SAnimePreview(index = 0, imageUrl = "https://example.org/preview.jpg"))
+        }
     }
 
     private class FakeAnimeSourceRepository : AnimeSourceRepository {
