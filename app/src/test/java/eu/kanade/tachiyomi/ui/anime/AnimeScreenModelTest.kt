@@ -68,6 +68,7 @@ import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.service.DuplicatePreferences
 import tachiyomi.domain.source.service.AnimeSourceManager
 import kotlin.time.Duration.Companion.seconds
+import mihon.core.common.CustomPreferences
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AnimeScreenModelTest {
@@ -1104,6 +1105,7 @@ class AnimeScreenModelTest {
         duplicatePreferences: DuplicatePreferences = DuplicatePreferences(InMemoryPreferenceStore()),
         animeDownloadPreferencesRepository: AnimeDownloadPreferencesRepository =
             FakeAnimeDownloadPreferencesRepository(),
+        customPreferences: CustomPreferences = CustomPreferences(InMemoryPreferenceStore()),
     ): AnimeScreenModel {
         val setAnimeEpisodeFlags = SetAnimeEpisodeFlags(animeRepository)
         val getAnimeWithEpisodes = GetAnimeWithEpisodes(animeRepository, episodeRepository, mergedRepository)
@@ -1133,6 +1135,7 @@ class AnimeScreenModelTest {
             setAnimeDefaultEpisodeFlags = SetAnimeDefaultEpisodeFlags(libraryPreferences, setAnimeEpisodeFlags),
             libraryPreferences = libraryPreferences,
             duplicatePreferences = duplicatePreferences,
+            customPreferences = customPreferences,
             syncAnimeWithSource = SyncAnimeWithSource(
                 animeRepository = animeRepository,
                 animeEpisodeRepository = episodeRepository,
