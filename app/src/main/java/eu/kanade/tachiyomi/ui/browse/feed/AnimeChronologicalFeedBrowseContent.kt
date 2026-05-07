@@ -57,6 +57,7 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.domain.anime.model.AnimeTitle
 import tachiyomi.domain.library.model.LibraryDisplayMode
@@ -160,6 +161,7 @@ fun AnimeChronologicalFeedBrowseContent(
         if (displayMode == LibraryDisplayMode.List) {
             snapshotFlow { listState.firstVisibleItemIndex }
                 .distinctUntilChanged()
+                .drop(1)
                 .collectLatest { firstVisibleItemIndex ->
                     if (firstVisibleItemIndex < state.newItemsAvailableCount) {
                         screenModel.consumeNewItemsIndicator()
@@ -168,6 +170,7 @@ fun AnimeChronologicalFeedBrowseContent(
         } else {
             snapshotFlow { gridState.firstVisibleItemIndex }
                 .distinctUntilChanged()
+                .drop(1)
                 .collectLatest { firstVisibleItemIndex ->
                     if (firstVisibleItemIndex < state.newItemsAvailableCount) {
                         screenModel.consumeNewItemsIndicator()
