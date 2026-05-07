@@ -60,7 +60,7 @@ import eu.kanade.presentation.manga.components.MangaActionRow
 import eu.kanade.presentation.manga.components.MangaBottomActionMenu
 import eu.kanade.presentation.manga.components.MangaChapterListItem
 import eu.kanade.presentation.manga.components.MangaInfoBox
-import eu.kanade.presentation.manga.components.MangaPreviewSizeUi
+import eu.kanade.presentation.manga.components.PreviewSizeUi
 import eu.kanade.presentation.manga.components.MangaToolbar
 import eu.kanade.presentation.manga.components.MissingChapterCountListItem
 import eu.kanade.presentation.util.formatChapterNumber
@@ -140,7 +140,7 @@ fun MangaScreen(
     onAllChapterSelected: (Boolean) -> Unit,
     onInvertSelection: () -> Unit,
     mangaPreviewEnabled: Boolean,
-    mangaPreviewSize: MangaPreviewSizeUi,
+    mangaPreviewSize: PreviewSizeUi,
     mangaPreviewState: MangaScreenModel.MangaPreviewState,
     onPreviewExpandedChange: (Boolean) -> Unit,
     onPreviewRetry: () -> Unit,
@@ -307,7 +307,7 @@ private fun MangaScreenSmallImpl(
     onAllChapterSelected: (Boolean) -> Unit,
     onInvertSelection: () -> Unit,
     mangaPreviewEnabled: Boolean,
-    mangaPreviewSize: MangaPreviewSizeUi,
+    mangaPreviewSize: PreviewSizeUi,
     mangaPreviewState: MangaScreenModel.MangaPreviewState,
     onPreviewExpandedChange: (Boolean) -> Unit,
     onPreviewRetry: () -> Unit,
@@ -587,7 +587,7 @@ fun MangaScreenLargeImpl(
     onAllChapterSelected: (Boolean) -> Unit,
     onInvertSelection: () -> Unit,
     mangaPreviewEnabled: Boolean,
-    mangaPreviewSize: MangaPreviewSizeUi,
+    mangaPreviewSize: PreviewSizeUi,
     mangaPreviewState: MangaScreenModel.MangaPreviewState,
     onPreviewExpandedChange: (Boolean) -> Unit,
     onPreviewRetry: () -> Unit,

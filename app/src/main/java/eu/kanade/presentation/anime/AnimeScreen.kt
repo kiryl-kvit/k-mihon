@@ -2,6 +2,7 @@ package eu.kanade.presentation.anime
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.graphics.res.animatedVectorResource
 import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
@@ -9,7 +10,9 @@ import androidx.compose.animation.graphics.vector.AnimatedImageVector
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
@@ -59,6 +62,7 @@ import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilterChip
@@ -107,6 +111,7 @@ import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.minimumInteractiveComponentSize
 import coil3.compose.AsyncImage
 import com.mikepenz.markdown.model.markdownAnnotator
 import com.mikepenz.markdown.model.markdownAnnotatorConfig
@@ -131,6 +136,10 @@ import eu.kanade.presentation.manga.components.MangaCover
 import eu.kanade.presentation.manga.components.MarkdownRender
 import eu.kanade.presentation.manga.components.MergeEditorDialog
 import eu.kanade.presentation.manga.components.MergeEditorEntry
+import eu.kanade.presentation.manga.components.PreviewError
+import eu.kanade.presentation.manga.components.PreviewMessage
+import eu.kanade.presentation.manga.components.PreviewSizeUi
+import eu.kanade.presentation.manga.components.previewGridColumnCount
 import eu.kanade.presentation.manga.components.getMarkdownLinkStyle
 import eu.kanade.presentation.util.isTabletUi
 import eu.kanade.tachiyomi.R
@@ -169,6 +178,9 @@ import kotlin.math.roundToInt
 @Composable
 fun AnimeScreen(
     state: AnimeScreenModel.State.Success,
+    animePreviewEnabled: Boolean,
+    animePreviewSize: PreviewSizeUi,
+    animePreviewState: AnimeScreenModel.AnimePreviewState,
     snackbarHostState: SnackbarHostState,
     navigateUp: () -> Unit,
     onRefresh: () -> Unit,
@@ -181,6 +193,8 @@ fun AnimeScreen(
     onWebViewLongClicked: (() -> Unit)?,
     onSearch: (String, Boolean) -> Unit,
     onTagSearch: (String) -> Unit,
+    onPreviewExpandedChange: (Boolean) -> Unit,
+    onPreviewRetry: () -> Unit,
     onScheduleClicked: (() -> Unit)?,
     onDuplicatesClicked: (() -> Unit)?,
     onCoverClicked: () -> Unit,
@@ -200,6 +214,9 @@ fun AnimeScreen(
     if (isTabletUi()) {
         AnimeScreenLargeImpl(
             state = state,
+            animePreviewEnabled = animePreviewEnabled,
+            animePreviewSize = animePreviewSize,
+            animePreviewState = animePreviewState,
             snackbarHostState = snackbarHostState,
             navigateUp = navigateUp,
             onRefresh = onRefresh,
@@ -212,6 +229,8 @@ fun AnimeScreen(
             onWebViewLongClicked = onWebViewLongClicked,
             onSearch = onSearch,
             onTagSearch = onTagSearch,
+            onPreviewExpandedChange = onPreviewExpandedChange,
+            onPreviewRetry = onPreviewRetry,
             onScheduleClicked = onScheduleClicked,
             onDuplicatesClicked = onDuplicatesClicked,
             onCoverClicked = onCoverClicked,
@@ -231,6 +250,9 @@ fun AnimeScreen(
     } else {
         AnimeScreenSmallImpl(
             state = state,
+            animePreviewEnabled = animePreviewEnabled,
+            animePreviewSize = animePreviewSize,
+            animePreviewState = animePreviewState,
             snackbarHostState = snackbarHostState,
             navigateUp = navigateUp,
             onRefresh = onRefresh,
@@ -243,6 +265,8 @@ fun AnimeScreen(
             onWebViewLongClicked = onWebViewLongClicked,
             onSearch = onSearch,
             onTagSearch = onTagSearch,
+            onPreviewExpandedChange = onPreviewExpandedChange,
+            onPreviewRetry = onPreviewRetry,
             onScheduleClicked = onScheduleClicked,
             onDuplicatesClicked = onDuplicatesClicked,
             onCoverClicked = onCoverClicked,
@@ -265,6 +289,9 @@ fun AnimeScreen(
 @Composable
 private fun AnimeScreenSmallImpl(
     state: AnimeScreenModel.State.Success,
+    animePreviewEnabled: Boolean,
+    animePreviewSize: PreviewSizeUi,
+    animePreviewState: AnimeScreenModel.AnimePreviewState,
     snackbarHostState: SnackbarHostState,
     navigateUp: () -> Unit,
     onRefresh: () -> Unit,
@@ -277,6 +304,8 @@ private fun AnimeScreenSmallImpl(
     onWebViewLongClicked: (() -> Unit)?,
     onSearch: (String, Boolean) -> Unit,
     onTagSearch: (String) -> Unit,
+    onPreviewExpandedChange: (Boolean) -> Unit,
+    onPreviewRetry: () -> Unit,
     onScheduleClicked: (() -> Unit)?,
     onDuplicatesClicked: (() -> Unit)?,
     onCoverClicked: () -> Unit,
@@ -439,6 +468,16 @@ private fun AnimeScreenSmallImpl(
                             onTagSearch = onTagSearch,
                         )
                     }
+                    if (animePreviewEnabled) {
+                        item {
+                            AnimePreviewSection(
+                                state = animePreviewState,
+                                size = animePreviewSize,
+                                onExpandedChange = onPreviewExpandedChange,
+                                onRetry = onPreviewRetry,
+                            )
+                        }
+                    }
                     item {
                         EpisodeHeader(
                             episodeCount = state.episodes.size,
@@ -469,6 +508,9 @@ private fun AnimeScreenSmallImpl(
 @Composable
 private fun AnimeScreenLargeImpl(
     state: AnimeScreenModel.State.Success,
+    animePreviewEnabled: Boolean,
+    animePreviewSize: PreviewSizeUi,
+    animePreviewState: AnimeScreenModel.AnimePreviewState,
     snackbarHostState: SnackbarHostState,
     navigateUp: () -> Unit,
     onRefresh: () -> Unit,
@@ -481,6 +523,8 @@ private fun AnimeScreenLargeImpl(
     onWebViewLongClicked: (() -> Unit)?,
     onSearch: (String, Boolean) -> Unit,
     onTagSearch: (String) -> Unit,
+    onPreviewExpandedChange: (Boolean) -> Unit,
+    onPreviewRetry: () -> Unit,
     onScheduleClicked: (() -> Unit)?,
     onDuplicatesClicked: (() -> Unit)?,
     onCoverClicked: () -> Unit,
@@ -621,6 +665,14 @@ private fun AnimeScreenLargeImpl(
                             tags = state.anime.genre.orEmpty(),
                             onTagSearch = onTagSearch,
                         )
+                        if (animePreviewEnabled) {
+                            AnimePreviewSection(
+                                state = animePreviewState,
+                                size = animePreviewSize,
+                                onExpandedChange = onPreviewExpandedChange,
+                                onRetry = onPreviewRetry,
+                            )
+                        }
                     }
                 },
                 endContent = {
@@ -1261,6 +1313,112 @@ private fun RowScope.AnimeActionButton(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
+        }
+    }
+}
+
+@Composable
+private fun AnimePreviewSection(
+    state: AnimeScreenModel.AnimePreviewState,
+    size: PreviewSizeUi,
+    onExpandedChange: (Boolean) -> Unit,
+    onRetry: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 12.dp)
+            .fillMaxWidth()
+            .animateContentSize(animationSpec = spring()),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .minimumInteractiveComponentSize()
+                .clickable { onExpandedChange(!state.isExpanded) },
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(MR.strings.manga_preview_section_title),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            val image = AnimatedImageVector.animatedVectorResource(R.drawable.anim_caret_down)
+            Icon(
+                painter = rememberAnimatedVectorPainter(image, !state.isExpanded),
+                contentDescription = stringResource(
+                    if (state.isExpanded) MR.strings.manga_info_collapse else MR.strings.manga_info_expand,
+                ),
+            )
+        }
+
+        if (state.isExpanded) {
+            AnimePreviewContent(
+                state = state,
+                size = size,
+                onRetry = onRetry,
+            )
+        }
+    }
+}
+
+@Composable
+private fun AnimePreviewContent(
+    state: AnimeScreenModel.AnimePreviewState,
+    size: PreviewSizeUi,
+    onRetry: () -> Unit,
+) {
+    Box(modifier = Modifier.fillMaxWidth()) {
+        when {
+            state.isLoading && state.pages.isEmpty() -> {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CircularProgressIndicator()
+                    Text(text = stringResource(MR.strings.loading))
+                }
+            }
+            state.error != null -> {
+                PreviewError(
+                    message = state.error.message ?: stringResource(MR.strings.unknown_error),
+                    onRetry = onRetry,
+                )
+            }
+            state.pages.isEmpty() -> {
+                PreviewMessage(
+                    icon = Icons.Default.Warning,
+                    text = stringResource(MR.strings.anime_preview_empty),
+                )
+            }
+            else -> {
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    val columns = previewGridColumnCount(size, maxWidth)
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        state.pages.chunked(columns).forEach { row ->
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                row.forEach { preview ->
+                                    AsyncImage(
+                                        model = preview.imageUrl,
+                                        contentDescription = preview.title,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .aspectRatio(16f / 9f),
+                                    )
+                                }
+                                repeat(columns - row.size) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

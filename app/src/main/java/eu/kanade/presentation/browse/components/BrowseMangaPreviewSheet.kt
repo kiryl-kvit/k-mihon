@@ -53,8 +53,8 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.core.screen.ScreenKey
 import eu.kanade.presentation.components.AdaptiveSheet
 import eu.kanade.presentation.components.AppBar
-import eu.kanade.presentation.manga.components.MangaPreviewContent
-import eu.kanade.presentation.manga.components.MangaPreviewSizeUi
+import eu.kanade.presentation.manga.components.PreviewContent
+import eu.kanade.presentation.manga.components.PreviewSizeUi
 import eu.kanade.tachiyomi.ui.manga.MangaScreenModel
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.util.system.copyToClipboard
@@ -74,7 +74,7 @@ import uy.kohesive.injekt.api.get
 @Composable
 fun BrowseMangaPreviewSheet(
     mangaId: Long,
-    previewSize: MangaPreviewSizeUi,
+    previewSize: PreviewSizeUi,
     onLibraryAction: (Manga) -> Unit,
     onMergeAction: (Manga) -> Unit,
     onOpenManga: (Long) -> Unit,
@@ -170,7 +170,7 @@ private fun BrowseMangaPreviewDialogContent(
     title: String,
     state: MangaScreenModel.State.Success,
     previewState: MangaScreenModel.MangaPreviewState,
-    previewSize: MangaPreviewSizeUi,
+    previewSize: PreviewSizeUi,
     snackbarHostState: SnackbarHostState,
     onDismissRequest: () -> Unit,
     onLibraryAction: (Manga) -> Unit,
@@ -220,7 +220,7 @@ private fun BrowseMangaPreviewDialogContent(
                 .systemBarsPadding()
                 .padding(horizontal = MaterialTheme.padding.medium, vertical = MaterialTheme.padding.small),
         ) {
-            MangaPreviewContent(
+            PreviewContent(
                 state = displayedPreviewState,
                 size = previewSize,
                 onRetry = onRetry,
