@@ -21,12 +21,12 @@ import eu.kanade.presentation.manga.components.buildMergeTargetQuery
 import eu.kanade.presentation.manga.components.rankMergeTargets
 import eu.kanade.presentation.updates.UpdatesSelectionState
 import eu.kanade.presentation.util.formattedMessage
-import eu.kanade.tachiyomi.source.AnimeScheduleSource
 import eu.kanade.tachiyomi.source.AnimePreviewSource
+import eu.kanade.tachiyomi.source.AnimeScheduleSource
 import eu.kanade.tachiyomi.source.AnimeSubtitleSource
 import eu.kanade.tachiyomi.source.AnimeWebViewSource
-import eu.kanade.tachiyomi.source.model.SAnimeScheduleEpisode
 import eu.kanade.tachiyomi.source.model.SAnimePreview
+import eu.kanade.tachiyomi.source.model.SAnimeScheduleEpisode
 import eu.kanade.tachiyomi.source.model.VideoPlaybackSelection
 import eu.kanade.tachiyomi.util.lang.toStoredDisplayName
 import eu.kanade.tachiyomi.util.system.isOnline
@@ -127,7 +127,8 @@ class AnimeScreenModel(
     private val selectionState = UpdatesSelectionState()
     private val selectedEpisodeIds = HashSet<Long>()
     private val deletingEpisodeIds = MutableStateFlow<Set<Long>>(emptySet())
-    private val previewLoaderState = MutableStateFlow(AnimePreviewState(pageCount = customPreferences.animePreviewPageCount.get()))
+    private val previewLoaderState =
+        MutableStateFlow(AnimePreviewState(pageCount = customPreferences.animePreviewPageCount.get()))
     val previewState = previewLoaderState
     private var duplicateObservationJob: Job? = null
     private var previewLoadJob: Job? = null

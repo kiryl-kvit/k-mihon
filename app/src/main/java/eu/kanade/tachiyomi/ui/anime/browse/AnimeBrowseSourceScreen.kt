@@ -44,8 +44,8 @@ import eu.kanade.core.util.ifAnimeSourcesLoaded
 import eu.kanade.presentation.anime.AnimeBrowseSourceContent
 import eu.kanade.presentation.anime.AnimeMergeTargetPickerDialog
 import eu.kanade.presentation.anime.DuplicateAnimeDialog
-import eu.kanade.presentation.browse.components.BrowseFeedNameDialog
 import eu.kanade.presentation.browse.components.BrowseAnimePreviewSheet
+import eu.kanade.presentation.browse.components.BrowseFeedNameDialog
 import eu.kanade.presentation.browse.components.BrowseLibraryActionDialog
 import eu.kanade.presentation.browse.components.BrowseMergeEditorDialog
 import eu.kanade.presentation.browse.components.DeleteBrowsePresetDialog
