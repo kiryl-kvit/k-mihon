@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.ui.video.player.components
 
+import android.view.TextureView
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -8,17 +9,24 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -26,11 +34,19 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.exoplayer.ExoPlayer
+import eu.kanade.tachiyomi.ui.video.player.VideoPlayerSeekPreviewState
 import eu.kanade.tachiyomi.ui.video.player.coerceToPlaybackDuration
 import eu.kanade.tachiyomi.ui.video.player.formatPlaybackTimestamp
+import kotlin.math.roundToInt
 import kotlin.math.roundToLong
+
+private val SeekPreviewWidth = 349.dp
+private val SeekPreviewHeight = 199.dp
 
 @Composable
 internal fun VideoPlayerTimeline(
@@ -38,6 +54,8 @@ internal fun VideoPlayerTimeline(
     durationMs: Long,
     bufferedPositionMs: Long,
     isScrubbing: Boolean,
+    seekPreviewState: VideoPlayerSeekPreviewState?,
+    seekPreviewPlayer: ExoPlayer?,
     onScrubStarted: () -> Unit,
     onScrubPositionChange: (Long) -> Unit,
     onScrubFinished: () -> Unit,
@@ -93,17 +111,12 @@ internal fun VideoPlayerTimeline(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         if (isScrubbing) {
-            Surface(
-                color = Color.Black.copy(alpha = 0.48f),
-                shape = CircleShape,
-            ) {
-                Text(
-                    text = formatPlaybackTimestamp(clampedPositionMs),
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
-                    color = Color.White,
-                    style = MaterialTheme.typography.labelLarge,
-                )
-            }
+            VideoPlayerSeekPreview(
+                positionMs = clampedPositionMs,
+                previewFraction = playedFraction,
+                previewState = seekPreviewState,
+                previewPlayer = seekPreviewPlayer,
+            )
         }
 
         Column(
@@ -149,6 +162,118 @@ internal fun VideoPlayerTimeline(
                         .padding(top = 6.dp),
                 ) {
                     footerContent()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VideoPlayerSeekPreview(
+    positionMs: Long,
+    previewFraction: Float,
+    previewState: VideoPlayerSeekPreviewState?,
+    previewPlayer: ExoPlayer?,
+) {
+    val showPlayer = previewState?.visible == true && previewState.available && previewPlayer != null
+    val showLoading = previewState?.visible == true && previewState.loading
+    val showLoadingTimestamp = showLoading && !showPlayer
+    val shape = if (showPlayer) RoundedCornerShape(10.dp) else CircleShape
+    var attachedTextureView by remember(previewPlayer) { mutableStateOf<TextureView?>(null) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(SeekPreviewHeight + 10.dp),
+    ) {
+        Surface(
+            modifier = Modifier
+                .layout { measurable, constraints ->
+                    val placeable = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
+                    val width = constraints.maxWidth
+                    val targetCenterX = (width * previewFraction.coerceIn(0f, 1f)).roundToInt()
+                    val x = (targetCenterX - (placeable.width / 2))
+                        .coerceIn(0, (width - placeable.width).coerceAtLeast(0))
+
+                    layout(width, placeable.height) {
+                        placeable.placeRelative(x, 0)
+                    }
+                },
+            color = Color.Black,
+            shape = shape,
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp,
+        ) {
+            if (showPlayer) {
+                Box {
+                    AndroidView(
+                        modifier = Modifier.size(width = SeekPreviewWidth, height = SeekPreviewHeight),
+                        factory = { context ->
+                            TextureView(context)
+                        },
+                        update = { textureView ->
+                            if (attachedTextureView !== textureView) {
+                                attachedTextureView?.let { previousTextureView ->
+                                    runCatching { previewPlayer.clearVideoTextureView(previousTextureView) }
+                                }
+                                runCatching { previewPlayer.setVideoTextureView(textureView) }
+                                attachedTextureView = textureView
+                            }
+                        },
+                        onRelease = { textureView ->
+                            if (attachedTextureView === textureView) {
+                                runCatching { previewPlayer.clearVideoTextureView(textureView) }
+                                attachedTextureView = null
+                            }
+                        },
+                    )
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(6.dp),
+                        color = Color.Black.copy(alpha = 0.62f),
+                        shape = CircleShape,
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            if (showLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier
+                                        .padding(end = 6.dp)
+                                        .size(12.dp),
+                                    color = Color.White,
+                                    strokeWidth = 2.dp,
+                                )
+                            }
+                            Text(
+                                text = formatPlaybackTimestamp(previewState.positionMs),
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        }
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (showLoadingTimestamp) {
+                        CircularProgressIndicator(
+                            modifier = Modifier
+                                .padding(end = 8.dp)
+                                .size(14.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp,
+                        )
+                    }
+                    Text(
+                        text = formatPlaybackTimestamp(positionMs),
+                        color = Color.White,
+                        style = MaterialTheme.typography.labelLarge,
+                    )
                 }
             }
         }

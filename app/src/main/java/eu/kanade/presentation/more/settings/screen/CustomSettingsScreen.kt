@@ -328,6 +328,11 @@ object CustomSettingsScreen : SearchableSettings {
                                 title = stringResource(MR.strings.pref_enable_anime_picture_in_picture),
                                 subtitle = stringResource(MR.strings.pref_enable_anime_picture_in_picture_summary),
                             ),
+                            Preference.PreferenceItem.SwitchPreference(
+                                preference = customPreferences.enableAnimeSeekPreview,
+                                title = stringResource(MR.strings.pref_enable_anime_seek_preview),
+                                subtitle = stringResource(MR.strings.pref_enable_anime_seek_preview_summary),
+                            ),
                         ),
                     ),
                 )

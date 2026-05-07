@@ -15,8 +15,10 @@ import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.Tracks
 import androidx.media3.common.text.Cue
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.ResolvingDataSource
+import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -51,6 +53,13 @@ internal data class VideoPlayerSeekFeedbackState(
     val updatedAtMillis: Long,
 )
 
+internal data class VideoPlayerSeekPreviewState(
+    val positionMs: Long = 0L,
+    val visible: Boolean = false,
+    val loading: Boolean = false,
+    val available: Boolean = false,
+)
+
 internal enum class VideoPlayerSideGestureType {
     Brightness,
     Volume,
@@ -67,9 +76,28 @@ internal data class VideoPlayerSideGestureFeedbackState(
 internal fun buildVideoPlayer(
     context: Context,
     networkHelper: NetworkHelper,
+    mediaCache: VideoPlayerMediaCache,
     stream: VideoStream,
     subtitles: List<VideoSubtitle>,
 ): ExoPlayer {
+    return ExoPlayer.Builder(
+        context,
+        buildVideoMediaSourceFactory(context, networkHelper, mediaCache, stream, subtitles),
+    )
+        .build()
+        .apply {
+            setMediaItem(stream.toMediaItem(subtitles))
+        }
+}
+
+@OptIn(markerClass = [UnstableApi::class])
+private fun buildVideoMediaSourceFactory(
+    context: Context,
+    networkHelper: NetworkHelper,
+    mediaCache: VideoPlayerMediaCache,
+    stream: VideoStream,
+    subtitles: List<VideoSubtitle>,
+): DefaultMediaSourceFactory {
     val requestHeaders = stream.request.headers
     val streamUri = Uri.parse(stream.request.url)
     val userAgent = requestHeaders.entries.firstOrNull { it.key.equals("User-Agent", ignoreCase = true) }?.value
@@ -94,13 +122,18 @@ internal fun buildVideoPlayer(
             resolvedDataSpec.withAdditionalHeaders(headers)
         }
     }
-    val mediaSourceFactory = DefaultMediaSourceFactory(resolvedDataSourceFactory)
+    val dataSourceFactory: DataSource.Factory = if (streamUri.scheme.equals("http", ignoreCase = true) ||
+        streamUri.scheme.equals("https", ignoreCase = true)
+    ) {
+        CacheDataSource.Factory()
+            .setCache(mediaCache.cache)
+            .setUpstreamDataSourceFactory(resolvedDataSourceFactory)
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+    } else {
+        resolvedDataSourceFactory
+    }
 
-    return ExoPlayer.Builder(context, mediaSourceFactory)
-        .build()
-        .apply {
-            setMediaItem(stream.toMediaItem(subtitles))
-        }
+    return DefaultMediaSourceFactory(dataSourceFactory)
 }
 
 internal fun VideoStream.toMediaItem(subtitles: List<VideoSubtitle>): MediaItem {
