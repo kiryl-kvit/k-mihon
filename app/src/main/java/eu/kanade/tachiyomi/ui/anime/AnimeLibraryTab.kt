@@ -27,7 +27,6 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -58,6 +57,7 @@ import eu.kanade.core.util.ifAnimeSourcesLoaded
 import eu.kanade.domain.anime.model.toMangaCover
 import eu.kanade.presentation.anime.toMergeEditorEntry
 import eu.kanade.presentation.category.components.ChangeCategoryDialog
+import eu.kanade.presentation.components.AppSnackbarHost
 import eu.kanade.presentation.components.TabbedDialog
 import eu.kanade.presentation.components.TabbedDialogPaddings
 import eu.kanade.presentation.library.components.GlobalSearchItem
@@ -226,7 +226,7 @@ data object AnimeLibraryTab : Tab {
                     markAsUnreadLabel = MR.strings.action_mark_as_unwatched,
                 )
             },
-            snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+            snackbarHost = { AppSnackbarHost(hostState = snackbarHostState) },
         ) { contentPadding ->
             val errorMessage = state.errorMessage
             when {

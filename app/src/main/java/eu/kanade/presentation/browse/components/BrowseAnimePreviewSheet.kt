@@ -26,7 +26,6 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -50,6 +49,7 @@ import cafe.adriel.voyager.core.screen.ScreenKey
 import coil3.compose.AsyncImage
 import eu.kanade.presentation.components.AdaptiveSheet
 import eu.kanade.presentation.components.AppBar
+import eu.kanade.presentation.components.AppSnackbarHost
 import eu.kanade.presentation.manga.components.PreviewError
 import eu.kanade.presentation.manga.components.PreviewMessage
 import eu.kanade.presentation.manga.components.PreviewSizeUi
@@ -154,7 +154,7 @@ private fun BrowseAnimePreviewDialogContent(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+        snackbarHost = { AppSnackbarHost(hostState = snackbarHostState) },
         topBar = {
             AppBar(
                 titleContent = { BrowseAnimePreviewTitle(title = title) },

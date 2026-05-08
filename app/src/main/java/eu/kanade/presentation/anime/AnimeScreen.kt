@@ -74,7 +74,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.SmallExtendedFloatingActionButton
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
@@ -124,6 +123,7 @@ import eu.kanade.presentation.components.AnimeDownloadDropdownMenu
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.components.AppBarTitle
+import eu.kanade.presentation.components.AppSnackbarHost
 import eu.kanade.presentation.components.DownloadIndicatorAction
 import eu.kanade.presentation.components.DownloadIndicatorState
 import eu.kanade.presentation.components.DropdownMenu
@@ -372,7 +372,7 @@ private fun AnimeScreenSmallImpl(
                 onDeleteClicked = onDeleteSelectedEpisodes.takeIf { state.hasDownloadedSelection },
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = { AppSnackbarHost(snackbarHostState) },
         floatingActionButton = {
             val primaryEpisode = state.primaryEpisode
             if (primaryEpisode != null && !state.isSelectionMode) {
@@ -579,7 +579,7 @@ private fun AnimeScreenLargeImpl(
                 onDeleteClicked = onDeleteSelectedEpisodes.takeIf { state.hasDownloadedSelection },
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = { AppSnackbarHost(snackbarHostState) },
         floatingActionButton = {
             val primaryEpisode = state.primaryEpisode
             if (primaryEpisode != null && !state.isSelectionMode) {
