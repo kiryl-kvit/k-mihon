@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.ui.browse.feed
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,6 +38,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -57,6 +59,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.launch
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.domain.library.model.LibraryDisplayMode
 import tachiyomi.domain.manga.model.Manga
@@ -89,6 +92,7 @@ fun ChronologicalFeedBrowseContent(
     val state by screenModel.state.collectAsState()
     val listState = rememberLazyListState()
     val gridState = rememberLazyGridState()
+    val scope = rememberCoroutineScope()
     var restoredDisplayMode by rememberSaveable { mutableStateOf<String?>(null) }
 
     val getErrorMessage: (Throwable) -> String = { throwable ->
@@ -292,6 +296,15 @@ fun ChronologicalFeedBrowseContent(
         if (state.newItemsAvailableCount > 0 && !state.isRefreshing) {
             NewItemsChip(
                 count = state.newItemsAvailableCount,
+                onClick = {
+                    screenModel.consumeNewItemsIndicator()
+                    scope.launch {
+                        when (displayMode) {
+                            LibraryDisplayMode.List -> listState.animateScrollToItem(0)
+                            else -> gridState.animateScrollToItem(0)
+                        }
+                    }
+                },
                 modifier = Modifier
                     .padding(top = 16.dp)
                     .align(androidx.compose.ui.Alignment.TopCenter),
@@ -303,10 +316,11 @@ fun ChronologicalFeedBrowseContent(
 @Composable
 private fun NewItemsChip(
     count: Int,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = modifier,
+        modifier = modifier.clickable(onClick = onClick),
         color = MaterialTheme.colorScheme.secondaryContainer,
         contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
         shape = MaterialTheme.shapes.extraLarge,
