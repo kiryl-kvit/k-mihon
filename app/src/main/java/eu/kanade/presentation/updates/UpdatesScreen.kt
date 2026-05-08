@@ -13,7 +13,6 @@ import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.SelectAll
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
@@ -26,6 +25,7 @@ import androidx.compose.ui.Modifier
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
+import eu.kanade.presentation.components.AppSnackbarHost
 import eu.kanade.presentation.manga.components.MangaBottomActionMenu
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
@@ -83,7 +83,7 @@ fun <T> UpdatesScreen(
                 UpdatesBottomBar(config = bottomBarConfig)
             }
         },
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+        snackbarHost = { AppSnackbarHost(hostState = snackbarHostState) },
     ) { contentPadding ->
         when {
             state.isLoading -> loadingContent(Modifier.padding(contentPadding))

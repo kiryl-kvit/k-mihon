@@ -5,7 +5,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material3.Icon
 import androidx.compose.material3.SmallExtendedFloatingActionButton
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.animateFloatingActionButton
@@ -23,6 +22,7 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.core.util.ifSourcesLoaded
 import eu.kanade.presentation.browse.BrowseSourceContent
+import eu.kanade.presentation.components.AppSnackbarHost
 import eu.kanade.presentation.components.SearchToolbar
 import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.source.AsyncCatalogueFilterSource
@@ -95,7 +95,7 @@ data class MigrateSourceSearchScreen(
                     ),
                 )
             },
-            snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+            snackbarHost = { AppSnackbarHost(hostState = snackbarHostState) },
         ) { paddingValues ->
             val openMigrateDialog: (Manga) -> Unit = {
                 val migrateListScreen = navigator.items
