@@ -33,7 +33,7 @@ fun BrowseSourceList(
 
         items(
             count = mangaList.itemCount,
-            key = { index -> mangaList[index]?.value?.id ?: "browse-list-$index" },
+            key = { index -> mangaList.peek(index)?.value?.id ?: "browse-list-$index" },
         ) { index ->
             val manga by mangaList[index]?.collectAsState() ?: return@items
             BrowseSourceListItem(
