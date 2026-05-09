@@ -202,11 +202,11 @@ class GetDuplicateLibraryMangaTest {
     }
 
     @Test
-    fun `collapses merged library members into one candidate`() = runTest {
+    fun `returns merged library members as separate candidates`() = runTest {
         val description = "Japan assembles an elite striker program to create the world's most selfish goal scorer."
-        val current = manga(id = 1, title = "Blue Lock", description = description)
+        val current = manga(id = 1, title = "Blue Lock Official", description = description)
         val target =
-            libraryManga(manga = manga(id = 10, title = "Blue Lock", description = description), totalChapters = 20)
+            libraryManga(manga = manga(id = 10, title = "Blue Lock 1", description = description), totalChapters = 20)
         val member =
             libraryManga(
                 manga = manga(id = 11, title = "Blue Lock (Official)", description = description),
@@ -222,9 +222,8 @@ class GetDuplicateLibraryMangaTest {
 
         val results = getDuplicateLibraryManga(current)
 
-        results shouldHaveSize 1
-        results.single().manga.id shouldBe 10L
-        results.single().chapterCount shouldBe 42L
+        results.map { it.manga.id } shouldBe listOf(11L, 10L)
+        results.map { it.chapterCount } shouldBe listOf(22L, 20L)
     }
 
     @Test

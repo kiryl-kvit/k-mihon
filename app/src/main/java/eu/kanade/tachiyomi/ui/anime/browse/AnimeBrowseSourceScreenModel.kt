@@ -314,6 +314,10 @@ class AnimeBrowseSourceScreenModel(
         }
     }
 
+    fun showMigrateDialog(current: AnimeTitle, target: AnimeTitle) {
+        setDialog(Dialog.Migrate(current = current, target = target))
+    }
+
     private suspend fun handleAnimeLibraryAction(anime: AnimeTitle) {
         val duplicates = getDuplicateLibraryAnime(anime)
         when {
@@ -859,6 +863,8 @@ class AnimeBrowseSourceScreenModel(
             val anime: AnimeTitle,
             val duplicates: List<DuplicateAnimeCandidate>,
         ) : Dialog
+
+        data class Migrate(val current: AnimeTitle, val target: AnimeTitle) : Dialog
 
         data class SelectMergeTarget(
             val anime: AnimeTitle,

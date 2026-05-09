@@ -70,6 +70,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import mihon.feature.migration.dialog.MigrateAnimeDialog
 import mihon.presentation.core.util.collectAsLazyPagingItems
 import tachiyomi.domain.anime.interactor.GetMergedAnime
 import tachiyomi.domain.library.model.LibraryDisplayMode
@@ -355,6 +356,19 @@ data class AnimeBrowseSourceScreen(
                     onDismissRequest = onDismissRequest,
                     onConfirm = { screenModel.addFavorite(dialog.anime) },
                     onOpenAnime = { navigator.push(AnimeScreen(it.id)) },
+                    onMigrate = { screenModel.showMigrateDialog(current = it, target = dialog.anime) },
+                )
+            }
+            is AnimeBrowseSourceScreenModel.Dialog.Migrate -> {
+                MigrateAnimeDialog(
+                    current = dialog.current,
+                    target = dialog.target,
+                    onClickTitle = { navigator.push(AnimeScreen(dialog.target.id)) },
+                    onDismissRequest = onDismissRequest,
+                    onComplete = {
+                        screenModel.dismissDialog()
+                        navigator.push(AnimeScreen(dialog.target.id))
+                    },
                 )
             }
             is AnimeBrowseSourceScreenModel.Dialog.SelectMergeTarget -> {

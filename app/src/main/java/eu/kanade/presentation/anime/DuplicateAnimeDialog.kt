@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.PersonOutline
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.Close
@@ -78,6 +79,7 @@ fun DuplicateAnimeDialog(
     onDismissRequest: () -> Unit,
     onConfirm: () -> Unit,
     onOpenAnime: (anime: AnimeTitle) -> Unit,
+    onMigrate: (anime: AnimeTitle) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val sourceManager = remember { Injekt.get<AnimeSourceManager>() }
@@ -129,6 +131,7 @@ fun DuplicateAnimeDialog(
                         isStubSource = sourceManager.get(duplicate.anime.source) == null,
                         onDismissRequest = onDismissRequest,
                         onOpenAnime = { onOpenAnime(duplicate.anime) },
+                        onMigrate = { onMigrate(duplicate.anime) },
                     )
                 }
             }
@@ -173,6 +176,7 @@ private fun DuplicateAnimeListItem(
     isStubSource: Boolean,
     onDismissRequest: () -> Unit,
     onOpenAnime: () -> Unit,
+    onMigrate: () -> Unit,
 ) {
     val anime = duplicate.anime
     val duplicatePreferences = remember { Injekt.get<DuplicatePreferences>() }
@@ -324,6 +328,24 @@ private fun DuplicateAnimeListItem(
                         )
                         Text(
                             text = stringResource(MR.strings.action_open),
+                            modifier = Modifier.padding(start = MaterialTheme.padding.extraSmall),
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            onDismissRequest()
+                            onMigrate()
+                        },
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Warning,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Text(
+                            text = stringResource(MR.strings.action_migrate),
                             modifier = Modifier.padding(start = MaterialTheme.padding.extraSmall),
                         )
                     }
