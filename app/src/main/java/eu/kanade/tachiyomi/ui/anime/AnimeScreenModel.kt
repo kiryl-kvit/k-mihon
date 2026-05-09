@@ -972,6 +972,11 @@ class AnimeScreenModel(
         }
     }
 
+    fun showMigrateDialog(duplicate: AnimeTitle) {
+        val anime = successState?.anime ?: return
+        updateSuccessState { it.copy(dialog = Dialog.Migrate(target = anime, current = duplicate)) }
+    }
+
     fun showMergeTargetPicker() {
         val currentState = successState ?: return
         screenModelScope.launchIO {
@@ -1231,6 +1236,8 @@ class AnimeScreenModel(
             val anime: AnimeTitle,
             val duplicates: List<DuplicateAnimeCandidate>,
         ) : Dialog
+
+        data class Migrate(val target: AnimeTitle, val current: AnimeTitle) : Dialog
 
         data object Schedule : Dialog
 

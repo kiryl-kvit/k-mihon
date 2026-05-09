@@ -123,12 +123,20 @@ class GetDuplicateLibraryAnime(
         episodeCounts: Map<Long, Long>,
         config: DuplicateConfig,
     ): List<DuplicateAnimeCandidate> {
-        val collapsedLibrary = collapseLibraryAnime(libraryAnime, merges, episodeCounts)
         val excludedIds = buildExcludedIds(anime.id, merges)
 
         return DuplicateLibrarySupport.detectDuplicates(
             currentEntry = anime.toDuplicateEntryMetadata(episodeCounts[anime.id]),
-            libraryEntries = collapsedLibrary,
+            libraryEntries = libraryAnime.map { libraryAnime ->
+                DuplicateLibraryCandidate(
+                    item = libraryAnime,
+                    sortTitle = libraryAnime.displayTitle,
+                    memberIds = listOf(libraryAnime.id),
+                    memberEntries = listOf(libraryAnime.toDuplicateEntryMetadata(episodeCounts[libraryAnime.id])),
+                    count = episodeCounts[libraryAnime.id] ?: 0L,
+                    contentSignature = libraryAnime.lastModifiedAt,
+                )
+            },
             excludedIds = excludedIds,
             trackerDuplicateIds = emptySet(),
             config = config,
@@ -157,52 +165,6 @@ class GetDuplicateLibraryAnime(
         return merges.asSequence()
             .filter { it.targetId == mergeTargetId }
             .mapTo(linkedSetOf(mergeTargetId)) { it.animeId }
-    }
-
-    private fun collapseLibraryAnime(
-        libraryAnime: List<AnimeTitle>,
-        merges: List<AnimeMerge>,
-        episodeCounts: Map<Long, Long>,
-    ): List<DuplicateLibraryCandidate<AnimeTitle>> {
-        val byId = libraryAnime.associateBy(AnimeTitle::id)
-        val groupedMerges = merges.groupBy(AnimeMerge::targetId)
-
-        val collapsed = mutableListOf<DuplicateLibraryCandidate<AnimeTitle>>()
-        val consumedIds = mutableSetOf<Long>()
-
-        groupedMerges.forEach { (targetId, group) ->
-            val members = group.sortedBy(AnimeMerge::position)
-                .mapNotNull { byId[it.animeId] }
-            if (members.size <= 1) return@forEach
-
-            val target = members.firstOrNull { it.id == targetId } ?: members.first()
-            val memberIds = members.map(AnimeTitle::id)
-            consumedIds += memberIds
-            collapsed += DuplicateLibraryCandidate(
-                item = target,
-                sortTitle = target.displayTitle,
-                memberIds = memberIds,
-                memberEntries = members.map { member ->
-                    member.toDuplicateEntryMetadata(episodeCounts[member.id])
-                },
-                count = memberIds.sumOf { episodeCounts[it] ?: 0L },
-                contentSignature = members.maxOfOrNull(AnimeTitle::lastModifiedAt) ?: target.lastModifiedAt,
-            )
-        }
-
-        collapsed += libraryAnime.filterNot { it.id in consumedIds }
-            .map { anime ->
-                DuplicateLibraryCandidate(
-                    item = anime,
-                    sortTitle = anime.displayTitle,
-                    memberIds = listOf(anime.id),
-                    memberEntries = listOf(anime.toDuplicateEntryMetadata(episodeCounts[anime.id])),
-                    count = episodeCounts[anime.id] ?: 0L,
-                    contentSignature = anime.lastModifiedAt,
-                )
-            }
-
-        return collapsed
     }
 
     private suspend fun buildEpisodeCounts(animeIds: List<Long>): Map<Long, Long> {

@@ -46,6 +46,7 @@ import mihon.domain.extensionrepo.interactor.ReplaceExtensionRepo
 import mihon.domain.extensionrepo.interactor.UpdateExtensionRepo
 import mihon.domain.extensionrepo.repository.ExtensionRepoRepository
 import mihon.domain.extensionrepo.service.ExtensionRepoService
+import mihon.domain.migration.usecases.MigrateAnimeUseCase
 import mihon.domain.migration.usecases.MigrateMangaUseCase
 import mihon.domain.upcoming.interactor.GetUpcomingManga
 import tachiyomi.data.ActiveProfileProvider
@@ -197,9 +198,10 @@ class DomainModule : InjektModule {
         addFactory { SetAnimeCategories(get()) }
         addFactory { GetExcludedScanlators(get(), get()) }
         addFactory { SetExcludedScanlators(get(), get()) }
+        addFactory { MigrateAnimeUseCase(get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
         addFactory {
             MigrateMangaUseCase(
-                get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(),
+                get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(),
             )
         }
 

@@ -93,6 +93,7 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import mihon.feature.migration.dialog.MigrateAnimeDialog
 import mihon.feature.profiles.core.ProfileManager
 import mihon.presentation.core.util.collectAsLazyPagingItems
 import sh.calvin.reorderable.ReorderableCollectionItemScope
@@ -455,6 +456,19 @@ private fun AnimeFeedsTabContent(
                             onDismissRequest = browseModel::dismissDialog,
                             onConfirm = { browseModel.addFavorite(dialog.anime) },
                             onOpenAnime = { navigator.push(AnimeScreen(it.id)) },
+                            onMigrate = { browseModel.showMigrateDialog(current = it, target = dialog.anime) },
+                        )
+                    }
+                    is AnimeBrowseSourceScreenModel.Dialog.Migrate -> {
+                        MigrateAnimeDialog(
+                            current = dialog.current,
+                            target = dialog.target,
+                            onClickTitle = { navigator.push(AnimeScreen(dialog.target.id)) },
+                            onDismissRequest = browseModel::dismissDialog,
+                            onComplete = {
+                                browseModel.dismissDialog()
+                                navigator.push(AnimeScreen(dialog.target.id))
+                            },
                         )
                     }
                     is AnimeBrowseSourceScreenModel.Dialog.SelectMergeTarget -> {

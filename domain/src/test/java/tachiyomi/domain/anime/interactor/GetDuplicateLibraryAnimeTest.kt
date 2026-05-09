@@ -1,7 +1,6 @@
 package tachiyomi.domain.anime.interactor
 
 import io.kotest.matchers.collections.shouldContain
-import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -20,10 +19,10 @@ import tachiyomi.domain.manga.service.DuplicatePreferences
 class GetDuplicateLibraryAnimeTest {
 
     @Test
-    fun `collapses merged library members into one candidate`() = runTest {
+    fun `returns merged library members as separate candidates`() = runTest {
         val description = "A striker program turns forwards into monsters chasing the same impossible dream."
-        val current = anime(id = 1, title = "Blue Lock", description = description)
-        val target = anime(id = 10, title = "Blue Lock", description = description, favorite = true)
+        val current = anime(id = 1, title = "Blue Lock Official", description = description)
+        val target = anime(id = 10, title = "Blue Lock 1", description = description, favorite = true)
         val member = anime(id = 11, title = "Blue Lock Official", description = description, favorite = true)
         val animeRepository = FakeAnimeRepository(listOf(current, target, member))
         val episodeRepository = FakeAnimeEpisodeRepository(
@@ -50,10 +49,8 @@ class GetDuplicateLibraryAnimeTest {
 
         val results = interactor(current)
 
-        results shouldHaveSize 1
-        results.single().anime.id shouldBe 10L
-        results.single().episodeCount shouldBe 3L
-        results.single().reasons shouldContain DuplicateMangaMatchReason.TITLE
+        results.associate { it.anime.id to it.episodeCount } shouldBe mapOf(10L to 2L, 11L to 1L)
+        results.first { it.anime.id == 11L }.reasons shouldContain DuplicateMangaMatchReason.TITLE
     }
 
     @Test

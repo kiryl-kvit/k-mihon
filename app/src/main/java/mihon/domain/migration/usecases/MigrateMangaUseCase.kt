@@ -16,11 +16,16 @@ import tachiyomi.domain.category.interactor.SetMangaCategories
 import tachiyomi.domain.chapter.interactor.GetChaptersByMangaId
 import tachiyomi.domain.chapter.interactor.UpdateChapter
 import tachiyomi.domain.chapter.model.toChapterUpdate
+import tachiyomi.domain.manga.interactor.GetMergedManga
+import tachiyomi.domain.manga.interactor.UpdateMergedManga
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.MangaUpdate
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.track.interactor.GetTracks
 import tachiyomi.domain.track.interactor.InsertTrack
+import tachiyomi.domain.util.MergeGroupMember
+import tachiyomi.domain.util.MergeGroupReplacement
+import tachiyomi.domain.util.replaceMergeGroupMember
 import java.time.Instant
 
 class MigrateMangaUseCase(
@@ -37,6 +42,8 @@ class MigrateMangaUseCase(
     private val getTracks: GetTracks,
     private val insertTrack: InsertTrack,
     private val coverCache: CoverCache,
+    private val getMergedManga: GetMergedManga,
+    private val updateMergedManga: UpdateMergedManga,
 ) {
     private val enhancedServices by lazy { trackerManager.trackers.filterIsInstance<EnhancedTracker>() }
 
@@ -136,10 +143,43 @@ class MigrateMangaUseCase(
             )
 
             updateManga.awaitAll(listOfNotNull(currentMangaUpdate, targetMangaUpdate))
+
+            if (replace) {
+                updateMergeGroup(current.id, target.id)
+            }
         } catch (e: Throwable) {
             if (e is CancellationException) {
                 throw e
             }
+        }
+    }
+
+    private suspend fun updateMergeGroup(currentId: Long, targetId: Long) {
+        val currentGroup = getMergedManga.awaitGroupByMangaId(currentId)
+        if (currentGroup.isEmpty()) return
+
+        val targetGroup = getMergedManga.awaitGroupByMangaId(targetId)
+        val replacement = replaceMergeGroupMember(
+            currentId = currentId,
+            replacementId = targetId,
+            currentGroup = currentGroup.map {
+                MergeGroupMember(targetId = it.targetId, memberId = it.mangaId, position = it.position)
+            },
+            replacementGroup = targetGroup.map {
+                MergeGroupMember(targetId = it.targetId, memberId = it.mangaId, position = it.position)
+            },
+        ) ?: return
+
+        replacement.targetIdsToRemoveReplacementFrom.forEach { replacementTargetId ->
+            updateMergedManga.awaitRemoveMembers(replacementTargetId, listOf(targetId))
+        }
+
+        when (replacement) {
+            is MergeGroupReplacement.Delete -> updateMergedManga.awaitDeleteGroup(replacement.targetId)
+            is MergeGroupReplacement.Upsert -> updateMergedManga.awaitMerge(
+                replacement.targetId,
+                replacement.orderedMemberIds,
+            )
         }
     }
 }

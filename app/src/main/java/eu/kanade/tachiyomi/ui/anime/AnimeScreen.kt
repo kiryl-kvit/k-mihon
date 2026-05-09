@@ -42,6 +42,7 @@ import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.coroutines.launch
 import mihon.core.common.CustomPreferences
 import mihon.domain.anime.model.toSAnime
+import mihon.feature.migration.dialog.MigrateAnimeDialog
 import tachiyomi.domain.anime.model.AnimeTitle
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.Scaffold
@@ -186,6 +187,20 @@ data class AnimeScreen(
                             onDismissRequest = screenModel::dismissDialog,
                             onConfirm = { screenModel.toggleFavorite(checkDuplicate = false) },
                             onOpenAnime = { navigator.push(AnimeScreen(it.id)) },
+                            onMigrate = { screenModel.showMigrateDialog(it) },
+                        )
+                    }
+                    is AnimeScreenModel.Dialog.Migrate -> {
+                        MigrateAnimeDialog(
+                            current = dialog.current,
+                            target = dialog.target,
+                            onClickTitle = {
+                                navigator.push(AnimeScreen(dialog.target.id))
+                            },
+                            onDismissRequest = screenModel::dismissDialog,
+                            onComplete = {
+                                navigator.replace(AnimeScreen(dialog.target.id))
+                            },
                         )
                     }
                     AnimeScreenModel.Dialog.Schedule -> {

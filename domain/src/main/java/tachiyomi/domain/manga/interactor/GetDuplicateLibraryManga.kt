@@ -122,11 +122,10 @@ class GetDuplicateLibraryManga(
             return emptyList()
         }
 
-        val collapsedLibrary = collapseLibraryManga(libraryManga, merges)
         val excludedIds = buildExcludedIds(manga.id, merges)
-        val trackerDuplicateIds = trackerDuplicateIds(manga.id, collapsedLibrary, tracks)
+        val trackerDuplicateIds = trackerDuplicateIds(manga.id, libraryManga, tracks)
 
-        return collapsedLibrary.asSequence()
+        return libraryManga.asSequence()
             .filterNot { libraryItem -> libraryItem.memberMangaIds.any { it in excludedIds } }
             .mapNotNull { libraryItem ->
                 if (config.extendedEnabled) {
@@ -154,42 +153,6 @@ class GetDuplicateLibraryManga(
         return merges.asSequence()
             .filter { it.targetId == mergeTargetId }
             .mapTo(linkedSetOf(mergeTargetId)) { it.mangaId }
-    }
-
-    private fun collapseLibraryManga(
-        libraryManga: List<LibraryManga>,
-        merges: List<MangaMerge>,
-    ): List<LibraryManga> {
-        val byId = libraryManga.associateBy { it.manga.id }
-        val groupedMerges = merges.groupBy { it.targetId }
-
-        val collapsed = mutableListOf<LibraryManga>()
-        val consumedIds = mutableSetOf<Long>()
-
-        groupedMerges.forEach { (targetId, group) ->
-            val members = group.sortedBy { it.position }
-                .mapNotNull { byId[it.mangaId] }
-            if (members.size <= 1) return@forEach
-
-            val target = members.firstOrNull { it.manga.id == targetId } ?: members.first()
-            consumedIds += members.map { it.manga.id }
-            collapsed += target.copy(
-                categories = members.flatMap { it.categories }.distinct(),
-                totalChapters = members.sumOf { it.totalChapters },
-                readCount = members.sumOf { it.readCount },
-                bookmarkCount = members.sumOf { it.bookmarkCount },
-                latestUpload = members.maxOfOrNull { it.latestUpload } ?: 0L,
-                chapterFetchedAt = members.maxOfOrNull { it.chapterFetchedAt } ?: 0L,
-                lastRead = members.maxOfOrNull { it.lastRead } ?: 0L,
-                memberMangaIds = members.map { it.manga.id },
-                memberMangas = members.map { it.manga },
-                displaySourceId = target.displaySourceId,
-                sourceIds = members.flatMapTo(linkedSetOf()) { it.sourceIds },
-            )
-        }
-
-        collapsed += libraryManga.filterNot { it.manga.id in consumedIds }
-        return collapsed
     }
 
     private fun trackerDuplicateIds(
