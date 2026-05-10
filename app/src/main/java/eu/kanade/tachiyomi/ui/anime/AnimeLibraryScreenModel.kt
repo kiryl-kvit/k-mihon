@@ -67,6 +67,7 @@ import tachiyomi.domain.source.service.AnimeSourceManager
 import tachiyomi.i18n.MR
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import kotlin.random.Random
 
 class AnimeLibraryScreenModel(
     private val animeRepository: AnimeRepository = Injekt.get(),
@@ -513,12 +514,15 @@ class AnimeLibraryScreenModel(
             ?.takeIf { groupType == LibraryGroupType.Category }
             .effectiveLibrarySort(globalSort)
 
+        if (sort.type == LibrarySort.Type.Random) {
+            return pageItems.shuffled(Random(randomSortSeed))
+        }
+
         val comparator = when (sort.type) {
             LibrarySort.Type.Alphabetical -> compareBy<AnimeLibraryItem> { it.title.lowercase() }
             LibrarySort.Type.LastUpdate -> compareBy<AnimeLibraryItem> { it.lastUpdate }
             LibrarySort.Type.UnreadCount -> compareBy<AnimeLibraryItem> { it.unwatchedCount }
             LibrarySort.Type.DateAdded -> compareBy<AnimeLibraryItem> { it.dateAdded }
-            LibrarySort.Type.Random -> compareBy<AnimeLibraryItem> { (it.animeId xor randomSortSeed.toLong()) }
             LibrarySort.Type.LastRead,
             LibrarySort.Type.TotalChapters,
             LibrarySort.Type.LatestChapter,
