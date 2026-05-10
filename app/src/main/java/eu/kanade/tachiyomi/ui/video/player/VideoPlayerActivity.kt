@@ -116,9 +116,9 @@ private const val HOLD_SPEED_TOP_ZONE_LEFT_FRACTION = 0.1f
 private const val HOLD_SPEED_TOP_ZONE_RIGHT_FRACTION = 0.9f
 private const val HOLD_SPEED_TOP_ZONE_TOP_FRACTION = 0f
 private const val HOLD_SPEED_TOP_ZONE_BOTTOM_FRACTION = 0.2f
-private const val SEEK_PREVIEW_FIRST_DEBOUNCE_MS = 300L
-private const val SEEK_PREVIEW_THROTTLE_MS = 700L
-private const val SEEK_PREVIEW_MIN_DELTA_MS = 3_000L
+private const val SEEK_PREVIEW_FIRST_DEBOUNCE_MS = 50L
+private const val SEEK_PREVIEW_THROTTLE_MS = 200L
+private const val SEEK_PREVIEW_MIN_DELTA_MS = 2_000L
 private const val SEEK_PREVIEW_MAX_WIDTH = 320
 private const val SEEK_PREVIEW_MAX_HEIGHT = 180
 
