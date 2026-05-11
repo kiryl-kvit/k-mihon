@@ -330,7 +330,7 @@ class AnimeScreenModelTest {
     }
 
     @Test
-    fun `schedule preloads and shows upcoming summary when entries exist`() = runTest(dispatcher) {
+    fun `schedule loads on demand and shows upcoming summary when entries exist`() = runTest(dispatcher) {
         val anime = AnimeTitle.create().copy(
             id = 1L,
             source = 99L,
@@ -357,6 +357,18 @@ class AnimeScreenModelTest {
             animeSourceManager = FakeAnimeSourceManager(scheduleSource),
         )
 
+        advanceUntilIdle()
+
+        eventually(2.seconds) {
+            val state = model.state.value.shouldBeInstanceOf<AnimeScreenModel.State.Success>()
+            state.showScheduleButton shouldBe true
+            state.canOpenScheduleDialog shouldBe true
+            state.scheduleSummary shouldBe AnimeScreenModel.ScheduleSummary.NotLoaded
+            state.schedule shouldBe AnimeScreenModel.ScheduleState.NotLoaded
+            scheduleSource.scheduleRequests shouldBe 0
+        }
+
+        model.showScheduleDialog()
         advanceUntilIdle()
 
         eventually(2.seconds) {
@@ -391,20 +403,23 @@ class AnimeScreenModelTest {
         eventually(2.seconds) {
             val state = model.state.value.shouldBeInstanceOf<AnimeScreenModel.State.Success>()
             state.showScheduleButton shouldBe true
-            state.canOpenScheduleDialog shouldBe false
-            state.scheduleSummary shouldBe AnimeScreenModel.ScheduleSummary.Loading
-            state.schedule shouldBe AnimeScreenModel.ScheduleState.Loading
-            scheduleSource.scheduleRequests shouldBe 1
+            state.canOpenScheduleDialog shouldBe true
+            state.scheduleSummary shouldBe AnimeScreenModel.ScheduleSummary.NotLoaded
+            state.schedule shouldBe AnimeScreenModel.ScheduleState.NotLoaded
+            scheduleSource.scheduleRequests shouldBe 0
         }
 
         model.showScheduleDialog()
 
         val state = model.state.value.shouldBeInstanceOf<AnimeScreenModel.State.Success>()
-        state.dialog shouldBe null
+        state.dialog shouldBe AnimeScreenModel.Dialog.Schedule
+        state.scheduleSummary shouldBe AnimeScreenModel.ScheduleSummary.Loading
+        state.schedule shouldBe AnimeScreenModel.ScheduleState.Loading
+        scheduleSource.scheduleRequests shouldBe 1
     }
 
     @Test
-    fun `empty preloaded schedule keeps button visible and cannot open dialog`() = runTest(dispatcher) {
+    fun `empty schedule loaded on demand keeps button visible and cannot open dialog`() = runTest(dispatcher) {
         val anime = AnimeTitle.create().copy(
             id = 1L,
             source = 99L,
@@ -421,7 +436,9 @@ class AnimeScreenModelTest {
             animeSourceManager = FakeAnimeSourceManager(scheduleSource),
         )
 
-        advanceUntilIdle()
+        eventually(2.seconds) {
+            model.state.value.shouldBeInstanceOf<AnimeScreenModel.State.Success>()
+        }
         model.showScheduleDialog()
         advanceUntilIdle()
 
@@ -454,6 +471,10 @@ class AnimeScreenModelTest {
             animeSourceManager = FakeAnimeSourceManager(scheduleSource),
         )
 
+        eventually(2.seconds) {
+            model.state.value.shouldBeInstanceOf<AnimeScreenModel.State.Success>()
+        }
+        model.showScheduleDialog()
         advanceUntilIdle()
 
         eventually(2.seconds) {
@@ -496,7 +517,9 @@ class AnimeScreenModelTest {
             animeSourceManager = FakeAnimeSourceManager(scheduleSource),
         )
 
-        advanceUntilIdle()
+        eventually(2.seconds) {
+            model.state.value.shouldBeInstanceOf<AnimeScreenModel.State.Success>()
+        }
 
         eventually(2.seconds) {
             val state = model.state.value.shouldBeInstanceOf<AnimeScreenModel.State.Success>()
@@ -504,10 +527,19 @@ class AnimeScreenModelTest {
             state.schedule shouldBe AnimeScreenModel.ScheduleState.NotLoaded
             scheduleSource.scheduleRequests shouldBe 0
         }
+
+        model.showScheduleDialog()
+        advanceUntilIdle()
+
+        eventually(2.seconds) {
+            val state = model.state.value.shouldBeInstanceOf<AnimeScreenModel.State.Success>()
+            state.schedule shouldBe AnimeScreenModel.ScheduleState.NotLoaded
+            scheduleSource.scheduleRequests shouldBe 0
+        }
     }
 
     @Test
-    fun `merged schedule preloads all members in merge order`() = runTest(dispatcher) {
+    fun `merged schedule loads all members in merge order on demand`() = runTest(dispatcher) {
         val target = AnimeTitle.create().copy(
             id = 1L,
             source = 99L,
@@ -563,6 +595,10 @@ class AnimeScreenModelTest {
             mergedRepository = mergedRepository,
         )
 
+        eventually(2.seconds) {
+            model.state.value.shouldBeInstanceOf<AnimeScreenModel.State.Success>()
+        }
+        model.showScheduleDialog()
         advanceUntilIdle()
 
         eventually(2.seconds) {
@@ -627,6 +663,10 @@ class AnimeScreenModelTest {
             mergedRepository = mergedRepository,
         )
 
+        eventually(2.seconds) {
+            model.state.value.shouldBeInstanceOf<AnimeScreenModel.State.Success>()
+        }
+        model.showScheduleDialog()
         advanceUntilIdle()
 
         eventually(2.seconds) {
@@ -689,6 +729,10 @@ class AnimeScreenModelTest {
             mergedRepository = mergedRepository,
         )
 
+        eventually(2.seconds) {
+            model.state.value.shouldBeInstanceOf<AnimeScreenModel.State.Success>()
+        }
+        model.showScheduleDialog()
         advanceUntilIdle()
 
         eventually(2.seconds) {

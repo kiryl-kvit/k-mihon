@@ -1014,6 +1014,7 @@ private fun AnimeActionRow(
 ) {
     val defaultActionButtonColor = MaterialTheme.colorScheme.onSurface.copy(alpha = DISABLED_ALPHA)
     val scheduleTitle = when (scheduleSummary) {
+        AnimeScreenModel.ScheduleSummary.NotLoaded -> stringResource(MR.strings.anime_schedule)
         AnimeScreenModel.ScheduleSummary.Loading -> stringResource(MR.strings.anime_schedule_loading)
         is AnimeScreenModel.ScheduleSummary.Upcoming -> pluralStringResource(
             MR.plurals.anime_num_upcoming_episodes,
