@@ -35,6 +35,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -70,6 +74,7 @@ import eu.kanade.presentation.reader.ReaderContentOverlay
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.ui.base.activity.BaseActivity
+import eu.kanade.tachiyomi.ui.video.player.components.VideoPlayerErrorOverlay
 import eu.kanade.tachiyomi.ui.video.player.components.VideoPlayerLoadingOverlay
 import eu.kanade.tachiyomi.ui.video.player.components.VideoPlayerNextEpisodeOverlay
 import eu.kanade.tachiyomi.ui.video.player.components.VideoPlayerOverlay
@@ -366,6 +371,9 @@ class VideoPlayerActivity : BaseActivity() {
                 var seekPreviewFailed by remember(current.episodeId, current.streamUrl, subtitlePayloadKey) {
                     mutableStateOf(false)
                 }
+                var playerErrorMessage by remember(current.episodeId, current.streamUrl, subtitlePayloadKey) {
+                    mutableStateOf<String?>(null)
+                }
                 var lastSeekPreviewRequestAtMs by remember(current.episodeId, current.streamUrl, subtitlePayloadKey) {
                     mutableStateOf(0L)
                 }
@@ -457,6 +465,11 @@ class VideoPlayerActivity : BaseActivity() {
 
                                 override fun onRenderedFirstFrame() {
                                     startupOverlayVisible = false
+                                }
+
+                                override fun onPlayerError(error: PlaybackException) {
+                                    startupOverlayVisible = false
+                                    playerErrorMessage = error.message ?: "Playback error"
                                 }
 
                                 override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
@@ -1383,6 +1396,14 @@ class VideoPlayerActivity : BaseActivity() {
                         VideoPlayerSwitchingOverlay(modifier = Modifier.align(Alignment.TopCenter))
                     }
 
+                    if (playerErrorMessage != null && !isInPictureInPictureMode && !subtitleEditorVisible) {
+                        VideoPlayerErrorOverlay(
+                            message = playerErrorMessage!!,
+                            onBack = ::finish,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+
                     if (settingsVisible && !isInPictureInPictureMode && !subtitleEditorVisible) {
                         VideoPlayerSettingsSheet(
                             playback = current.playback,
@@ -1457,19 +1478,36 @@ class VideoPlayerActivity : BaseActivity() {
             }
             is VideoPlayerViewModel.State.Error -> {
                 Box(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Column {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(24.dp),
+                    ) {
                         Text(
                             text = "Unable to open video",
+                            color = Color.White,
                             style = MaterialTheme.typography.headlineSmall,
                         )
                         Text(
                             text = current.message,
+                            color = Color.White.copy(alpha = 0.84f),
                             modifier = Modifier.padding(top = 12.dp),
                             style = MaterialTheme.typography.bodyMedium,
                         )
+                        IconButton(
+                            onClick = ::finish,
+                            modifier = Modifier.padding(top = 24.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = Color.White,
+                            )
+                        }
                     }
                 }
             }
