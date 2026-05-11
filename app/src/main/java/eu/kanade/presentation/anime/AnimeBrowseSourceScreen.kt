@@ -163,7 +163,7 @@ private fun AnimeBrowseList(
 
         items(
             count = animeList.itemCount,
-            key = { index -> animeList[index]?.value?.id ?: "anime-browse-list-$index" },
+            key = { index -> animeList.peek(index)?.value?.id ?: "anime-browse-list-$index" },
         ) { index ->
             val anime by animeList[index]?.collectAsState() ?: return@items
             MangaListItem(
@@ -206,7 +206,7 @@ private fun AnimeBrowseComfortableGrid(
 
         items(
             count = animeList.itemCount,
-            key = { index -> animeList[index]?.value?.id ?: "anime-browse-comfortable-$index" },
+            key = { index -> animeList.peek(index)?.value?.id ?: "anime-browse-comfortable-$index" },
         ) { index ->
             val anime by animeList[index]?.collectAsState() ?: return@items
             MangaComfortableGridItem(
@@ -249,7 +249,7 @@ private fun AnimeBrowseCompactGrid(
 
         items(
             count = animeList.itemCount,
-            key = { index -> animeList[index]?.value?.id ?: "anime-browse-compact-$index" },
+            key = { index -> animeList.peek(index)?.value?.id ?: "anime-browse-compact-$index" },
         ) { index ->
             val anime by animeList[index]?.collectAsState() ?: return@items
             MangaCompactGridItem(
