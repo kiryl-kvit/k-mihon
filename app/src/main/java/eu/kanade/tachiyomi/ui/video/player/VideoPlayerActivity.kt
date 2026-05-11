@@ -31,12 +31,20 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -70,6 +78,7 @@ import eu.kanade.presentation.reader.ReaderContentOverlay
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.ui.base.activity.BaseActivity
+import eu.kanade.tachiyomi.ui.video.player.components.VideoPlayerErrorOverlay
 import eu.kanade.tachiyomi.ui.video.player.components.VideoPlayerLoadingOverlay
 import eu.kanade.tachiyomi.ui.video.player.components.VideoPlayerNextEpisodeOverlay
 import eu.kanade.tachiyomi.ui.video.player.components.VideoPlayerOverlay
@@ -366,6 +375,10 @@ class VideoPlayerActivity : BaseActivity() {
                 var seekPreviewFailed by remember(current.episodeId, current.streamUrl, subtitlePayloadKey) {
                     mutableStateOf(false)
                 }
+                var playerErrorMessage by remember(current.episodeId, current.streamUrl, subtitlePayloadKey) {
+                    mutableStateOf<String?>(null)
+                }
+                var playbackRetrySequence by remember { mutableStateOf(0L) }
                 var lastSeekPreviewRequestAtMs by remember(current.episodeId, current.streamUrl, subtitlePayloadKey) {
                     mutableStateOf(0L)
                 }
@@ -431,76 +444,82 @@ class VideoPlayerActivity : BaseActivity() {
                 val latestPlayback by rememberUpdatedState(current.playback)
                 val latestTemporarySpeedBoostActive by rememberUpdatedState(temporarySpeedBoostActive)
                 val initialSettingsDraft = remember(current.playback) { current.playback.toSettingsDraft() }
-                val currentPlayer = remember(current.episodeId, current.streamUrl, subtitlePayloadKey) {
-                    buildVideoPlayer(
-                        context = context,
-                        networkHelper = networkHelper,
-                        mediaCache = mediaCache,
-                        stream = current.stream,
-                        subtitles = current.playback.subtitles,
-                    ).also { exoPlayer ->
-                        exoPlayer.addListener(
-                            object : Player.Listener {
-                                override fun onPositionDiscontinuity(
-                                    oldPosition: Player.PositionInfo,
-                                    newPosition: Player.PositionInfo,
-                                    reason: Int,
-                                ) {
-                                    if (reason == Player.DISCONTINUITY_REASON_SEEK) {
-                                        viewModel.resetPlaybackBaseline(newPosition.positionMs)
+                val currentPlayer =
+                    remember(current.episodeId, current.streamUrl, subtitlePayloadKey, playbackRetrySequence) {
+                        buildVideoPlayer(
+                            context = context,
+                            networkHelper = networkHelper,
+                            mediaCache = mediaCache,
+                            stream = current.stream,
+                            subtitles = current.playback.subtitles,
+                        ).also { exoPlayer ->
+                            exoPlayer.addListener(
+                                object : Player.Listener {
+                                    override fun onPositionDiscontinuity(
+                                        oldPosition: Player.PositionInfo,
+                                        newPosition: Player.PositionInfo,
+                                        reason: Int,
+                                    ) {
+                                        if (reason == Player.DISCONTINUITY_REASON_SEEK) {
+                                            viewModel.resetPlaybackBaseline(newPosition.positionMs)
+                                        }
+                                        scrubPositionMs = newPosition.positionMs.coerceAtLeast(0L)
+                                        playbackSnapshot = exoPlayer.capturePlaybackSnapshot()
+                                        latestPlaybackSnapshot = playbackSnapshot
+                                        updatePictureInPictureParams(playbackSnapshot)
                                     }
-                                    scrubPositionMs = newPosition.positionMs.coerceAtLeast(0L)
-                                    playbackSnapshot = exoPlayer.capturePlaybackSnapshot()
-                                    latestPlaybackSnapshot = playbackSnapshot
-                                    updatePictureInPictureParams(playbackSnapshot)
-                                }
 
-                                override fun onRenderedFirstFrame() {
-                                    startupOverlayVisible = false
-                                }
-
-                                override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
-                                    val latestPlaybackState = latestPlayback
-                                    exoPlayer.applySubtitleSelection(latestPlaybackState.currentSubtitle)
-                                    viewModel.updateAdaptiveQualities(exoPlayer.availableAdaptiveQualities())
-                                    viewModel.updateSubtitleOptions(
-                                        exoPlayer.availableSubtitleTracks(latestPlaybackState.subtitles),
-                                    )
-                                    val resolvedSubtitleSelection = exoPlayer.resolveAppliedSubtitleSelection(
-                                        latestPlaybackState.currentSubtitle,
-                                        latestPlaybackState.subtitles,
-                                    )
-                                    if (resolvedSubtitleSelection != latestPlaybackState.currentSubtitle) {
-                                        viewModel.selectSubtitle(resolvedSubtitleSelection)
+                                    override fun onRenderedFirstFrame() {
+                                        startupOverlayVisible = false
                                     }
-                                    playbackSnapshot = exoPlayer.capturePlaybackSnapshot()
-                                    latestPlaybackSnapshot = playbackSnapshot
-                                    updatePictureInPictureParams(playbackSnapshot)
-                                }
 
-                                override fun onDeviceInfoChanged(deviceInfo: DeviceInfo) {
-                                    syncPlaybackVolumeState(exoPlayer, deviceInfo)
-                                }
+                                    override fun onPlayerError(error: PlaybackException) {
+                                        startupOverlayVisible = false
+                                        playerErrorMessage = error.message ?: "Playback error"
+                                    }
 
-                                override fun onDeviceVolumeChanged(volume: Int, muted: Boolean) {
-                                    syncPlaybackVolumeState(exoPlayer)
-                                }
+                                    override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                                        val latestPlaybackState = latestPlayback
+                                        exoPlayer.applySubtitleSelection(latestPlaybackState.currentSubtitle)
+                                        viewModel.updateAdaptiveQualities(exoPlayer.availableAdaptiveQualities())
+                                        viewModel.updateSubtitleOptions(
+                                            exoPlayer.availableSubtitleTracks(latestPlaybackState.subtitles),
+                                        )
+                                        val resolvedSubtitleSelection = exoPlayer.resolveAppliedSubtitleSelection(
+                                            latestPlaybackState.currentSubtitle,
+                                            latestPlaybackState.subtitles,
+                                        )
+                                        if (resolvedSubtitleSelection != latestPlaybackState.currentSubtitle) {
+                                            viewModel.selectSubtitle(resolvedSubtitleSelection)
+                                        }
+                                        playbackSnapshot = exoPlayer.capturePlaybackSnapshot()
+                                        latestPlaybackSnapshot = playbackSnapshot
+                                        updatePictureInPictureParams(playbackSnapshot)
+                                    }
 
-                                override fun onEvents(player: Player, events: Player.Events) {
-                                    playbackSnapshot = exoPlayer.capturePlaybackSnapshot()
-                                    latestPlaybackSnapshot = playbackSnapshot
-                                    updatePictureInPictureParams(playbackSnapshot)
-                                }
-                            },
-                        )
-                        if (current.resumePositionMs > 0L) {
-                            exoPlayer.seekTo(current.resumePositionMs)
+                                    override fun onDeviceInfoChanged(deviceInfo: DeviceInfo) {
+                                        syncPlaybackVolumeState(exoPlayer, deviceInfo)
+                                    }
+
+                                    override fun onDeviceVolumeChanged(volume: Int, muted: Boolean) {
+                                        syncPlaybackVolumeState(exoPlayer)
+                                    }
+
+                                    override fun onEvents(player: Player, events: Player.Events) {
+                                        playbackSnapshot = exoPlayer.capturePlaybackSnapshot()
+                                        latestPlaybackSnapshot = playbackSnapshot
+                                        updatePictureInPictureParams(playbackSnapshot)
+                                    }
+                                },
+                            )
+                            if (current.resumePositionMs > 0L) {
+                                exoPlayer.seekTo(current.resumePositionMs)
+                            }
+                            playbackSnapshot = exoPlayer.capturePlaybackSnapshot()
+                            latestPlaybackSnapshot = playbackSnapshot
+                            updatePictureInPictureParams(playbackSnapshot)
                         }
-                        playbackSnapshot = exoPlayer.capturePlaybackSnapshot()
-                        latestPlaybackSnapshot = playbackSnapshot
-                        updatePictureInPictureParams(playbackSnapshot)
                     }
-                }
                 val controllerPlayer = remember(
                     currentPlayer,
                     current.previousEpisodeId,
@@ -637,7 +656,8 @@ class VideoPlayerActivity : BaseActivity() {
                     }
                 }
 
-                LaunchedEffect(current.episodeId, current.streamUrl, subtitlePayloadKey) {
+                LaunchedEffect(current.episodeId, current.streamUrl, subtitlePayloadKey, playbackRetrySequence) {
+                    playerErrorMessage = null
                     startupOverlayVisible = true
                     settingsVisible = false
                     episodesDrawerVisible = false
@@ -1383,6 +1403,20 @@ class VideoPlayerActivity : BaseActivity() {
                         VideoPlayerSwitchingOverlay(modifier = Modifier.align(Alignment.TopCenter))
                     }
 
+                    if (playerErrorMessage != null && !isInPictureInPictureMode && !subtitleEditorVisible) {
+                        VideoPlayerErrorOverlay(
+                            message = playerErrorMessage!!,
+                            onBack = ::finish,
+                            onRetry = {
+                                playbackRetrySequence += 1L
+                            },
+                            onSettings = {
+                                settingsVisible = true
+                            },
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+
                     if (settingsVisible && !isInPictureInPictureMode && !subtitleEditorVisible) {
                         VideoPlayerSettingsSheet(
                             playback = current.playback,
@@ -1457,19 +1491,50 @@ class VideoPlayerActivity : BaseActivity() {
             }
             is VideoPlayerViewModel.State.Error -> {
                 Box(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Column {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(24.dp),
+                    ) {
                         Text(
                             text = "Unable to open video",
+                            color = Color.White,
                             style = MaterialTheme.typography.headlineSmall,
                         )
                         Text(
                             text = current.message,
+                            color = Color.White.copy(alpha = 0.84f),
                             modifier = Modifier.padding(top = 12.dp),
                             style = MaterialTheme.typography.bodyMedium,
                         )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.padding(top = 24.dp),
+                        ) {
+                            TextButton(onClick = ::finish) {
+                                Text(
+                                    text = stringResource(MR.strings.action_cancel),
+                                    color = Color.White,
+                                )
+                            }
+                            Button(onClick = viewModel::retry) {
+                                Text(text = stringResource(MR.strings.action_retry))
+                            }
+                        }
+                        IconButton(
+                            onClick = ::finish,
+                            modifier = Modifier.padding(top = 16.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = Color.White,
+                            )
+                        }
                     }
                 }
             }
