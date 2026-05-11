@@ -98,6 +98,13 @@ class VideoPlayerViewModel @JvmOverloads constructor(
         }
     }
 
+    fun retry() {
+        if (mutableState.value !is State.Error) return
+        viewModelScope.launch {
+            resolvePlayback(initial = true)
+        }
+    }
+
     fun applySourceSelection(selection: VideoPlaybackSelection) {
         val current = mutableState.value as? State.Ready ?: return
         previewSelectionJob?.cancel()

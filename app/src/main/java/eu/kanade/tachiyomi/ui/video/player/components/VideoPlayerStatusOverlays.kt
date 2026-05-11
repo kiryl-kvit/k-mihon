@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,11 +26,13 @@ import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.Brightness6
 import androidx.compose.material.icons.outlined.LockOpen
 import androidx.compose.material.icons.outlined.SkipNext
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -70,6 +73,8 @@ internal fun VideoPlayerLoadingOverlay(modifier: Modifier = Modifier) {
 internal fun VideoPlayerErrorOverlay(
     message: String,
     onBack: () -> Unit,
+    onRetry: (() -> Unit)? = null,
+    onSettings: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -91,9 +96,29 @@ internal fun VideoPlayerErrorOverlay(
                 modifier = Modifier.padding(top = 12.dp),
                 style = MaterialTheme.typography.bodyMedium,
             )
+            if (onRetry != null || onSettings != null) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.padding(top = 24.dp),
+                ) {
+                    if (onSettings != null) {
+                        TextButton(onClick = onSettings) {
+                            Text(
+                                text = stringResource(MR.strings.label_settings),
+                                color = Color.White,
+                            )
+                        }
+                    }
+                    if (onRetry != null) {
+                        Button(onClick = onRetry) {
+                            Text(text = stringResource(MR.strings.action_retry))
+                        }
+                    }
+                }
+            }
             IconButton(
                 onClick = onBack,
-                modifier = Modifier.padding(top = 24.dp),
+                modifier = Modifier.padding(top = 16.dp),
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
