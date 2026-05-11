@@ -132,6 +132,7 @@ class AnimeScreenModel(
     val previewState = previewLoaderState
     private var duplicateObservationJob: Job? = null
     private var previewLoadJob: Job? = null
+    private var defaultFlagsSet = false
 
     val isAnimePreviewEnabled by customPreferences.enableAnimePreview.asState(screenModelScope)
     val animePreviewPageCount by customPreferences.animePreviewPageCount.asState(screenModelScope)
@@ -265,9 +266,11 @@ class AnimeScreenModel(
             kotlinx.coroutines.flow.merge(
                 animeDownloadManager.statusFlow(),
                 animeDownloadManager.progressFlow(),
-            ).collectLatest { download ->
-                updateDownloadState(download)
-            }
+            )
+                .filter { download -> download.anime.id in successState?.memberIds.orEmpty() }
+                .collectLatest { download ->
+                    updateDownloadState(download)
+                }
         }
     }
 
@@ -339,11 +342,18 @@ class AnimeScreenModel(
                 }
                 .collectLatest { success ->
                     coroutineContext.ensureActive()
-                    mutableState.value = success
-                    if (!success.anime.favorite && success.anime.episodeFlags == 0L) {
+                    mutableState.update { currentState ->
+                        val currentSuccess = currentState as? State.Success
+                        if (currentSuccess != null) {
+                            success.copy(isRefreshing = currentSuccess.isRefreshing)
+                        } else {
+                            success
+                        }
+                    }
+                    if (!success.anime.favorite && success.anime.episodeFlags == 0L && !defaultFlagsSet) {
+                        defaultFlagsSet = true
                         setAnimeDefaultEpisodeFlags.await(success.anime)
                     }
-                    prefetchScheduleIfNeeded(success)
                 }
         }
     }
@@ -381,6 +391,13 @@ class AnimeScreenModel(
             }
 
             val membersToRefresh = getMergeMembers().ifEmpty { listOf(currentAnime) }
+                .filter { memberAnime ->
+                    !initial || !memberAnime.initialized || getAnimeWithEpisodes
+                        .awaitEpisodes(memberAnime.id, bypassMerge = true)
+                        .isEmpty()
+                }
+
+            if (membersToRefresh.isEmpty()) return@launchIO
 
             setRefreshing(true)
             try {
@@ -1094,15 +1111,13 @@ class AnimeScreenModel(
         if (!currentState.canOpenScheduleDialog) return
 
         updateSuccessState { it.copy(dialog = Dialog.Schedule) }
+        if (currentState.schedule == ScheduleState.NotLoaded) {
+            loadSchedule()
+        }
     }
 
     fun retryLoadSchedule() {
         loadSchedule(force = true)
-    }
-
-    private fun prefetchScheduleIfNeeded(state: State.Success) {
-        if (!state.hasScheduleSupport || state.schedule != ScheduleState.NotLoaded) return
-        loadSchedule()
     }
 
     private fun loadSchedule(force: Boolean = false) {
@@ -1372,12 +1387,12 @@ class AnimeScreenModel(
 
             val canOpenScheduleDialog: Boolean
                 get() = when (schedule) {
+                    ScheduleState.NotLoaded,
+                    ScheduleState.Loading,
                     is ScheduleState.Success,
                     is ScheduleState.Error,
                     -> true
                     ScheduleState.Unavailable,
-                    ScheduleState.NotLoaded,
-                    ScheduleState.Loading,
                     ScheduleState.Empty,
                     -> false
                 }
@@ -1395,9 +1410,8 @@ class AnimeScreenModel(
 
             val scheduleSummary: ScheduleSummary
                 get() = when (val schedule = schedule) {
-                    ScheduleState.NotLoaded,
-                    ScheduleState.Loading,
-                    -> ScheduleSummary.Loading
+                    ScheduleState.NotLoaded -> ScheduleSummary.NotLoaded
+                    ScheduleState.Loading -> ScheduleSummary.Loading
                     is ScheduleState.Success -> {
                         val today = LocalDate.now(ZoneId.systemDefault())
                         val upcomingCount = schedule.entries.count { it.isUpcoming(today) }
@@ -1435,6 +1449,8 @@ class AnimeScreenModel(
     }
 
     sealed interface ScheduleSummary {
+        data object NotLoaded : ScheduleSummary
+
         data object Loading : ScheduleSummary
 
         data class Upcoming(val count: Int) : ScheduleSummary

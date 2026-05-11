@@ -165,23 +165,26 @@ fun MangaCoverDialog(
                         }
                     },
                     update = { view ->
-                        val request = ImageRequest.Builder(view.context)
-                            .data(coverData)
-                            .size(Size.ORIGINAL)
-                            .memoryCachePolicy(CachePolicy.DISABLED)
-                            .target { image ->
-                                val drawable = image.asDrawable(view.context.resources)
-                                // Copy bitmap in case it came from memory cache
-                                // Because SSIV needs to thoroughly read the image
-                                val copy = (drawable as? BitmapDrawable)
-                                    ?.bitmap
-                                    ?.copy(Bitmap.Config.HARDWARE, false)
-                                    ?.toDrawable(view.context.resources)
-                                    ?: drawable
-                                view.setImage(copy, ReaderPageImageView.Config(zoomDuration = 500))
-                            }
-                            .build()
-                        view.context.imageLoader.enqueue(request)
+                        if (view.tag != coverData) {
+                            view.tag = coverData
+                            val request = ImageRequest.Builder(view.context)
+                                .data(coverData)
+                                .size(Size.ORIGINAL)
+                                .memoryCachePolicy(CachePolicy.DISABLED)
+                                .target { image ->
+                                    val drawable = image.asDrawable(view.context.resources)
+                                    // Copy bitmap in case it came from memory cache
+                                    // Because SSIV needs to thoroughly read the image
+                                    val copy = (drawable as? BitmapDrawable)
+                                        ?.bitmap
+                                        ?.copy(Bitmap.Config.HARDWARE, false)
+                                        ?.toDrawable(view.context.resources)
+                                        ?: drawable
+                                    view.setImage(copy, ReaderPageImageView.Config(zoomDuration = 500))
+                                }
+                                .build()
+                            view.context.imageLoader.enqueue(request)
+                        }
 
                         view.updatePadding(top = statusBarPaddingPx, bottom = bottomPaddingPx)
                     },
