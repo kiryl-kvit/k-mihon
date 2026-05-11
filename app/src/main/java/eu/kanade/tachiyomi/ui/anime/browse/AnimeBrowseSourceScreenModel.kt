@@ -141,7 +141,7 @@ class AnimeBrowseSourceScreenModel(
             if (isWaitingForInitialFilterLoad) {
                 emptyFlow()
             } else {
-                Pager(PagingConfig(pageSize = 25)) {
+                Pager(PagingConfig(pageSize = 25, initialLoadSize = 25)) {
                     getRemoteAnime(sourceId, listing.query ?: "", listing.filters)
                 }.flow.map { pagingData ->
                     pagingData.map { anime ->
