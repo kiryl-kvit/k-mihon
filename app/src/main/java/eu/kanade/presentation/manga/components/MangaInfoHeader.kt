@@ -110,6 +110,7 @@ import eu.kanade.presentation.components.DropdownMenu
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SManga
+import eu.kanade.tachiyomi.source.sourceItemOrientation
 import eu.kanade.tachiyomi.ui.manga.MangaScreenModel
 import eu.kanade.tachiyomi.util.system.copyToClipboard
 import kotlinx.coroutines.flow.collectLatest
@@ -118,6 +119,7 @@ import org.intellij.markdown.MarkdownTokenTypes
 import org.intellij.markdown.ast.findChildOfType
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.presentationTitle
+import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.DISABLED_ALPHA
 import tachiyomi.presentation.core.components.material.TextButton
@@ -144,6 +146,10 @@ fun MangaInfoBox(
     doSearch: (query: String, global: Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val coverType = remember(manga.source) {
+        Injekt.get<SourceManager>().getOrStub(manga.source).sourceItemOrientation().toGridCoverType()
+    }
+
     Box(modifier = modifier) {
         // Backdrop
         val backdropGradientColors = listOf(
@@ -178,6 +184,7 @@ fun MangaInfoBox(
                     sourceName = sourceName,
                     isStubSource = isStubSource,
                     mergedMemberTitles = mergedMemberTitles,
+                    coverType = coverType,
                     onCoverClick = onCoverClick,
                     doSearch = doSearch,
                 )
@@ -188,6 +195,7 @@ fun MangaInfoBox(
                     sourceName = sourceName,
                     isStubSource = isStubSource,
                     mergedMemberTitles = mergedMemberTitles,
+                    coverType = coverType,
                     onCoverClick = onCoverClick,
                     doSearch = doSearch,
                 )
@@ -715,6 +723,7 @@ private fun MangaAndSourceTitlesLarge(
     sourceName: String,
     isStubSource: Boolean,
     mergedMemberTitles: List<String>,
+    coverType: MangaCover,
     onCoverClick: () -> Unit,
     doSearch: (query: String, global: Boolean) -> Unit,
 ) {
@@ -724,7 +733,7 @@ private fun MangaAndSourceTitlesLarge(
             .padding(start = 16.dp, top = appBarPadding + 16.dp, end = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        MangaCover.Book(
+        coverType(
             modifier = Modifier.fillMaxWidth(0.65f),
             data = ImageRequest.Builder(LocalContext.current)
                 .data(manga)
@@ -755,6 +764,7 @@ private fun MangaAndSourceTitlesSmall(
     sourceName: String,
     isStubSource: Boolean,
     mergedMemberTitles: List<String>,
+    coverType: MangaCover,
     onCoverClick: () -> Unit,
     doSearch: (query: String, global: Boolean) -> Unit,
 ) {
@@ -765,9 +775,9 @@ private fun MangaAndSourceTitlesSmall(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        MangaCover.Book(
+        coverType(
             modifier = Modifier
-                .sizeIn(maxWidth = 100.dp)
+                .sizeIn(maxWidth = if (coverType == MangaCover.Wide) 160.dp else 100.dp)
                 .align(Alignment.Top),
             data = ImageRequest.Builder(LocalContext.current)
                 .data(manga)

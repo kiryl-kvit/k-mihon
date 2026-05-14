@@ -141,9 +141,11 @@ import eu.kanade.presentation.manga.components.PreviewMessage
 import eu.kanade.presentation.manga.components.PreviewSizeUi
 import eu.kanade.presentation.manga.components.getMarkdownLinkStyle
 import eu.kanade.presentation.manga.components.previewGridColumnCount
+import eu.kanade.presentation.manga.components.toGridCoverType
 import eu.kanade.presentation.util.isTabletUi
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.source.model.SAnime
+import eu.kanade.tachiyomi.source.sourceItemOrientation
 import eu.kanade.tachiyomi.ui.anime.AnimeScreenModel
 import eu.kanade.tachiyomi.util.system.copyToClipboard
 import kotlinx.collections.immutable.persistentListOf
@@ -154,6 +156,7 @@ import org.intellij.markdown.ast.findChildOfType
 import tachiyomi.domain.anime.model.AnimeDownloadQualityMode
 import tachiyomi.domain.anime.model.AnimeEpisode
 import tachiyomi.domain.anime.model.AnimeTitle
+import tachiyomi.domain.source.service.AnimeSourceManager
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.ListGroupHeader
 import tachiyomi.presentation.core.components.ScrollbarLazyColumn
@@ -858,6 +861,11 @@ private fun AnimeInfoBox(
     onSearch: (String, Boolean) -> Unit,
     onCoverClick: () -> Unit,
 ) {
+    val coverType = remember(anime.source) {
+        Injekt.get<AnimeSourceManager>().get(anime.source)?.sourceItemOrientation()?.toGridCoverType()
+            ?: MangaCover.Book
+    }
+
     Box {
         val backdropGradientColors = listOf(Color.Transparent, MaterialTheme.colorScheme.background)
         AsyncImage(
@@ -881,7 +889,7 @@ private fun AnimeInfoBox(
                     .padding(start = 16.dp, top = appBarPadding + 16.dp, end = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                MangaCover.Book(
+                coverType(
                     modifier = Modifier.fillMaxWidth(0.65f),
                     data = anime.toMangaCover(),
                     contentDescription = anime.displayTitle,
@@ -905,9 +913,9 @@ private fun AnimeInfoBox(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                MangaCover.Book(
+                coverType(
                     modifier = Modifier
-                        .sizeIn(maxWidth = 100.dp)
+                        .sizeIn(maxWidth = if (coverType == MangaCover.Wide) 160.dp else 100.dp)
                         .align(Alignment.Top),
                     data = anime.toMangaCover(),
                     contentDescription = anime.displayTitle,
