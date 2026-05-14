@@ -186,6 +186,7 @@ internal fun VideoPlayerOverlay(
                 ) {
                     VideoPlayerCenterControls(
                         isPlaying = playbackSnapshot.isPlaying,
+                        isLoading = playbackSnapshot.isLoading,
                         hasPreviousEpisode = hasPreviousEpisode,
                         hasNextEpisode = hasNextEpisode,
                         onPreviousEpisode = onPreviousEpisode,

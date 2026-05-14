@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.SkipNext
 import androidx.compose.material.icons.outlined.SkipPrevious
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
@@ -28,6 +29,7 @@ private val youtubeLikeControlButtonSize = 60.dp
 @Composable
 internal fun VideoPlayerCenterControls(
     isPlaying: Boolean,
+    isLoading: Boolean,
     hasPreviousEpisode: Boolean,
     hasNextEpisode: Boolean,
     onPreviousEpisode: () -> Unit,
@@ -56,13 +58,22 @@ internal fun VideoPlayerCenterControls(
         )
         VideoPlayerTransportButton(
             icon = {
-                Icon(
-                    imageVector = if (isPlaying) Icons.Outlined.Pause else Icons.Filled.PlayArrow,
-                    modifier = Modifier.size(30.dp),
-                    contentDescription = if (isPlaying) stringResource(MR.strings.action_pause) else "Play",
-                    tint = Color.White,
-                )
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(30.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Icon(
+                        imageVector = if (isPlaying) Icons.Outlined.Pause else Icons.Filled.PlayArrow,
+                        modifier = Modifier.size(30.dp),
+                        contentDescription = if (isPlaying) stringResource(MR.strings.action_pause) else "Play",
+                        tint = Color.White,
+                    )
+                }
             },
+            enabled = !isLoading,
             onClick = onTogglePlayback,
         )
         VideoPlayerTransportButton(
