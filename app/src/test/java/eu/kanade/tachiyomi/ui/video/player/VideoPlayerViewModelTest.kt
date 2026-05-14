@@ -325,8 +325,8 @@ class VideoPlayerViewModelTest {
             url = "/anime/1",
         )
         coEvery { getAnimeWithEpisodes.awaitEpisodes(id = 1L, bypassMerge = true) } returns listOf(
-            videoEpisode(id = 10L, animeId = 1L, sourceOrder = 1L),
-            videoEpisode(id = 30L, animeId = 1L, sourceOrder = 2L),
+            videoEpisode(id = 10L, animeId = 1L, sourceOrder = 2L),
+            videoEpisode(id = 30L, animeId = 1L, sourceOrder = 1L),
         )
 
         val viewModel = VideoPlayerViewModel(
@@ -335,9 +335,9 @@ class VideoPlayerViewModelTest {
             animePlaybackPreferencesRepository = FakeAnimePlaybackPreferencesRepository(),
             animeEpisodeRepository = FakeAnimeEpisodeRepository(
                 episodes = listOf(
-                    videoEpisode(id = 10L, animeId = 1L, sourceOrder = 1L),
+                    videoEpisode(id = 10L, animeId = 1L, sourceOrder = 2L),
                     videoEpisode(id = 20L, animeId = 2L, sourceOrder = 1L),
-                    videoEpisode(id = 30L, animeId = 1L, sourceOrder = 2L),
+                    videoEpisode(id = 30L, animeId = 1L, sourceOrder = 1L),
                 ),
             ),
             getAnimeWithEpisodes = getAnimeWithEpisodes,
