@@ -501,7 +501,6 @@ private fun embeddedSubtitleChoiceKey(groupIndex: Int, trackIndex: Int): String 
 
 private fun ExoPlayer.matchingTextTrack(subtitle: VideoSubtitle): TrackSelectionOverride? {
     val subtitleKey = subtitleChoiceKey(subtitle)
-    val subtitleFingerprint = subtitleTrackFingerprint(subtitle)
     return currentTracks.groups.asSequence()
         .filter { it.getType() == C.TRACK_TYPE_TEXT && it.isSupported() }
         .mapNotNull { group ->
@@ -511,7 +510,8 @@ private fun ExoPlayer.matchingTextTrack(subtitle: VideoSubtitle): TrackSelection
                         return@firstOrNull false
                     }
                     val format = group.getTrackFormat(trackIndex)
-                    format.id == subtitleKey || format.subtitleTrackFingerprint() == subtitleFingerprint
+                    val strippedId = format.id?.substringAfter(':') ?: format.id
+                    strippedId == subtitleKey
                 }
                 ?.let { trackIndex -> TrackSelectionOverride(group.getMediaTrackGroup(), trackIndex) }
         }
