@@ -22,6 +22,8 @@ import eu.kanade.presentation.browse.components.BrowseSourceList
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.util.formattedMessage
 import eu.kanade.tachiyomi.source.Source
+import eu.kanade.tachiyomi.source.model.SourceItemOrientation
+import eu.kanade.tachiyomi.source.sourceItemOrientation
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.StateFlow
 import tachiyomi.core.common.i18n.stringResource
@@ -117,12 +119,15 @@ fun BrowseSourceContent(
         return
     }
 
+    val sourceItemOrientation = source?.sourceItemOrientation() ?: SourceItemOrientation.VERTICAL
+
     when (displayMode) {
         LibraryDisplayMode.ComfortableGrid -> {
             BrowseSourceComfortableGrid(
                 mangaList = mangaList,
                 columns = columns,
                 contentPadding = contentPadding,
+                sourceItemOrientation = sourceItemOrientation,
                 onMangaClick = onMangaClick,
                 onMangaLongClick = onMangaLongClick,
             )
@@ -131,6 +136,7 @@ fun BrowseSourceContent(
             BrowseSourceList(
                 mangaList = mangaList,
                 contentPadding = contentPadding,
+                sourceItemOrientation = sourceItemOrientation,
                 onMangaClick = onMangaClick,
                 onMangaLongClick = onMangaLongClick,
             )
@@ -140,6 +146,7 @@ fun BrowseSourceContent(
                 mangaList = mangaList,
                 columns = columns,
                 contentPadding = contentPadding,
+                sourceItemOrientation = sourceItemOrientation,
                 onMangaClick = onMangaClick,
                 onMangaLongClick = onMangaLongClick,
             )

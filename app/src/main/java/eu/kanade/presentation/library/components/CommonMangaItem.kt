@@ -77,6 +77,7 @@ fun MangaCompactGridItem(
     onLongClick: () -> Unit,
     isSelected: Boolean = false,
     title: String? = null,
+    coverType: MangaCover = MangaCover.Book,
     onClickContinueReading: (() -> Unit)? = null,
     continueReadingProgress: Float? = null,
     continueReadingContentDescription: StringResource = MR.strings.action_resume,
@@ -90,8 +91,9 @@ fun MangaCompactGridItem(
         onLongClick = onLongClick,
     ) {
         MangaGridCover(
+            coverType = coverType,
             cover = {
-                MangaCover.Book(
+                coverType(
                     modifier = Modifier
                         .fillMaxWidth()
                         .alpha(if (isSelected) GRID_SELECTED_COVER_ALPHA else coverAlpha),
@@ -193,6 +195,7 @@ fun MangaComfortableGridItem(
     onLongClick: () -> Unit,
     isSelected: Boolean = false,
     titleMaxLines: Int = 2,
+    coverType: MangaCover = MangaCover.Book,
     coverAlpha: Float = 1f,
     coverBadgeStart: (@Composable RowScope.() -> Unit)? = null,
     coverBadgeEnd: (@Composable RowScope.() -> Unit)? = null,
@@ -207,8 +210,9 @@ fun MangaComfortableGridItem(
     ) {
         Column {
             MangaGridCover(
+                coverType = coverType,
                 cover = {
-                    MangaCover.Book(
+                    coverType(
                         modifier = Modifier
                             .fillMaxWidth()
                             .alpha(if (isSelected) GRID_SELECTED_COVER_ALPHA else coverAlpha),
@@ -249,6 +253,7 @@ fun MangaComfortableGridItem(
 @Composable
 private fun MangaGridCover(
     modifier: Modifier = Modifier,
+    coverType: MangaCover = MangaCover.Book,
     cover: @Composable BoxScope.() -> Unit = {},
     badgesStart: (@Composable RowScope.() -> Unit)? = null,
     badgesEnd: (@Composable RowScope.() -> Unit)? = null,
@@ -257,7 +262,7 @@ private fun MangaGridCover(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .aspectRatio(MangaCover.Book.ratio),
+            .aspectRatio(coverType.ratio),
     ) {
         cover()
         content?.invoke(this)
@@ -352,6 +357,7 @@ fun MangaListItem(
     onLongClick: () -> Unit,
     badge: @Composable (RowScope.() -> Unit),
     isSelected: Boolean = false,
+    coverType: MangaCover = MangaCover.Square,
     coverAlpha: Float = 1f,
     onClickContinueReading: (() -> Unit)? = null,
     continueReadingProgress: Float? = null,
@@ -368,7 +374,7 @@ fun MangaListItem(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        MangaCover.Square(
+        coverType(
             modifier = Modifier
                 .fillMaxHeight()
                 .alpha(coverAlpha),

@@ -16,6 +16,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import eu.kanade.presentation.library.components.CommonMangaItemDefaults
 import eu.kanade.presentation.library.components.MangaComfortableGridItem
+import eu.kanade.presentation.manga.components.toGridCoverType
+import eu.kanade.tachiyomi.source.model.SourceItemOrientation
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.MangaCover
 import tachiyomi.domain.manga.model.asMangaCover
@@ -27,6 +29,7 @@ import tachiyomi.presentation.core.i18n.stringResource
 fun GlobalSearchCardRow(
     titles: List<Manga>,
     getManga: @Composable (Manga) -> State<Manga>,
+    sourceItemOrientation: SourceItemOrientation,
     onClick: (Manga) -> Unit,
     onLongClick: (Manga) -> Unit,
 ) {
@@ -44,6 +47,7 @@ fun GlobalSearchCardRow(
             MangaItem(
                 title = title.title,
                 cover = title.asMangaCover(),
+                sourceItemOrientation = sourceItemOrientation,
                 isFavorite = title.favorite,
                 onClick = { onClick(title) },
                 onLongClick = { onLongClick(title) },
@@ -56,6 +60,7 @@ fun GlobalSearchCardRow(
 private fun MangaItem(
     title: String,
     cover: MangaCover,
+    sourceItemOrientation: SourceItemOrientation,
     isFavorite: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
@@ -65,6 +70,7 @@ private fun MangaItem(
             title = title,
             titleMaxLines = 3,
             coverData = cover,
+            coverType = sourceItemOrientation.toGridCoverType(),
             coverBadgeStart = {
                 InLibraryBadge(enabled = isFavorite)
             },

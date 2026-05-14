@@ -32,7 +32,10 @@ import eu.kanade.presentation.library.components.CommonMangaItemDefaults
 import eu.kanade.presentation.library.components.MangaComfortableGridItem
 import eu.kanade.presentation.library.components.MangaCompactGridItem
 import eu.kanade.presentation.library.components.MangaListItem
+import eu.kanade.presentation.manga.components.toGridCoverType
+import eu.kanade.presentation.manga.components.toListCoverType
 import eu.kanade.presentation.util.formattedMessage
+import eu.kanade.tachiyomi.source.model.SourceItemOrientation
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.StateFlow
 import tachiyomi.core.common.i18n.stringResource
@@ -50,6 +53,7 @@ fun AnimeBrowseSourceContent(
     animeList: LazyPagingItems<StateFlow<AnimeTitle>>,
     columns: GridCells,
     displayMode: LibraryDisplayMode,
+    sourceItemOrientation: SourceItemOrientation,
     snackbarHostState: SnackbarHostState,
     contentPadding: PaddingValues,
     onAnimeClick: (AnimeTitle) -> Unit,
@@ -128,12 +132,14 @@ fun AnimeBrowseSourceContent(
             animeList = animeList,
             columns = columns,
             contentPadding = contentPadding,
+            sourceItemOrientation = sourceItemOrientation,
             onAnimeClick = onAnimeClick,
             onAnimeLongClick = onAnimeLongClick,
         )
         LibraryDisplayMode.List -> AnimeBrowseList(
             animeList = animeList,
             contentPadding = contentPadding,
+            sourceItemOrientation = sourceItemOrientation,
             onAnimeClick = onAnimeClick,
             onAnimeLongClick = onAnimeLongClick,
         )
@@ -141,6 +147,7 @@ fun AnimeBrowseSourceContent(
             animeList = animeList,
             columns = columns,
             contentPadding = contentPadding,
+            sourceItemOrientation = sourceItemOrientation,
             onAnimeClick = onAnimeClick,
             onAnimeLongClick = onAnimeLongClick,
         )
@@ -151,6 +158,7 @@ fun AnimeBrowseSourceContent(
 private fun AnimeBrowseList(
     animeList: LazyPagingItems<StateFlow<AnimeTitle>>,
     contentPadding: PaddingValues,
+    sourceItemOrientation: SourceItemOrientation,
     onAnimeClick: (AnimeTitle) -> Unit,
     onAnimeLongClick: (AnimeTitle) -> Unit,
 ) {
@@ -169,6 +177,7 @@ private fun AnimeBrowseList(
             MangaListItem(
                 title = anime.displayTitle,
                 coverData = anime.toMangaCover(),
+                coverType = sourceItemOrientation.toListCoverType(),
                 coverAlpha = if (anime.favorite) CommonMangaItemDefaults.BrowseFavoriteCoverAlpha else 1f,
                 badge = { InLibraryBadge(enabled = anime.favorite) },
                 onLongClick = { onAnimeLongClick(anime) },
@@ -189,6 +198,7 @@ private fun AnimeBrowseComfortableGrid(
     animeList: LazyPagingItems<StateFlow<AnimeTitle>>,
     columns: GridCells,
     contentPadding: PaddingValues,
+    sourceItemOrientation: SourceItemOrientation,
     onAnimeClick: (AnimeTitle) -> Unit,
     onAnimeLongClick: (AnimeTitle) -> Unit,
 ) {
@@ -212,6 +222,7 @@ private fun AnimeBrowseComfortableGrid(
             MangaComfortableGridItem(
                 title = anime.displayTitle,
                 coverData = anime.toMangaCover(),
+                coverType = sourceItemOrientation.toGridCoverType(),
                 coverAlpha = if (anime.favorite) CommonMangaItemDefaults.BrowseFavoriteCoverAlpha else 1f,
                 coverBadgeStart = { InLibraryBadge(enabled = anime.favorite) },
                 onLongClick = { onAnimeLongClick(anime) },
@@ -232,6 +243,7 @@ private fun AnimeBrowseCompactGrid(
     animeList: LazyPagingItems<StateFlow<AnimeTitle>>,
     columns: GridCells,
     contentPadding: PaddingValues,
+    sourceItemOrientation: SourceItemOrientation,
     onAnimeClick: (AnimeTitle) -> Unit,
     onAnimeLongClick: (AnimeTitle) -> Unit,
 ) {
@@ -255,6 +267,7 @@ private fun AnimeBrowseCompactGrid(
             MangaCompactGridItem(
                 title = anime.displayTitle,
                 coverData = anime.toMangaCover(),
+                coverType = sourceItemOrientation.toGridCoverType(),
                 coverAlpha = if (anime.favorite) CommonMangaItemDefaults.BrowseFavoriteCoverAlpha else 1f,
                 coverBadgeStart = { InLibraryBadge(enabled = anime.favorite) },
                 onLongClick = { onAnimeLongClick(anime) },

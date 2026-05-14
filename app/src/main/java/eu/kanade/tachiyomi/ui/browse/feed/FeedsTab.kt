@@ -84,6 +84,7 @@ import eu.kanade.presentation.util.animateItemFastScroll
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.source.resolveFilterList
+import eu.kanade.tachiyomi.source.sourceItemOrientation
 import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceScreen
 import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceScreenModel
 import eu.kanade.tachiyomi.ui.browse.source.browse.FilterUiState
@@ -326,7 +327,10 @@ private fun FeedsTabContent(
                                 ChronologicalFeedBrowseContent(
                                     source = browseModel.source,
                                     screenModel = chronologicalFeedModel,
-                                    columns = browseModel.getColumnsPreference(LocalConfiguration.current.orientation),
+                                    columns = browseModel.getColumnsPreference(
+                                        LocalConfiguration.current.orientation,
+                                        browseModel.source.sourceItemOrientation(),
+                                    ),
                                     displayMode = browseModel.displayMode,
                                     snackbarHostState = snackbarHostState,
                                     contentPadding = feedContentPadding,
@@ -391,6 +395,7 @@ private fun FeedsTabContent(
                                         mangaList = mangaList,
                                         columns = browseModel.getColumnsPreference(
                                             LocalConfiguration.current.orientation,
+                                            browseModel.source.sourceItemOrientation(),
                                         ),
                                         displayMode = browseModel.displayMode,
                                         snackbarHostState = snackbarHostState,

@@ -56,6 +56,7 @@ import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.source.AsyncCatalogueFilterSource
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.online.HttpSource
+import eu.kanade.tachiyomi.source.sourceItemOrientation
 import eu.kanade.tachiyomi.ui.browse.extension.details.SourcePreferencesScreen
 import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceScreenModel.Listing
 import eu.kanade.tachiyomi.ui.category.CategoryScreen
@@ -259,7 +260,10 @@ data class BrowseSourceScreen(
                 BrowseSourceContent(
                     source = screenModel.source,
                     mangaList = mangaList,
-                    columns = screenModel.getColumnsPreference(LocalConfiguration.current.orientation),
+                    columns = screenModel.getColumnsPreference(
+                        LocalConfiguration.current.orientation,
+                        screenModel.source.sourceItemOrientation(),
+                    ),
                     displayMode = screenModel.displayMode,
                     snackbarHostState = snackbarHostState,
                     contentPadding = paddingValues,

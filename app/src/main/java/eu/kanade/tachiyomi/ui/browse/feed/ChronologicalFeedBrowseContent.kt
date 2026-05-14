@@ -52,8 +52,12 @@ import eu.kanade.presentation.library.components.CommonMangaItemDefaults
 import eu.kanade.presentation.library.components.MangaComfortableGridItem
 import eu.kanade.presentation.library.components.MangaCompactGridItem
 import eu.kanade.presentation.library.components.MangaListItem
+import eu.kanade.presentation.manga.components.toGridCoverType
+import eu.kanade.presentation.manga.components.toListCoverType
 import eu.kanade.presentation.util.formattedMessage
 import eu.kanade.tachiyomi.source.Source
+import eu.kanade.tachiyomi.source.model.SourceItemOrientation
+import eu.kanade.tachiyomi.source.sourceItemOrientation
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
@@ -254,6 +258,8 @@ fun ChronologicalFeedBrowseContent(
         return
     }
 
+    val sourceItemOrientation = source?.sourceItemOrientation() ?: SourceItemOrientation.VERTICAL
+
     Box {
         when (displayMode) {
             LibraryDisplayMode.ComfortableGrid -> {
@@ -263,6 +269,7 @@ fun ChronologicalFeedBrowseContent(
                     columns = columns,
                     contentPadding = contentPadding,
                     gridState = gridState,
+                    sourceItemOrientation = sourceItemOrientation,
                     isAppending = state.isAppending,
                     onMangaClick = onMangaClick,
                     onMangaLongClick = onMangaLongClick,
@@ -274,6 +281,7 @@ fun ChronologicalFeedBrowseContent(
                     mangaIds = state.mangaIds,
                     contentPadding = contentPadding,
                     listState = listState,
+                    sourceItemOrientation = sourceItemOrientation,
                     isAppending = state.isAppending,
                     onMangaClick = onMangaClick,
                     onMangaLongClick = onMangaLongClick,
@@ -286,6 +294,7 @@ fun ChronologicalFeedBrowseContent(
                     columns = columns,
                     contentPadding = contentPadding,
                     gridState = gridState,
+                    sourceItemOrientation = sourceItemOrientation,
                     isAppending = state.isAppending,
                     onMangaClick = onMangaClick,
                     onMangaLongClick = onMangaLongClick,
@@ -350,6 +359,7 @@ private fun ChronologicalFeedList(
     mangaIds: List<Long>,
     contentPadding: PaddingValues,
     listState: androidx.compose.foundation.lazy.LazyListState,
+    sourceItemOrientation: SourceItemOrientation,
     isAppending: Boolean,
     onMangaClick: (Manga) -> Unit,
     onMangaLongClick: (Manga) -> Unit,
@@ -365,6 +375,7 @@ private fun ChronologicalFeedList(
             ChronologicalFeedMangaListItem(
                 mangaId = mangaIds[index],
                 screenModel = screenModel,
+                sourceItemOrientation = sourceItemOrientation,
                 onMangaClick = onMangaClick,
                 onMangaLongClick = onMangaLongClick,
             )
@@ -385,6 +396,7 @@ private fun ChronologicalFeedCompactGrid(
     columns: GridCells,
     contentPadding: PaddingValues,
     gridState: androidx.compose.foundation.lazy.grid.LazyGridState,
+    sourceItemOrientation: SourceItemOrientation,
     isAppending: Boolean,
     onMangaClick: (Manga) -> Unit,
     onMangaLongClick: (Manga) -> Unit,
@@ -403,6 +415,7 @@ private fun ChronologicalFeedCompactGrid(
             ChronologicalFeedMangaCompactGridItem(
                 mangaId = mangaIds[index],
                 screenModel = screenModel,
+                sourceItemOrientation = sourceItemOrientation,
                 onMangaClick = onMangaClick,
                 onMangaLongClick = onMangaLongClick,
             )
@@ -423,6 +436,7 @@ private fun ChronologicalFeedComfortableGrid(
     columns: GridCells,
     contentPadding: PaddingValues,
     gridState: androidx.compose.foundation.lazy.grid.LazyGridState,
+    sourceItemOrientation: SourceItemOrientation,
     isAppending: Boolean,
     onMangaClick: (Manga) -> Unit,
     onMangaLongClick: (Manga) -> Unit,
@@ -441,6 +455,7 @@ private fun ChronologicalFeedComfortableGrid(
             ChronologicalFeedMangaComfortableGridItem(
                 mangaId = mangaIds[index],
                 screenModel = screenModel,
+                sourceItemOrientation = sourceItemOrientation,
                 onMangaClick = onMangaClick,
                 onMangaLongClick = onMangaLongClick,
             )
@@ -458,18 +473,20 @@ private fun ChronologicalFeedComfortableGrid(
 private fun ChronologicalFeedMangaListItem(
     mangaId: Long,
     screenModel: ChronologicalFeedScreenModel,
+    sourceItemOrientation: SourceItemOrientation,
     onMangaClick: (Manga) -> Unit,
     onMangaLongClick: (Manga) -> Unit,
 ) {
     val manga = rememberChronologicalManga(mangaId, screenModel)
     if (manga == null) {
-        ChronologicalFeedListItemPlaceholder()
+        ChronologicalFeedListItemPlaceholder(sourceItemOrientation.toListCoverType())
         return
     }
 
     MangaListItem(
         title = manga.title,
         coverData = manga.toCoverData(),
+        coverType = sourceItemOrientation.toListCoverType(),
         coverAlpha = manga.browseCoverAlpha(),
         badge = { InLibraryBadge(enabled = manga.favorite) },
         onLongClick = { onMangaLongClick(manga) },
@@ -481,18 +498,20 @@ private fun ChronologicalFeedMangaListItem(
 private fun ChronologicalFeedMangaCompactGridItem(
     mangaId: Long,
     screenModel: ChronologicalFeedScreenModel,
+    sourceItemOrientation: SourceItemOrientation,
     onMangaClick: (Manga) -> Unit,
     onMangaLongClick: (Manga) -> Unit,
 ) {
     val manga = rememberChronologicalManga(mangaId, screenModel)
     if (manga == null) {
-        ChronologicalFeedCompactGridItemPlaceholder()
+        ChronologicalFeedCompactGridItemPlaceholder(sourceItemOrientation.toGridCoverType())
         return
     }
 
     MangaCompactGridItem(
         title = manga.title,
         coverData = manga.toCoverData(),
+        coverType = sourceItemOrientation.toGridCoverType(),
         coverAlpha = manga.browseCoverAlpha(),
         coverBadgeStart = { InLibraryBadge(enabled = manga.favorite) },
         onLongClick = { onMangaLongClick(manga) },
@@ -504,18 +523,20 @@ private fun ChronologicalFeedMangaCompactGridItem(
 private fun ChronologicalFeedMangaComfortableGridItem(
     mangaId: Long,
     screenModel: ChronologicalFeedScreenModel,
+    sourceItemOrientation: SourceItemOrientation,
     onMangaClick: (Manga) -> Unit,
     onMangaLongClick: (Manga) -> Unit,
 ) {
     val manga = rememberChronologicalManga(mangaId, screenModel)
     if (manga == null) {
-        ChronologicalFeedComfortableGridItemPlaceholder()
+        ChronologicalFeedComfortableGridItemPlaceholder(sourceItemOrientation.toGridCoverType())
         return
     }
 
     MangaComfortableGridItem(
         title = manga.title,
         coverData = manga.toCoverData(),
+        coverType = sourceItemOrientation.toGridCoverType(),
         coverAlpha = manga.browseCoverAlpha(),
         coverBadgeStart = { InLibraryBadge(enabled = manga.favorite) },
         onLongClick = { onMangaLongClick(manga) },
@@ -540,7 +561,7 @@ private fun rememberChronologicalManga(
 }
 
 @Composable
-private fun ChronologicalFeedListItemPlaceholder() {
+private fun ChronologicalFeedListItemPlaceholder(coverType: CoverType) {
     Row(
         modifier = Modifier
             .height(56.dp)
@@ -550,7 +571,7 @@ private fun ChronologicalFeedListItemPlaceholder() {
         ChronologicalFeedPlaceholderBlock(
             modifier = Modifier
                 .fillMaxHeight()
-                .aspectRatio(CoverType.Square.ratio),
+                .aspectRatio(coverType.ratio),
         )
         Column(
             modifier = Modifier
@@ -573,17 +594,17 @@ private fun ChronologicalFeedListItemPlaceholder() {
 }
 
 @Composable
-private fun ChronologicalFeedCompactGridItemPlaceholder() {
+private fun ChronologicalFeedCompactGridItemPlaceholder(coverType: CoverType) {
     ChronologicalFeedPlaceholderBlock(
         modifier = Modifier
             .padding(4.dp)
             .fillMaxWidth()
-            .aspectRatio(CoverType.Book.ratio),
+            .aspectRatio(coverType.ratio),
     )
 }
 
 @Composable
-private fun ChronologicalFeedComfortableGridItemPlaceholder() {
+private fun ChronologicalFeedComfortableGridItemPlaceholder(coverType: CoverType) {
     Column(
         modifier = Modifier.padding(4.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -591,7 +612,7 @@ private fun ChronologicalFeedComfortableGridItemPlaceholder() {
         ChronologicalFeedPlaceholderBlock(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(CoverType.Book.ratio),
+                .aspectRatio(coverType.ratio),
         )
         ChronologicalFeedPlaceholderBlock(
             modifier = Modifier

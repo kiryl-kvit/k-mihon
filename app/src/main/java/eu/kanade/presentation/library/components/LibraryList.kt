@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import eu.kanade.presentation.manga.components.toListCoverType
 import eu.kanade.tachiyomi.ui.library.LibraryItem
 import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.domain.manga.model.MangaCover
@@ -54,6 +55,7 @@ internal fun LibraryList(
                     url = manga.thumbnailUrl,
                     lastModified = manga.coverLastModified,
                 ),
+                coverType = libraryItem.sourceItemOrientation.toListCoverType(),
                 badge = {
                     DownloadsBadge(count = libraryItem.downloadCount)
                     UnreadBadge(count = libraryItem.unreadCount)

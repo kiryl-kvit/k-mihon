@@ -48,8 +48,11 @@ import eu.kanade.presentation.browse.components.InLibraryBadge
 import eu.kanade.presentation.components.SearchToolbar
 import eu.kanade.presentation.library.components.CommonMangaItemDefaults
 import eu.kanade.presentation.library.components.MangaComfortableGridItem
+import eu.kanade.presentation.manga.components.toGridCoverType
 import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.source.AnimeCatalogueSource
+import eu.kanade.tachiyomi.source.model.SourceItemOrientation
+import eu.kanade.tachiyomi.source.sourceItemOrientation
 import eu.kanade.tachiyomi.ui.anime.browse.AnimeBrowseSourceScreen
 import eu.kanade.tachiyomi.ui.anime.pushSourceAnimeScreen
 import eu.kanade.tachiyomi.util.system.LocaleHelper
@@ -263,6 +266,7 @@ private fun AnimeGlobalSearchContent(
                             AnimeGlobalSearchCardRow(
                                 titles = result.result,
                                 getAnime = getAnime,
+                                sourceItemOrientation = source.sourceItemOrientation(),
                                 onClick = onClickItem,
                                 onLongClick = onLongClickItem,
                             )
@@ -281,6 +285,7 @@ private fun AnimeGlobalSearchContent(
 private fun AnimeGlobalSearchCardRow(
     titles: List<AnimeTitle>,
     getAnime: @Composable (AnimeTitle) -> State<AnimeTitle>,
+    sourceItemOrientation: SourceItemOrientation,
     onClick: (AnimeTitle) -> Unit,
     onLongClick: (AnimeTitle) -> Unit,
 ) {
@@ -309,6 +314,7 @@ private fun AnimeGlobalSearchCardRow(
                     title = anime.displayTitle,
                     titleMaxLines = 3,
                     coverData = anime.toMangaCover(),
+                    coverType = sourceItemOrientation.toGridCoverType(),
                     coverBadgeStart = { InLibraryBadge(enabled = anime.favorite) },
                     coverAlpha = if (anime.favorite) {
                         CommonMangaItemDefaults.BrowseFavoriteCoverAlpha

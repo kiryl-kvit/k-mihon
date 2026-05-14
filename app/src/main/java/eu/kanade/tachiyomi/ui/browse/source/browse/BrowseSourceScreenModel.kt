@@ -42,6 +42,7 @@ import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.source.AsyncCatalogueFilterSource
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.model.FilterList
+import eu.kanade.tachiyomi.source.model.SourceItemOrientation
 import eu.kanade.tachiyomi.source.resolveFilterList
 import eu.kanade.tachiyomi.util.removeCovers
 import kotlinx.collections.immutable.ImmutableList
@@ -166,14 +167,22 @@ class BrowseSourceScreenModel(
         }
         .stateIn(ioCoroutineScope, SharingStarted.Lazily, emptyFlow())
 
-    fun getColumnsPreference(orientation: Int): GridCells {
+    fun getColumnsPreference(
+        orientation: Int,
+        sourceItemOrientation: SourceItemOrientation = SourceItemOrientation.VERTICAL,
+    ): GridCells {
         val isLandscape = orientation == Configuration.ORIENTATION_LANDSCAPE
         val columns = if (isLandscape) {
             libraryPreferences.landscapeColumns
         } else {
             libraryPreferences.portraitColumns
         }.get()
-        return if (columns == 0) GridCells.Adaptive(128.dp) else GridCells.Fixed(columns)
+        val isHorizontal = sourceItemOrientation == SourceItemOrientation.HORIZONTAL
+        return if (columns == 0) {
+            GridCells.Adaptive(if (isHorizontal) 180.dp else 128.dp)
+        } else {
+            GridCells.Fixed(if (isHorizontal) (columns - 1).coerceAtLeast(1) else columns)
+        }
     }
 
     fun resetFilters() {

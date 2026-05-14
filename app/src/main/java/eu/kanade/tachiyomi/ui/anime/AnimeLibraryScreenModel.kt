@@ -9,6 +9,8 @@ import eu.kanade.core.preference.asState
 import eu.kanade.domain.anime.model.toMangaCover
 import eu.kanade.presentation.components.SEARCH_DEBOUNCE_MILLIS
 import eu.kanade.presentation.library.components.LibraryToolbarTitle
+import eu.kanade.tachiyomi.source.model.SourceItemOrientation
+import eu.kanade.tachiyomi.source.sourceItemOrientation
 import eu.kanade.tachiyomi.ui.library.LibraryPage
 import eu.kanade.tachiyomi.ui.library.LibraryPageTab
 import eu.kanade.tachiyomi.ui.library.displayTitle
@@ -269,6 +271,8 @@ class AnimeLibraryScreenModel(
                 playbackStates = animeEpisodes.mapNotNull { episode -> playbackStateByEpisodeId[episode.id] },
                 title = anime.displayTitle,
                 coverData = anime.toMangaCover(),
+                sourceItemOrientation = animeSourceManager.get(anime.source)?.sourceItemOrientation()
+                    ?: SourceItemOrientation.VERTICAL,
                 sourceId = anime.source,
                 displaySourceId = anime.source,
                 sourceIds = setOf(anime.source),
@@ -947,6 +951,7 @@ class AnimeLibraryScreenModel(
         val playbackStates: List<AnimePlaybackState>,
         val title: String,
         val coverData: tachiyomi.domain.manga.model.MangaCover,
+        val sourceItemOrientation: SourceItemOrientation,
         val sourceId: Long,
         val displaySourceId: Long,
         val sourceIds: Set<Long>,

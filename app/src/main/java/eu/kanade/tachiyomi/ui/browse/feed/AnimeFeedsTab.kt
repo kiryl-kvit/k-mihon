@@ -79,8 +79,10 @@ import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.TabContent
 import eu.kanade.presentation.util.animateItemFastScroll
 import eu.kanade.tachiyomi.source.ConfigurableAnimeSource
+import eu.kanade.tachiyomi.source.model.SourceItemOrientation
 import eu.kanade.tachiyomi.source.online.AnimeHttpSource
 import eu.kanade.tachiyomi.source.resolveFilterList
+import eu.kanade.tachiyomi.source.sourceItemOrientation
 import eu.kanade.tachiyomi.ui.anime.AnimeScreen
 import eu.kanade.tachiyomi.ui.anime.browse.AnimeBrowseSourceScreenModel
 import eu.kanade.tachiyomi.ui.anime.browse.AnimeSourcePreferencesScreen
@@ -336,8 +338,13 @@ private fun AnimeFeedsTabContent(
                             ) {
                                 AnimeChronologicalFeedBrowseContent(
                                     screenModel = chronologicalFeedModel,
-                                    columns = browseModel.getColumnsPreference(LocalConfiguration.current.orientation),
+                                    columns = browseModel.getColumnsPreference(
+                                        LocalConfiguration.current.orientation,
+                                        browseModel.source?.sourceItemOrientation() ?: SourceItemOrientation.VERTICAL,
+                                    ),
                                     displayMode = browseModel.displayMode,
+                                    sourceItemOrientation = browseModel.source?.sourceItemOrientation()
+                                        ?: SourceItemOrientation.VERTICAL,
                                     snackbarHostState = snackbarHostState,
                                     contentPadding = feedContentPadding,
                                     onAnimeClick = { openSourceAnime(it.id) },
@@ -389,8 +396,12 @@ private fun AnimeFeedsTabContent(
                                         animeList = animeList,
                                         columns = browseModel.getColumnsPreference(
                                             LocalConfiguration.current.orientation,
+                                            browseModel.source?.sourceItemOrientation()
+                                                ?: SourceItemOrientation.VERTICAL,
                                         ),
                                         displayMode = browseModel.displayMode,
+                                        sourceItemOrientation = browseModel.source?.sourceItemOrientation()
+                                            ?: SourceItemOrientation.VERTICAL,
                                         snackbarHostState = snackbarHostState,
                                         contentPadding = feedContentPadding,
                                         onAnimeClick = { openSourceAnime(it.id) },

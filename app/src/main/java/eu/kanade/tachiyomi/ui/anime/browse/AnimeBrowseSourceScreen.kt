@@ -60,6 +60,7 @@ import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.source.AsyncAnimeCatalogueFilterSource
 import eu.kanade.tachiyomi.source.ConfigurableAnimeSource
 import eu.kanade.tachiyomi.source.online.AnimeHttpSource
+import eu.kanade.tachiyomi.source.sourceItemOrientation
 import eu.kanade.tachiyomi.ui.anime.AnimeScreen
 import eu.kanade.tachiyomi.ui.anime.pushSourceAnimeScreen
 import eu.kanade.tachiyomi.ui.browse.source.browse.SourceFilterDialog
@@ -249,8 +250,12 @@ data class AnimeBrowseSourceScreen(
             } else {
                 AnimeBrowseSourceContent(
                     animeList = animeList,
-                    columns = screenModel.getColumnsPreference(LocalConfiguration.current.orientation),
+                    columns = screenModel.getColumnsPreference(
+                        LocalConfiguration.current.orientation,
+                        source.sourceItemOrientation(),
+                    ),
                     displayMode = screenModel.displayMode,
+                    sourceItemOrientation = source.sourceItemOrientation(),
                     snackbarHostState = snackbarHostState,
                     contentPadding = paddingValues,
                     onAnimeClick = { anime ->
