@@ -11,6 +11,7 @@ import eu.kanade.presentation.browse.components.GlobalSearchLoadingResultItem
 import eu.kanade.presentation.browse.components.GlobalSearchResultItem
 import eu.kanade.presentation.browse.components.GlobalSearchToolbar
 import eu.kanade.tachiyomi.source.CatalogueSource
+import eu.kanade.tachiyomi.source.sourceItemOrientation
 import eu.kanade.tachiyomi.ui.browse.source.globalsearch.SearchItemResult
 import eu.kanade.tachiyomi.ui.browse.source.globalsearch.SearchScreenModel
 import eu.kanade.tachiyomi.ui.browse.source.globalsearch.SourceFilter
@@ -91,6 +92,7 @@ internal fun GlobalSearchContent(
                             GlobalSearchCardRow(
                                 titles = result.result,
                                 getManga = getManga,
+                                sourceItemOrientation = source.sourceItemOrientation(),
                                 onClick = onClickItem,
                                 onLongClick = onLongClickItem,
                             )

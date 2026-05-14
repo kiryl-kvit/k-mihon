@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
@@ -73,10 +74,13 @@ import eu.kanade.presentation.manga.components.LibraryBottomActionMenu
 import eu.kanade.presentation.manga.components.MangaCover
 import eu.kanade.presentation.manga.components.MergeEditorDialog
 import eu.kanade.presentation.manga.components.MergeEditorEntry
+import eu.kanade.presentation.manga.components.toGridCoverType
+import eu.kanade.presentation.manga.components.toListCoverType
 import eu.kanade.presentation.more.onboarding.GETTING_STARTED_URL
 import eu.kanade.presentation.util.Tab
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.library.AnimeLibraryUpdateJob
+import eu.kanade.tachiyomi.source.model.SourceItemOrientation
 import eu.kanade.tachiyomi.ui.anime.browse.globalsearch.AnimeGlobalSearchScreen
 import eu.kanade.tachiyomi.ui.category.CategoryScreen
 import eu.kanade.tachiyomi.ui.home.HomeScreen
@@ -576,6 +580,7 @@ private fun AnimeLibraryList(
             MangaListItem(
                 title = item.title,
                 coverData = item.coverData,
+                coverType = item.sourceItemOrientation.toListCoverType(),
                 badge = {
                     if (item.unwatchedBadgeCount > 0) {
                         Badge(text = item.unwatchedBadgeCount.toString())
@@ -623,15 +628,28 @@ private fun AnimeLibraryComfortableGrid(
         contentPadding = contentPadding,
     ) {
         if (!searchQuery.isNullOrEmpty()) {
-            item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
                 GlobalSearchItem(searchQuery = searchQuery, onClick = onGlobalSearchClicked)
             }
         }
 
-        items(items, key = { it.animeId }) { item ->
+        items(
+            items = items,
+            key = { it.animeId },
+            span = { item ->
+                GridItemSpan(
+                    if (item.sourceItemOrientation == SourceItemOrientation.HORIZONTAL) {
+                        minOf(2, maxLineSpan)
+                    } else {
+                        1
+                    },
+                )
+            },
+        ) { item ->
             MangaComfortableGridItem(
                 title = item.title,
                 coverData = item.coverData,
+                coverType = item.sourceItemOrientation.toGridCoverType(),
                 coverBadgeStart = {
                     if (item.unwatchedBadgeCount > 0) {
                         Badge(text = item.unwatchedBadgeCount.toString())
@@ -682,15 +700,28 @@ private fun AnimeLibraryCompactGrid(
         contentPadding = contentPadding,
     ) {
         if (!searchQuery.isNullOrEmpty()) {
-            item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
                 GlobalSearchItem(searchQuery = searchQuery, onClick = onGlobalSearchClicked)
             }
         }
 
-        items(items, key = { it.animeId }) { item ->
+        items(
+            items = items,
+            key = { it.animeId },
+            span = { item ->
+                GridItemSpan(
+                    if (item.sourceItemOrientation == SourceItemOrientation.HORIZONTAL) {
+                        minOf(2, maxLineSpan)
+                    } else {
+                        1
+                    },
+                )
+            },
+        ) { item ->
             MangaCompactGridItem(
                 title = item.title.takeIf { showTitle },
                 coverData = item.coverData,
+                coverType = item.sourceItemOrientation.toGridCoverType(),
                 coverBadgeStart = {
                     if (item.unwatchedBadgeCount > 0) {
                         Badge(text = item.unwatchedBadgeCount.toString())

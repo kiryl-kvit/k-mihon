@@ -54,7 +54,10 @@ import eu.kanade.presentation.library.components.CommonMangaItemDefaults
 import eu.kanade.presentation.library.components.MangaComfortableGridItem
 import eu.kanade.presentation.library.components.MangaCompactGridItem
 import eu.kanade.presentation.library.components.MangaListItem
+import eu.kanade.presentation.manga.components.toGridCoverType
+import eu.kanade.presentation.manga.components.toListCoverType
 import eu.kanade.presentation.util.formattedMessage
+import eu.kanade.tachiyomi.source.model.SourceItemOrientation
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
@@ -78,6 +81,7 @@ fun AnimeChronologicalFeedBrowseContent(
     screenModel: AnimeChronologicalFeedScreenModel,
     columns: GridCells,
     displayMode: LibraryDisplayMode,
+    sourceItemOrientation: SourceItemOrientation,
     snackbarHostState: SnackbarHostState,
     contentPadding: PaddingValues,
     onAnimeClick: (AnimeTitle) -> Unit,
@@ -257,6 +261,7 @@ fun AnimeChronologicalFeedBrowseContent(
                 columns = columns,
                 contentPadding = contentPadding,
                 gridState = gridState,
+                sourceItemOrientation = sourceItemOrientation,
                 isAppending = state.isAppending,
                 onAnimeClick = onAnimeClick,
                 onAnimeLongClick = onAnimeLongClick,
@@ -266,6 +271,7 @@ fun AnimeChronologicalFeedBrowseContent(
                 animeIds = state.animeIds,
                 contentPadding = contentPadding,
                 listState = listState,
+                sourceItemOrientation = sourceItemOrientation,
                 isAppending = state.isAppending,
                 onAnimeClick = onAnimeClick,
                 onAnimeLongClick = onAnimeLongClick,
@@ -276,6 +282,7 @@ fun AnimeChronologicalFeedBrowseContent(
                 columns = columns,
                 contentPadding = contentPadding,
                 gridState = gridState,
+                sourceItemOrientation = sourceItemOrientation,
                 isAppending = state.isAppending,
                 onAnimeClick = onAnimeClick,
                 onAnimeLongClick = onAnimeLongClick,
@@ -339,6 +346,7 @@ private fun AnimeChronologicalFeedList(
     animeIds: List<Long>,
     contentPadding: PaddingValues,
     listState: androidx.compose.foundation.lazy.LazyListState,
+    sourceItemOrientation: SourceItemOrientation,
     isAppending: Boolean,
     onAnimeClick: (AnimeTitle) -> Unit,
     onAnimeLongClick: (AnimeTitle) -> Unit,
@@ -354,6 +362,7 @@ private fun AnimeChronologicalFeedList(
             AnimeChronologicalFeedListItem(
                 animeId = animeIds[index],
                 screenModel = screenModel,
+                sourceItemOrientation = sourceItemOrientation,
                 onAnimeClick = onAnimeClick,
                 onAnimeLongClick = onAnimeLongClick,
             )
@@ -372,6 +381,7 @@ private fun AnimeChronologicalFeedCompactGrid(
     columns: GridCells,
     contentPadding: PaddingValues,
     gridState: androidx.compose.foundation.lazy.grid.LazyGridState,
+    sourceItemOrientation: SourceItemOrientation,
     isAppending: Boolean,
     onAnimeClick: (AnimeTitle) -> Unit,
     onAnimeLongClick: (AnimeTitle) -> Unit,
@@ -390,6 +400,7 @@ private fun AnimeChronologicalFeedCompactGrid(
             AnimeChronologicalFeedCompactGridItem(
                 animeId = animeIds[index],
                 screenModel = screenModel,
+                sourceItemOrientation = sourceItemOrientation,
                 onAnimeClick = onAnimeClick,
                 onAnimeLongClick = onAnimeLongClick,
             )
@@ -408,6 +419,7 @@ private fun AnimeChronologicalFeedComfortableGrid(
     columns: GridCells,
     contentPadding: PaddingValues,
     gridState: androidx.compose.foundation.lazy.grid.LazyGridState,
+    sourceItemOrientation: SourceItemOrientation,
     isAppending: Boolean,
     onAnimeClick: (AnimeTitle) -> Unit,
     onAnimeLongClick: (AnimeTitle) -> Unit,
@@ -426,6 +438,7 @@ private fun AnimeChronologicalFeedComfortableGrid(
             AnimeChronologicalFeedComfortableGridItem(
                 animeId = animeIds[index],
                 screenModel = screenModel,
+                sourceItemOrientation = sourceItemOrientation,
                 onAnimeClick = onAnimeClick,
                 onAnimeLongClick = onAnimeLongClick,
             )
@@ -441,18 +454,20 @@ private fun AnimeChronologicalFeedComfortableGrid(
 private fun AnimeChronologicalFeedListItem(
     animeId: Long,
     screenModel: AnimeChronologicalFeedScreenModel,
+    sourceItemOrientation: SourceItemOrientation,
     onAnimeClick: (AnimeTitle) -> Unit,
     onAnimeLongClick: (AnimeTitle) -> Unit,
 ) {
     val anime = rememberChronologicalAnime(animeId, screenModel)
     if (anime == null) {
-        AnimeChronologicalFeedListItemPlaceholder()
+        AnimeChronologicalFeedListItemPlaceholder(sourceItemOrientation.toListCoverType())
         return
     }
 
     MangaListItem(
         title = anime.displayTitle,
         coverData = anime.toMangaCover(),
+        coverType = sourceItemOrientation.toListCoverType(),
         coverAlpha = anime.browseCoverAlpha(),
         badge = { InLibraryBadge(enabled = anime.favorite) },
         onLongClick = { onAnimeLongClick(anime) },
@@ -464,18 +479,20 @@ private fun AnimeChronologicalFeedListItem(
 private fun AnimeChronologicalFeedCompactGridItem(
     animeId: Long,
     screenModel: AnimeChronologicalFeedScreenModel,
+    sourceItemOrientation: SourceItemOrientation,
     onAnimeClick: (AnimeTitle) -> Unit,
     onAnimeLongClick: (AnimeTitle) -> Unit,
 ) {
     val anime = rememberChronologicalAnime(animeId, screenModel)
     if (anime == null) {
-        AnimeChronologicalFeedCompactGridItemPlaceholder()
+        AnimeChronologicalFeedCompactGridItemPlaceholder(sourceItemOrientation.toGridCoverType())
         return
     }
 
     MangaCompactGridItem(
         title = anime.displayTitle,
         coverData = anime.toMangaCover(),
+        coverType = sourceItemOrientation.toGridCoverType(),
         coverAlpha = anime.browseCoverAlpha(),
         coverBadgeStart = { InLibraryBadge(enabled = anime.favorite) },
         onLongClick = { onAnimeLongClick(anime) },
@@ -487,18 +504,20 @@ private fun AnimeChronologicalFeedCompactGridItem(
 private fun AnimeChronologicalFeedComfortableGridItem(
     animeId: Long,
     screenModel: AnimeChronologicalFeedScreenModel,
+    sourceItemOrientation: SourceItemOrientation,
     onAnimeClick: (AnimeTitle) -> Unit,
     onAnimeLongClick: (AnimeTitle) -> Unit,
 ) {
     val anime = rememberChronologicalAnime(animeId, screenModel)
     if (anime == null) {
-        AnimeChronologicalFeedComfortableGridItemPlaceholder()
+        AnimeChronologicalFeedComfortableGridItemPlaceholder(sourceItemOrientation.toGridCoverType())
         return
     }
 
     MangaComfortableGridItem(
         title = anime.displayTitle,
         coverData = anime.toMangaCover(),
+        coverType = sourceItemOrientation.toGridCoverType(),
         coverAlpha = anime.browseCoverAlpha(),
         coverBadgeStart = { InLibraryBadge(enabled = anime.favorite) },
         onLongClick = { onAnimeLongClick(anime) },
@@ -523,7 +542,7 @@ private fun rememberChronologicalAnime(
 }
 
 @Composable
-private fun AnimeChronologicalFeedListItemPlaceholder() {
+private fun AnimeChronologicalFeedListItemPlaceholder(coverType: CoverType) {
     Row(
         modifier = Modifier
             .height(56.dp)
@@ -533,7 +552,7 @@ private fun AnimeChronologicalFeedListItemPlaceholder() {
         AnimeChronologicalFeedPlaceholderBlock(
             modifier = Modifier
                 .fillMaxHeight()
-                .aspectRatio(CoverType.Square.ratio),
+                .aspectRatio(coverType.ratio),
         )
         Column(
             modifier = Modifier
@@ -556,17 +575,17 @@ private fun AnimeChronologicalFeedListItemPlaceholder() {
 }
 
 @Composable
-private fun AnimeChronologicalFeedCompactGridItemPlaceholder() {
+private fun AnimeChronologicalFeedCompactGridItemPlaceholder(coverType: CoverType) {
     AnimeChronologicalFeedPlaceholderBlock(
         modifier = Modifier
             .padding(4.dp)
             .fillMaxWidth()
-            .aspectRatio(CoverType.Book.ratio),
+            .aspectRatio(coverType.ratio),
     )
 }
 
 @Composable
-private fun AnimeChronologicalFeedComfortableGridItemPlaceholder() {
+private fun AnimeChronologicalFeedComfortableGridItemPlaceholder(coverType: CoverType) {
     Column(
         modifier = Modifier.padding(4.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -574,7 +593,7 @@ private fun AnimeChronologicalFeedComfortableGridItemPlaceholder() {
         AnimeChronologicalFeedPlaceholderBlock(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(CoverType.Book.ratio),
+                .aspectRatio(coverType.ratio),
         )
         AnimeChronologicalFeedPlaceholderBlock(
             modifier = Modifier

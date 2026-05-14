@@ -10,6 +10,8 @@ import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import eu.kanade.presentation.library.components.CommonMangaItemDefaults
 import eu.kanade.presentation.library.components.MangaListItem
+import eu.kanade.presentation.manga.components.toListCoverType
+import eu.kanade.tachiyomi.source.model.SourceItemOrientation
 import kotlinx.coroutines.flow.StateFlow
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.MangaCover
@@ -19,6 +21,7 @@ import tachiyomi.presentation.core.util.plus
 fun BrowseSourceList(
     mangaList: LazyPagingItems<StateFlow<Manga>>,
     contentPadding: PaddingValues,
+    sourceItemOrientation: SourceItemOrientation,
     onMangaClick: (Manga) -> Unit,
     onMangaLongClick: (Manga) -> Unit,
 ) {
@@ -38,6 +41,7 @@ fun BrowseSourceList(
             val manga by mangaList[index]?.collectAsState() ?: return@items
             BrowseSourceListItem(
                 manga = manga,
+                sourceItemOrientation = sourceItemOrientation,
                 onClick = { onMangaClick(manga) },
                 onLongClick = { onMangaLongClick(manga) },
             )
@@ -54,6 +58,7 @@ fun BrowseSourceList(
 @Composable
 private fun BrowseSourceListItem(
     manga: Manga,
+    sourceItemOrientation: SourceItemOrientation,
     onClick: () -> Unit = {},
     onLongClick: () -> Unit = onClick,
 ) {
@@ -66,6 +71,7 @@ private fun BrowseSourceListItem(
             url = manga.thumbnailUrl,
             lastModified = manga.coverLastModified,
         ),
+        coverType = sourceItemOrientation.toListCoverType(),
         coverAlpha = if (manga.favorite) CommonMangaItemDefaults.BrowseFavoriteCoverAlpha else 1f,
         badge = {
             InLibraryBadge(enabled = manga.favorite)

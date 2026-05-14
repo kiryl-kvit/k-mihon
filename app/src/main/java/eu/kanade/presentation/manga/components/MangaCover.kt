@@ -14,10 +14,12 @@ import androidx.compose.ui.semantics.Role
 import coil3.compose.AsyncImage
 import eu.kanade.presentation.util.rememberResourceBitmapPainter
 import eu.kanade.tachiyomi.R
+import eu.kanade.tachiyomi.source.model.SourceItemOrientation
 
 enum class MangaCover(val ratio: Float) {
     Square(1f / 1f),
     Book(2f / 3f),
+    Wide(16f / 9f),
     ;
 
     @Composable
@@ -48,6 +50,20 @@ enum class MangaCover(val ratio: Float) {
                 ),
             contentScale = ContentScale.Crop,
         )
+    }
+}
+
+fun SourceItemOrientation.toGridCoverType(): MangaCover {
+    return when (this) {
+        SourceItemOrientation.VERTICAL -> MangaCover.Book
+        SourceItemOrientation.HORIZONTAL -> MangaCover.Wide
+    }
+}
+
+fun SourceItemOrientation.toListCoverType(): MangaCover {
+    return when (this) {
+        SourceItemOrientation.VERTICAL -> MangaCover.Square
+        SourceItemOrientation.HORIZONTAL -> MangaCover.Wide
     }
 }
 

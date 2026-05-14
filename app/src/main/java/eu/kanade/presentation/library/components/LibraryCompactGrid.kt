@@ -2,9 +2,12 @@ package eu.kanade.presentation.library.components
 
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import eu.kanade.presentation.manga.components.toGridCoverType
+import eu.kanade.tachiyomi.source.model.SourceItemOrientation
 import eu.kanade.tachiyomi.ui.library.LibraryItem
 import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.domain.manga.model.MangaCover
@@ -32,6 +35,15 @@ internal fun LibraryCompactGrid(
 
         items(
             items = items,
+            span = { libraryItem ->
+                GridItemSpan(
+                    if (libraryItem.sourceItemOrientation == SourceItemOrientation.HORIZONTAL) {
+                        minOf(2, maxLineSpan)
+                    } else {
+                        1
+                    },
+                )
+            },
             contentType = { "library_compact_grid_item" },
         ) { libraryItem ->
             val manga = libraryItem.libraryManga.manga
@@ -45,6 +57,7 @@ internal fun LibraryCompactGrid(
                     url = manga.thumbnailUrl,
                     lastModified = manga.coverLastModified,
                 ),
+                coverType = libraryItem.sourceItemOrientation.toGridCoverType(),
                 coverBadgeStart = {
                     DownloadsBadge(count = libraryItem.downloadCount)
                     UnreadBadge(count = libraryItem.unreadCount)

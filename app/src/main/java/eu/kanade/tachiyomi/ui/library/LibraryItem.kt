@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.ui.library
 
+import eu.kanade.tachiyomi.source.model.SourceItemOrientation
 import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.domain.manga.model.presentationTitle
 import tachiyomi.source.local.LocalSource
@@ -14,6 +15,7 @@ data class LibraryItem(
     val isLocal: Boolean = false,
     val sourceLanguage: String = "",
     val sourceName: String,
+    val sourceItemOrientation: SourceItemOrientation = SourceItemOrientation.VERTICAL,
 ) {
     val id: Long = libraryManga.id
 
