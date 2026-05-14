@@ -62,6 +62,8 @@ import tachiyomi.domain.library.model.LibrarySort
 import tachiyomi.domain.library.model.effectiveLibrarySort
 import tachiyomi.domain.library.model.sort
 import tachiyomi.domain.library.service.LibraryPreferences
+import tachiyomi.domain.library.service.LibrarySortKey
+import tachiyomi.domain.library.service.librarySortComparator
 import tachiyomi.domain.manga.interactor.GetLibraryManga
 import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.interactor.GetMangaWithChapters
@@ -431,12 +433,6 @@ class LibraryScreenModel(
         globalSort: LibrarySort,
         randomSortSeed: Int,
     ): List<LibraryPage> {
-        val sortAlphabetically: (LibraryItem, LibraryItem) -> Int = { manga1, manga2 ->
-            val title1 = manga1.libraryManga.manga.presentationTitle().lowercase()
-            val title2 = manga2.libraryManga.manga.presentationTitle().lowercase()
-            title1.compareToWithCollator(title2)
-        }
-
         val defaultTrackerScoreSortValue = -1.0
         val trackerScores by lazy {
             val trackerMap = trackerManager.getAll(loggedInTrackerIds).associateBy { e -> e.id }
@@ -447,47 +443,6 @@ class LibraryScreenModel(
                         entry.value
                             .mapNotNull { trackerMap[it.trackerId]?.get10PointScore(it) }
                             .average()
-                }
-            }
-        }
-
-        fun LibrarySort.comparator(): Comparator<LibraryItem> = Comparator { manga1, manga2 ->
-            when (this.type) {
-                LibrarySort.Type.Alphabetical -> {
-                    sortAlphabetically(manga1, manga2)
-                }
-                LibrarySort.Type.LastRead -> {
-                    manga1.libraryManga.lastRead.compareTo(manga2.libraryManga.lastRead)
-                }
-                LibrarySort.Type.LastUpdate -> {
-                    manga1.libraryManga.manga.lastUpdate.compareTo(manga2.libraryManga.manga.lastUpdate)
-                }
-                LibrarySort.Type.UnreadCount -> when {
-                    // Ensure unread content comes first
-                    manga1.libraryManga.unreadCount == manga2.libraryManga.unreadCount -> 0
-                    manga1.libraryManga.unreadCount == 0L -> if (this.isAscending) 1 else -1
-                    manga2.libraryManga.unreadCount == 0L -> if (this.isAscending) -1 else 1
-                    else -> manga1.libraryManga.unreadCount.compareTo(manga2.libraryManga.unreadCount)
-                }
-                LibrarySort.Type.TotalChapters -> {
-                    manga1.libraryManga.totalChapters.compareTo(manga2.libraryManga.totalChapters)
-                }
-                LibrarySort.Type.LatestChapter -> {
-                    manga1.libraryManga.latestUpload.compareTo(manga2.libraryManga.latestUpload)
-                }
-                LibrarySort.Type.ChapterFetchDate -> {
-                    manga1.libraryManga.chapterFetchedAt.compareTo(manga2.libraryManga.chapterFetchedAt)
-                }
-                LibrarySort.Type.DateAdded -> {
-                    manga1.libraryManga.manga.dateAdded.compareTo(manga2.libraryManga.manga.dateAdded)
-                }
-                LibrarySort.Type.TrackerMean -> {
-                    val item1Score = trackerScores[manga1.id] ?: defaultTrackerScoreSortValue
-                    val item2Score = trackerScores[manga2.id] ?: defaultTrackerScoreSortValue
-                    item1Score.compareTo(item2Score)
-                }
-                LibrarySort.Type.Random -> {
-                    error("Why Are We Still Here? Just To Suffer?")
                 }
             }
         }
@@ -506,12 +461,31 @@ class LibraryScreenModel(
 
             val manga = page.itemIds.mapNotNull { favoritesById[it] }
 
-            val comparator = sort.comparator()
-                .let { if (sort.isAscending) it else it.reversed() }
-                .thenComparator(sortAlphabetically)
+            val comparator = Comparator<LibraryItem> { a, b ->
+                librarySortComparator(
+                    sort = sort,
+                    trackerScores = trackerScores,
+                    defaultTrackerScore = defaultTrackerScoreSortValue,
+                ).compare(a.toLibrarySortKey(), b.toLibrarySortKey())
+            }
 
             page.copy(itemIds = manga.sortedWith(comparator).map { it.id })
         }
+    }
+
+    private fun LibraryItem.toLibrarySortKey(): LibrarySortKey {
+        return LibrarySortKey(
+            id = id,
+            title = libraryManga.manga.presentationTitle(),
+            lastRead = libraryManga.lastRead,
+            lastUpdate = libraryManga.manga.lastUpdate,
+            unreadCount = libraryManga.unreadCount,
+            totalEntries = libraryManga.totalChapters,
+            latestUpload = libraryManga.latestUpload,
+            entryFetchDate = libraryManga.chapterFetchedAt,
+            dateAdded = libraryManga.manga.dateAdded,
+            trackerScore = null,
+        )
     }
 
     private fun getLibraryItemPreferencesFlow(): Flow<ItemPreferences> {

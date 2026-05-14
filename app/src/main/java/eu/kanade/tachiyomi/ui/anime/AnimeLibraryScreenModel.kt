@@ -62,6 +62,8 @@ import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.domain.library.model.LibrarySort
 import tachiyomi.domain.library.model.effectiveLibrarySort
 import tachiyomi.domain.library.service.LibraryPreferences
+import tachiyomi.domain.library.service.LibrarySortKey
+import tachiyomi.domain.library.service.librarySortComparator
 import tachiyomi.domain.manga.model.applyFilter
 import tachiyomi.domain.source.service.AnimeSourceManager
 import tachiyomi.i18n.MR
@@ -518,22 +520,25 @@ class AnimeLibraryScreenModel(
             return pageItems.shuffled(Random(randomSortSeed))
         }
 
-        val comparator = when (sort.type) {
-            LibrarySort.Type.Alphabetical -> compareBy<AnimeLibraryItem> { it.title.lowercase() }
-            LibrarySort.Type.LastUpdate -> compareBy<AnimeLibraryItem> { it.lastUpdate }
-            LibrarySort.Type.UnreadCount -> compareBy<AnimeLibraryItem> { it.unwatchedCount }
-            LibrarySort.Type.DateAdded -> compareBy<AnimeLibraryItem> { it.dateAdded }
-            LibrarySort.Type.LastRead,
-            LibrarySort.Type.TotalChapters,
-            LibrarySort.Type.LatestChapter,
-            LibrarySort.Type.ChapterFetchDate,
-            LibrarySort.Type.TrackerMean,
-            -> compareBy<AnimeLibraryItem> { it.favoriteModifiedAt }
-            else -> compareBy<AnimeLibraryItem> { it.favoriteModifiedAt }
+        val comparator = Comparator<AnimeLibraryItem> { a, b ->
+            librarySortComparator(sort).compare(a.toLibrarySortKey(), b.toLibrarySortKey())
         }
+        return pageItems.sortedWith(comparator)
+    }
 
-        val sorted = pageItems.sortedWith(comparator.thenBy { it.title.lowercase() })
-        return if (sort.direction == LibrarySort.Direction.Descending) sorted.reversed() else sorted
+    private fun AnimeLibraryItem.toLibrarySortKey(): LibrarySortKey {
+        return LibrarySortKey(
+            id = animeId,
+            title = title,
+            lastRead = playbackStates.maxOfOrNull { it.lastWatchedAt } ?: 0L,
+            lastUpdate = lastUpdate,
+            unreadCount = unwatchedCount,
+            totalEntries = episodes.size.toLong(),
+            latestUpload = episodes.maxOfOrNull { it.dateUpload } ?: 0L,
+            entryFetchDate = episodes.maxOfOrNull { it.dateFetch } ?: 0L,
+            dateAdded = dateAdded,
+            trackerScore = null,
+        )
     }
 
     fun search(query: String?) {
