@@ -54,5 +54,6 @@ fun AnimeTitle.episodeSortComparator(
         nameSelector = AnimeEpisode::name,
         urlSelector = AnimeEpisode::url,
         sourceOrderSelector = AnimeEpisode::sourceOrder,
+        sourceOrderNewestFirst = false,
     )
 }

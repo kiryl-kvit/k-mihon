@@ -128,6 +128,66 @@ class AnimeLibraryScreenModelTest {
     }
 
     @Test
+    fun `selects next uncompleted source-order episode as primary library action`() = runTest(dispatcher) {
+        val video = AnimeTitle.create().copy(
+            id = 1L,
+            source = 99L,
+            title = "Video 1",
+            favorite = true,
+            initialized = true,
+            url = "/video/1",
+        )
+        val completedEpisode = AnimeEpisode.create().copy(
+            id = 10L,
+            animeId = 1L,
+            url = "/e/1",
+            name = "Episode 1",
+            sourceOrder = 0L,
+            watched = true,
+            completed = true,
+        )
+        val nextEpisode = AnimeEpisode.create().copy(
+            id = 11L,
+            animeId = 1L,
+            url = "/e/2",
+            name = "Episode 2",
+            sourceOrder = 1L,
+            completed = false,
+        )
+        val latestEpisode = AnimeEpisode.create().copy(
+            id = 12L,
+            animeId = 1L,
+            url = "/e/3",
+            name = "Episode 3",
+            sourceOrder = 2L,
+            completed = false,
+        )
+
+        val model = AnimeLibraryScreenModel(
+            animeRepository = FakeAnimeRepository(listOf(video)),
+            animeEpisodeRepository = FakeAnimeEpisodeRepository(listOf(completedEpisode, nextEpisode, latestEpisode)),
+            animePlaybackStateRepository = FakeAnimePlaybackStateRepository(emptyMap()),
+            animeHistoryRepository = FakeAnimeHistoryRepository(),
+            animeSourceManager = FakeAnimeSourceManager(),
+            getAnimeCategories = fakeGetAnimeCategories(),
+            getCategories = GetCategories(FakeCategoryRepository()),
+            setAnimeCategories = fakeSetAnimeCategories(),
+            categoryRepository = FakeCategoryRepository(),
+            libraryPreferences = LibraryPreferences(InMemoryPreferenceStore()),
+            setSortModeForCategory = fakeSetSortModeForCategory(),
+            profileStore = FakeProfileAwareStore(),
+            application = mockk<Application>(relaxed = true),
+        )
+
+        advanceUntilIdle()
+
+        eventually(2.seconds) {
+            val item = model.state.value.libraryItems.single()
+            item.primaryEpisodeId shouldBe nextEpisode.id
+        }
+    }
+
+    @Test
     fun `returns random item from current page`() = runTest(dispatcher) {
         val video = AnimeTitle.create().copy(
             id = 1L,
