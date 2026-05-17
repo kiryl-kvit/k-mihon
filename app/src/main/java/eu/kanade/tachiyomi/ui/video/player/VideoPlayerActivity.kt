@@ -131,6 +131,7 @@ private const val SEEK_PREVIEW_THROTTLE_MS = 200L
 private const val SEEK_PREVIEW_MIN_DELTA_MS = 2_000L
 private const val SEEK_PREVIEW_MAX_WIDTH = 320
 private const val SEEK_PREVIEW_MAX_HEIGHT = 180
+private const val MEDIA_SESSION_ID = "anime_player"
 
 class VideoPlayerActivity : BaseActivity() {
 
@@ -685,7 +686,9 @@ class VideoPlayerActivity : BaseActivity() {
                     controllerInteractionSequence += 1L
                     releasePlayer(persistState = false)
                     player = currentPlayer
-                    mediaSession = MediaSession.Builder(context, currentPlayer).build()
+                    mediaSession = MediaSession.Builder(context, currentPlayer)
+                        .setId(MEDIA_SESSION_ID)
+                        .build()
                     startProgressSaves(currentPlayer)
                     currentPlayer.applyAdaptiveQuality(current.playback.currentAdaptiveQuality)
                     currentPlayer.applySubtitleSelection(current.playback.currentSubtitle)
