@@ -15,6 +15,7 @@ fun <T> entrySortComparator(
     nameSelector: (T) -> String,
     urlSelector: (T) -> String,
     sourceOrderSelector: (T) -> Long,
+    sourceOrderNewestFirst: Boolean = true,
 ): Comparator<T> {
     val comparator = when (sorting) {
         sortingNumberFlag -> Comparator<T> { a, b ->
@@ -46,10 +47,14 @@ fun <T> entrySortComparator(
             val baseComparator = Comparator<T> { a, b ->
                 sourceOrderSelector(a).compareTo(sourceOrderSelector(b))
             }
-            // For source order, "descending" means "newest first".
-            // Since sourceOrder 0 is the newest item from the source,
-            // descending corresponds to ascending numeric sourceOrder.
-            if (sortDescending) baseComparator else baseComparator.reversed()
+            if (sourceOrderNewestFirst) {
+                // For manga source order, "descending" means "newest first".
+                // Since sourceOrder 0 is the newest item from the source,
+                // descending corresponds to ascending numeric sourceOrder.
+                if (sortDescending) baseComparator else baseComparator.reversed()
+            } else {
+                if (sortDescending) baseComparator.reversed() else baseComparator
+            }
         }
     }
 

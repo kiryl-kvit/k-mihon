@@ -75,6 +75,38 @@ class MergedEpisodeSequenceTest {
     }
 
     @Test
+    fun `non merged source episodes keep reading order ascending`() {
+        val anime = AnimeTitle.create().copy(
+            id = 1L,
+            episodeFlags = AnimeTitle.EPISODE_SORT_DESC or AnimeTitle.EPISODE_SORTING_SOURCE,
+        )
+
+        val episodes = listOf(
+            episode(id = 101, animeId = 1, episodeNumber = 1.0, sourceOrder = 0),
+            episode(id = 102, animeId = 1, episodeNumber = 2.0, sourceOrder = 1),
+            episode(id = 103, animeId = 1, episodeNumber = 3.0, sourceOrder = 2),
+        )
+
+        episodes.sortedForReading(anime).map(AnimeEpisode::id) shouldBe listOf(101L, 102L, 103L)
+    }
+
+    @Test
+    fun `non merged source episodes keep display order descending`() {
+        val anime = AnimeTitle.create().copy(
+            id = 1L,
+            episodeFlags = AnimeTitle.EPISODE_SORT_DESC or AnimeTitle.EPISODE_SORTING_SOURCE,
+        )
+
+        val episodes = listOf(
+            episode(id = 101, animeId = 1, episodeNumber = 1.0, sourceOrder = 0),
+            episode(id = 102, animeId = 1, episodeNumber = 2.0, sourceOrder = 1),
+            episode(id = 103, animeId = 1, episodeNumber = 3.0, sourceOrder = 2),
+        )
+
+        episodes.sortedForMergedDisplay(anime).map(AnimeEpisode::id) shouldBe listOf(103L, 102L, 101L)
+    }
+
+    @Test
     fun `merged display order ignores removed member ids that no longer have episodes`() {
         val anime = AnimeTitle.create().copy(
             id = 1L,
@@ -110,11 +142,13 @@ class MergedEpisodeSequenceTest {
         id: Long,
         animeId: Long,
         episodeNumber: Double,
+        sourceOrder: Long = 0,
     ): AnimeEpisode {
         return AnimeEpisode.create().copy(
             id = id,
             animeId = animeId,
             episodeNumber = episodeNumber,
+            sourceOrder = sourceOrder,
             name = "Episode $id",
             url = "/episode/$id",
         )
