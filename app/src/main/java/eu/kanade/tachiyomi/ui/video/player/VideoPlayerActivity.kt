@@ -73,6 +73,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.text.Cue
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.MediaSession
 import androidx.media3.ui.PlayerView
 import eu.kanade.presentation.reader.ReaderContentOverlay
 import eu.kanade.tachiyomi.R
@@ -142,6 +143,7 @@ class VideoPlayerActivity : BaseActivity() {
     }
     private val windowInsetsController by lazy { WindowInsetsControllerCompat(window, window.decorView) }
     private var player by mutableStateOf<ExoPlayer?>(null)
+    private var mediaSession: MediaSession? = null
     private var progressSaveJob: Job? = null
     private var supportsPictureInPicture = false
     private var pictureInPictureEnabled by mutableStateOf(false)
@@ -683,6 +685,7 @@ class VideoPlayerActivity : BaseActivity() {
                     controllerInteractionSequence += 1L
                     releasePlayer(persistState = false)
                     player = currentPlayer
+                    mediaSession = MediaSession.Builder(context, currentPlayer).build()
                     startProgressSaves(currentPlayer)
                     currentPlayer.applyAdaptiveQuality(current.playback.currentAdaptiveQuality)
                     currentPlayer.applySubtitleSelection(current.playback.currentSubtitle)
@@ -1627,6 +1630,8 @@ class VideoPlayerActivity : BaseActivity() {
         if (persistState) {
             flushPlaybackState()
         }
+        mediaSession?.release()
+        mediaSession = null
         player?.release()
         player = null
     }

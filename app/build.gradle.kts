@@ -26,8 +26,8 @@ android {
     defaultConfig {
         applicationId = "app.mihon"
 
-        versionCode = 70
-        versionName = "2.6.0"
+        versionCode = 71
+        versionName = "2.6.1"
 
         buildConfigField("String", "COMMIT_COUNT", "\"${getLatestCommitCount()}\"")
         buildConfigField("String", "COMMIT_SHA", "\"${getLatestCommitSha()}\"")
@@ -223,6 +223,7 @@ dependencies {
     implementation(libs.androidx.coreSplashScreen)
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.exoplayerHls)
+    implementation(libs.androidx.media3.session)
     implementation(libs.androidx.media3.ui)
     implementation(libs.androidx.media3.datasourceOkhttp)
     implementation(libs.androidx.recyclerView)
