@@ -924,7 +924,9 @@ private fun AnimeLibrarySettingsDialog(
                             }
                         }
 
-                        if (displayMode != LibraryDisplayMode.List && displayMode != LibraryDisplayMode.ComfortableList) {
+                        if (displayMode != LibraryDisplayMode.List &&
+                            displayMode != LibraryDisplayMode.ComfortableList
+                        ) {
                             item {
                                 SliderItem(
                                     value = columns,

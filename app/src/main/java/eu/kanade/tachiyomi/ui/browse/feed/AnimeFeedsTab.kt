@@ -233,7 +233,10 @@ private fun AnimeFeedsTabContent(
         val activeIndex = remember(enabledFeeds, activeFeed.id) {
             enabledFeeds.indexOfFirst { it.id == activeFeed.id }
         }
-        val activeDisplayMode = screenModel.displayModeFor(activeFeed, screenModel.sourceDisplayMode(activeFeed.sourceId))
+        val activeDisplayMode = screenModel.displayModeFor(
+            activeFeed,
+            screenModel.sourceDisplayMode(activeFeed.sourceId),
+        )
         val hasPreviousFeed = activeIndex > 0
         val hasNextFeed = activeIndex in 0 until enabledFeeds.lastIndex
 

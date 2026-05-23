@@ -10,9 +10,9 @@ import eu.kanade.domain.source.model.BUILTIN_POPULAR_PRESET_ID
 import eu.kanade.domain.source.model.SourceFeed
 import eu.kanade.domain.source.model.SourceFeedKind
 import eu.kanade.domain.source.model.SourceFeedPreset
-import eu.kanade.domain.source.model.resolvedDisplayMode
 import eu.kanade.domain.source.model.latestFeedPreset
 import eu.kanade.domain.source.model.popularFeedPreset
+import eu.kanade.domain.source.model.resolvedDisplayMode
 import eu.kanade.domain.source.service.BrowseFeedService
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.ui.browse.source.SourceCatalogKind
@@ -26,8 +26,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.update
 import tachiyomi.core.common.util.lang.launchIO
-import tachiyomi.domain.library.model.LibraryDisplayMode
 import tachiyomi.data.ActiveProfileProvider
+import tachiyomi.domain.library.model.LibraryDisplayMode
 import tachiyomi.domain.source.model.Source
 import tachiyomi.domain.source.service.SourceManager
 import uy.kohesive.injekt.Injekt
