@@ -63,7 +63,10 @@ fun LibraryPager(
         }
 
         val displayMode by getDisplayMode(page)
-        val columns by if (displayMode != LibraryDisplayMode.List) {
+        val columns by if (
+            displayMode != LibraryDisplayMode.List &&
+            displayMode != LibraryDisplayMode.ComfortableList
+        ) {
             val configuration = LocalConfiguration.current
             val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 

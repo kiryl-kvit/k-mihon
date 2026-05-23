@@ -34,6 +34,8 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -78,6 +80,8 @@ fun MangaCompactGridItem(
     isSelected: Boolean = false,
     title: String? = null,
     coverType: MangaCover = MangaCover.Book,
+    coverContentScale: ContentScale = ContentScale.Crop,
+    coverBackgroundColor: Color = Color.Transparent,
     onClickContinueReading: (() -> Unit)? = null,
     continueReadingProgress: Float? = null,
     continueReadingContentDescription: StringResource = MR.strings.action_resume,
@@ -98,6 +102,8 @@ fun MangaCompactGridItem(
                         .fillMaxWidth()
                         .alpha(if (isSelected) GRID_SELECTED_COVER_ALPHA else coverAlpha),
                     data = coverData,
+                    contentScale = coverContentScale,
+                    backgroundColor = coverBackgroundColor,
                 )
             },
             badgesStart = coverBadgeStart,
@@ -106,6 +112,7 @@ fun MangaCompactGridItem(
                 if (title != null) {
                     CoverTextOverlay(
                         title = title,
+                        backgroundColor = coverBackgroundColor,
                         onClickContinueReading = onClickContinueReading,
                         continueReadingProgress = continueReadingProgress,
                         continueReadingContentDescription = continueReadingContentDescription,
@@ -133,6 +140,7 @@ fun MangaCompactGridItem(
 @Composable
 private fun BoxScope.CoverTextOverlay(
     title: String,
+    backgroundColor: Color = Color.Transparent,
     onClickContinueReading: (() -> Unit)? = null,
     continueReadingProgress: Float? = null,
     continueReadingContentDescription: StringResource = MR.strings.action_resume,
@@ -142,8 +150,8 @@ private fun BoxScope.CoverTextOverlay(
             .clip(RoundedCornerShape(bottomStart = 4.dp, bottomEnd = 4.dp))
             .background(
                 Brush.verticalGradient(
-                    0f to Color.Transparent,
-                    1f to Color(0xAA000000),
+                    0f to backgroundColor,
+                    1f to Color(0xAA000000).compositeOver(backgroundColor),
                 ),
             )
             .fillMaxHeight(0.33f)
@@ -196,6 +204,8 @@ fun MangaComfortableGridItem(
     isSelected: Boolean = false,
     titleMaxLines: Int = 2,
     coverType: MangaCover = MangaCover.Book,
+    coverContentScale: ContentScale = ContentScale.Crop,
+    coverBackgroundColor: Color = Color.Transparent,
     coverAlpha: Float = 1f,
     coverBadgeStart: (@Composable RowScope.() -> Unit)? = null,
     coverBadgeEnd: (@Composable RowScope.() -> Unit)? = null,
@@ -217,6 +227,8 @@ fun MangaComfortableGridItem(
                             .fillMaxWidth()
                             .alpha(if (isSelected) GRID_SELECTED_COVER_ALPHA else coverAlpha),
                         data = coverData,
+                        contentScale = coverContentScale,
+                        backgroundColor = coverBackgroundColor,
                     )
                 },
                 badgesStart = coverBadgeStart,
@@ -358,6 +370,8 @@ fun MangaListItem(
     badge: @Composable (RowScope.() -> Unit),
     isSelected: Boolean = false,
     coverType: MangaCover = MangaCover.Square,
+    coverContentScale: ContentScale = ContentScale.Crop,
+    coverBackgroundColor: Color = Color.Transparent,
     coverAlpha: Float = 1f,
     onClickContinueReading: (() -> Unit)? = null,
     continueReadingProgress: Float? = null,
@@ -379,6 +393,8 @@ fun MangaListItem(
                 .fillMaxHeight()
                 .alpha(coverAlpha),
             data = coverData,
+            contentScale = coverContentScale,
+            backgroundColor = coverBackgroundColor,
         )
         Text(
             text = title,
