@@ -19,6 +19,7 @@ import eu.kanade.tachiyomi.source.model.SourceItemOrientation
 enum class MangaCover(val ratio: Float) {
     Square(1f / 1f),
     Book(2f / 3f),
+    LibraryWide(4f / 3f),
     Wide(16f / 9f),
     ;
 
@@ -57,6 +58,13 @@ fun SourceItemOrientation.toGridCoverType(): MangaCover {
     return when (this) {
         SourceItemOrientation.VERTICAL -> MangaCover.Book
         SourceItemOrientation.HORIZONTAL -> MangaCover.Wide
+    }
+}
+
+fun SourceItemOrientation.toLibraryGridCoverType(): MangaCover {
+    return when (this) {
+        SourceItemOrientation.VERTICAL -> MangaCover.Book
+        SourceItemOrientation.HORIZONTAL -> MangaCover.LibraryWide
     }
 }
 

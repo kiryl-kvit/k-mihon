@@ -4,6 +4,7 @@ import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import tachiyomi.domain.library.model.LibraryDisplayMode
 import tachiyomi.domain.source.interactor.GetRemoteManga
 
 const val BUILTIN_POPULAR_PRESET_ID = "builtin:popular"
@@ -37,7 +38,12 @@ data class SourceFeed(
     val sourceId: Long,
     val presetId: String,
     val enabled: Boolean = true,
+    val displayMode: String? = null,
 )
+
+fun SourceFeed.resolvedDisplayMode(defaultDisplayMode: LibraryDisplayMode): LibraryDisplayMode {
+    return displayMode?.let(LibraryDisplayMode::deserialize) ?: defaultDisplayMode
+}
 
 fun popularFeedPreset(sourceId: Long, name: String, kind: SourceFeedKind = SourceFeedKind.MANGA): SourceFeedPreset {
     return SourceFeedPreset(

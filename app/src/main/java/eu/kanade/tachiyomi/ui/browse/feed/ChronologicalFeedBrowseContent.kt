@@ -275,6 +275,19 @@ fun ChronologicalFeedBrowseContent(
                     onMangaLongClick = onMangaLongClick,
                 )
             }
+            LibraryDisplayMode.ComfortableList -> {
+                ChronologicalFeedComfortableGrid(
+                    screenModel = screenModel,
+                    mangaIds = state.mangaIds,
+                    columns = GridCells.Fixed(1),
+                    contentPadding = contentPadding,
+                    gridState = gridState,
+                    sourceItemOrientation = sourceItemOrientation,
+                    isAppending = state.isAppending,
+                    onMangaClick = onMangaClick,
+                    onMangaLongClick = onMangaLongClick,
+                )
+            }
             LibraryDisplayMode.List -> {
                 ChronologicalFeedList(
                     screenModel = screenModel,

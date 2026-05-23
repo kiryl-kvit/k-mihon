@@ -106,7 +106,7 @@ class AnimeBrowseSourceScreenModel(
     private val application: Application = Injekt.get(),
 ) : StateScreenModel<AnimeBrowseSourceScreenModel.State>(State(Listing.valueOf(listingQuery))) {
 
-    var displayMode by sourcePreferences.sourceDisplayMode.asState(screenModelScope)
+    var displayMode by sourcePreferences.sourceDisplayMode(sourceId).asState(screenModelScope)
     var feedsEnabled by customPreferences.enableFeeds.asState(screenModelScope)
     val browseLongPressAction by customPreferences.browseLongPressAction.asState(screenModelScope)
     val isAnimePreviewEnabled by customPreferences.enableAnimePreview.asState(screenModelScope)

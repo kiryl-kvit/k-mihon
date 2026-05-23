@@ -74,7 +74,7 @@ import eu.kanade.presentation.manga.components.LibraryBottomActionMenu
 import eu.kanade.presentation.manga.components.MangaCover
 import eu.kanade.presentation.manga.components.MergeEditorDialog
 import eu.kanade.presentation.manga.components.MergeEditorEntry
-import eu.kanade.presentation.manga.components.toGridCoverType
+import eu.kanade.presentation.manga.components.toLibraryGridCoverType
 import eu.kanade.presentation.manga.components.toListCoverType
 import eu.kanade.presentation.more.onboarding.GETTING_STARTED_URL
 import eu.kanade.presentation.util.Tab
@@ -529,6 +529,19 @@ private fun AnimeLibraryPager(
                 onOpenAnime = onOpenAnime,
                 onOpenEpisode = onOpenEpisode,
             )
+            LibraryDisplayMode.ComfortableList -> AnimeLibraryComfortableGrid(
+                page = libraryPage,
+                items = items,
+                selection = state.selection,
+                columns = 1,
+                contentPadding = contentPadding,
+                searchQuery = state.searchQuery,
+                onGlobalSearchClicked = onGlobalSearchClicked,
+                onToggleSelection = onToggleSelection,
+                onToggleRangeSelection = onToggleRangeSelection,
+                onOpenAnime = onOpenAnime,
+                onOpenEpisode = onOpenEpisode,
+            )
             LibraryDisplayMode.CompactGrid,
             LibraryDisplayMode.CoverOnlyGrid,
             -> AnimeLibraryCompactGrid(
@@ -649,7 +662,7 @@ private fun AnimeLibraryComfortableGrid(
             MangaComfortableGridItem(
                 title = item.title,
                 coverData = item.coverData,
-                coverType = item.sourceItemOrientation.toGridCoverType(),
+                coverType = item.sourceItemOrientation.toLibraryGridCoverType(),
                 coverBadgeStart = {
                     if (item.unwatchedBadgeCount > 0) {
                         Badge(text = item.unwatchedBadgeCount.toString())
@@ -721,7 +734,7 @@ private fun AnimeLibraryCompactGrid(
             MangaCompactGridItem(
                 title = item.title.takeIf { showTitle },
                 coverData = item.coverData,
-                coverType = item.sourceItemOrientation.toGridCoverType(),
+                coverType = item.sourceItemOrientation.toLibraryGridCoverType(),
                 coverBadgeStart = {
                     if (item.unwatchedBadgeCount > 0) {
                         Badge(text = item.unwatchedBadgeCount.toString())

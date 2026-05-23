@@ -35,6 +35,15 @@ class SourcePreferences(
         LibraryDisplayMode.Serializer::deserialize,
     )
 
+    fun sourceDisplayMode(sourceId: Long): Preference<LibraryDisplayMode> {
+        return preferenceStore.getObjectFromString(
+            "pref_display_mode_catalogue_$sourceId",
+            sourceDisplayMode.get(),
+            LibraryDisplayMode.Serializer::serialize,
+            LibraryDisplayMode.Serializer::deserialize,
+        )
+    }
+
     val enabledLanguages: Preference<Set<String>> = preferenceStore.getStringSet(
         "source_languages",
         LocaleHelper.getDefaultEnabledLanguages(),
