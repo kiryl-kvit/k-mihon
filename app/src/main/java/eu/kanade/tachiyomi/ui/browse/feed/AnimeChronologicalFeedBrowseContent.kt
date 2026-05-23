@@ -266,6 +266,17 @@ fun AnimeChronologicalFeedBrowseContent(
                 onAnimeClick = onAnimeClick,
                 onAnimeLongClick = onAnimeLongClick,
             )
+            LibraryDisplayMode.ComfortableList -> AnimeChronologicalFeedComfortableGrid(
+                screenModel = screenModel,
+                animeIds = state.animeIds,
+                columns = GridCells.Fixed(1),
+                contentPadding = contentPadding,
+                gridState = gridState,
+                sourceItemOrientation = sourceItemOrientation,
+                isAppending = state.isAppending,
+                onAnimeClick = onAnimeClick,
+                onAnimeLongClick = onAnimeLongClick,
+            )
             LibraryDisplayMode.List -> AnimeChronologicalFeedList(
                 screenModel = screenModel,
                 animeIds = state.animeIds,

@@ -357,6 +357,9 @@ object SettingsLibraryScreen : SearchableSettings {
                         LibraryDisplayMode.ComfortableGrid to stringResource(
                             MR.strings.action_display_comfortable_grid,
                         ),
+                        LibraryDisplayMode.ComfortableList to stringResource(
+                            MR.strings.action_display_comfortable_list,
+                        ),
                         LibraryDisplayMode.CoverOnlyGrid to stringResource(MR.strings.action_display_cover_only_grid),
                         LibraryDisplayMode.List to stringResource(MR.strings.action_display_list),
                     ),
@@ -373,7 +376,8 @@ object SettingsLibraryScreen : SearchableSettings {
                     } else {
                         stringResource(MR.strings.label_auto)
                     },
-                    enabled = displayMode != LibraryDisplayMode.List,
+                    enabled = displayMode != LibraryDisplayMode.List &&
+                        displayMode != LibraryDisplayMode.ComfortableList,
                     onValueChanged = { libraryPreferences.portraitColumns.set(it) },
                 ),
                 Preference.PreferenceItem.SliderPreference(
@@ -387,7 +391,8 @@ object SettingsLibraryScreen : SearchableSettings {
                     } else {
                         stringResource(MR.strings.label_auto)
                     },
-                    enabled = displayMode != LibraryDisplayMode.List,
+                    enabled = displayMode != LibraryDisplayMode.List &&
+                        displayMode != LibraryDisplayMode.ComfortableList,
                     onValueChanged = { libraryPreferences.landscapeColumns.set(it) },
                 ),
                 Preference.PreferenceItem.SwitchPreference(

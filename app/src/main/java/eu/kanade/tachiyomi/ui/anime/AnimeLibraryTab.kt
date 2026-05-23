@@ -39,7 +39,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -74,7 +76,7 @@ import eu.kanade.presentation.manga.components.LibraryBottomActionMenu
 import eu.kanade.presentation.manga.components.MangaCover
 import eu.kanade.presentation.manga.components.MergeEditorDialog
 import eu.kanade.presentation.manga.components.MergeEditorEntry
-import eu.kanade.presentation.manga.components.toGridCoverType
+import eu.kanade.presentation.manga.components.toLibraryGridCoverType
 import eu.kanade.presentation.manga.components.toListCoverType
 import eu.kanade.presentation.more.onboarding.GETTING_STARTED_URL
 import eu.kanade.presentation.util.Tab
@@ -495,7 +497,10 @@ private fun AnimeLibraryPager(
         }
 
         val displayMode by getDisplayMode()
-        val columns by if (displayMode != LibraryDisplayMode.List) {
+        val columns by if (
+            displayMode != LibraryDisplayMode.List &&
+            displayMode != LibraryDisplayMode.ComfortableList
+        ) {
             val configuration = LocalConfiguration.current
             val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
             remember(isLandscape) { getColumnsForOrientation(isLandscape) }
@@ -521,6 +526,19 @@ private fun AnimeLibraryPager(
                 items = items,
                 selection = state.selection,
                 columns = columns,
+                contentPadding = contentPadding,
+                searchQuery = state.searchQuery,
+                onGlobalSearchClicked = onGlobalSearchClicked,
+                onToggleSelection = onToggleSelection,
+                onToggleRangeSelection = onToggleRangeSelection,
+                onOpenAnime = onOpenAnime,
+                onOpenEpisode = onOpenEpisode,
+            )
+            LibraryDisplayMode.ComfortableList -> AnimeLibraryComfortableGrid(
+                page = libraryPage,
+                items = items,
+                selection = state.selection,
+                columns = 1,
                 contentPadding = contentPadding,
                 searchQuery = state.searchQuery,
                 onGlobalSearchClicked = onGlobalSearchClicked,
@@ -577,10 +595,17 @@ private fun AnimeLibraryList(
         }
 
         items(items, key = { it.animeId }) { item ->
+            val useFitCover = item.sourceItemOrientation == SourceItemOrientation.HORIZONTAL
             MangaListItem(
                 title = item.title,
                 coverData = item.coverData,
                 coverType = item.sourceItemOrientation.toListCoverType(),
+                coverContentScale = if (useFitCover) ContentScale.Fit else ContentScale.Crop,
+                coverBackgroundColor = if (useFitCover) {
+                    MaterialTheme.colorScheme.surfaceContainerHigh
+                } else {
+                    Color.Transparent
+                },
                 badge = {
                     if (item.unwatchedBadgeCount > 0) {
                         Badge(text = item.unwatchedBadgeCount.toString())
@@ -646,10 +671,17 @@ private fun AnimeLibraryComfortableGrid(
                 )
             },
         ) { item ->
+            val useFitCover = item.sourceItemOrientation == SourceItemOrientation.HORIZONTAL
             MangaComfortableGridItem(
                 title = item.title,
                 coverData = item.coverData,
-                coverType = item.sourceItemOrientation.toGridCoverType(),
+                coverType = item.sourceItemOrientation.toLibraryGridCoverType(),
+                coverContentScale = if (useFitCover) ContentScale.Fit else ContentScale.Crop,
+                coverBackgroundColor = if (useFitCover) {
+                    MaterialTheme.colorScheme.surfaceContainerHigh
+                } else {
+                    Color.Transparent
+                },
                 coverBadgeStart = {
                     if (item.unwatchedBadgeCount > 0) {
                         Badge(text = item.unwatchedBadgeCount.toString())
@@ -718,10 +750,17 @@ private fun AnimeLibraryCompactGrid(
                 )
             },
         ) { item ->
+            val useFitCover = item.sourceItemOrientation == SourceItemOrientation.HORIZONTAL
             MangaCompactGridItem(
                 title = item.title.takeIf { showTitle },
                 coverData = item.coverData,
-                coverType = item.sourceItemOrientation.toGridCoverType(),
+                coverType = item.sourceItemOrientation.toLibraryGridCoverType(),
+                coverContentScale = if (useFitCover) ContentScale.Fit else ContentScale.Crop,
+                coverBackgroundColor = if (useFitCover) {
+                    MaterialTheme.colorScheme.surfaceContainerHigh
+                } else {
+                    Color.Transparent
+                },
                 coverBadgeStart = {
                     if (item.unwatchedBadgeCount > 0) {
                         Badge(text = item.unwatchedBadgeCount.toString())
@@ -769,7 +808,7 @@ private fun AnimeLibrarySettingsDialog(
     val showUnwatchedBadge by screenModel.getShowUnwatchedBadge()
     val showLanguageBadge by screenModel.getShowLanguageBadge()
     val columns by remember(configuration.orientation, displayMode) {
-        if (displayMode != LibraryDisplayMode.List) {
+        if (displayMode != LibraryDisplayMode.List && displayMode != LibraryDisplayMode.ComfortableList) {
             screenModel.getColumnsForOrientation(configuration.orientation == Configuration.ORIENTATION_LANDSCAPE)
         } else {
             androidx.compose.runtime.mutableIntStateOf(0)
@@ -872,6 +911,7 @@ private fun AnimeLibrarySettingsDialog(
                                 listOf(
                                     MR.strings.action_display_grid to LibraryDisplayMode.CompactGrid,
                                     MR.strings.action_display_comfortable_grid to LibraryDisplayMode.ComfortableGrid,
+                                    MR.strings.action_display_comfortable_list to LibraryDisplayMode.ComfortableList,
                                     MR.strings.action_display_cover_only_grid to LibraryDisplayMode.CoverOnlyGrid,
                                     MR.strings.action_display_list to LibraryDisplayMode.List,
                                 ).forEach { (titleRes, mode) ->
@@ -884,7 +924,9 @@ private fun AnimeLibrarySettingsDialog(
                             }
                         }
 
-                        if (displayMode != LibraryDisplayMode.List) {
+                        if (displayMode != LibraryDisplayMode.List &&
+                            displayMode != LibraryDisplayMode.ComfortableList
+                        ) {
                             item {
                                 SliderItem(
                                     value = columns,

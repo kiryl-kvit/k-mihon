@@ -1,5 +1,6 @@
 package eu.kanade.presentation.manga.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.material3.MaterialTheme
@@ -19,6 +20,7 @@ import eu.kanade.tachiyomi.source.model.SourceItemOrientation
 enum class MangaCover(val ratio: Float) {
     Square(1f / 1f),
     Book(2f / 3f),
+    LibraryWide(4f / 3f),
     Wide(16f / 9f),
     ;
 
@@ -28,6 +30,8 @@ enum class MangaCover(val ratio: Float) {
         modifier: Modifier = Modifier,
         contentDescription: String = "",
         shape: Shape = MaterialTheme.shapes.extraSmall,
+        contentScale: ContentScale = ContentScale.Crop,
+        backgroundColor: Color = Color.Transparent,
         onClick: (() -> Unit)? = null,
     ) {
         AsyncImage(
@@ -38,6 +42,7 @@ enum class MangaCover(val ratio: Float) {
             modifier = modifier
                 .aspectRatio(ratio)
                 .clip(shape)
+                .background(backgroundColor)
                 .then(
                     if (onClick != null) {
                         Modifier.clickable(
@@ -48,7 +53,7 @@ enum class MangaCover(val ratio: Float) {
                         Modifier
                     },
                 ),
-            contentScale = ContentScale.Crop,
+            contentScale = contentScale,
         )
     }
 }
@@ -57,6 +62,13 @@ fun SourceItemOrientation.toGridCoverType(): MangaCover {
     return when (this) {
         SourceItemOrientation.VERTICAL -> MangaCover.Book
         SourceItemOrientation.HORIZONTAL -> MangaCover.Wide
+    }
+}
+
+fun SourceItemOrientation.toLibraryGridCoverType(): MangaCover {
+    return when (this) {
+        SourceItemOrientation.VERTICAL -> MangaCover.Book
+        SourceItemOrientation.HORIZONTAL -> MangaCover.LibraryWide
     }
 }
 

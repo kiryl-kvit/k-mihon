@@ -12,7 +12,9 @@ import eu.kanade.domain.source.model.SourceFeedKind
 import eu.kanade.domain.source.model.SourceFeedPreset
 import eu.kanade.domain.source.model.latestFeedPreset
 import eu.kanade.domain.source.model.popularFeedPreset
+import eu.kanade.domain.source.model.resolvedDisplayMode
 import eu.kanade.domain.source.service.BrowseFeedService
+import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.ui.browse.source.SourceCatalogKind
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
@@ -25,6 +27,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.update
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.data.ActiveProfileProvider
+import tachiyomi.domain.library.model.LibraryDisplayMode
 import tachiyomi.domain.source.model.Source
 import tachiyomi.domain.source.service.SourceManager
 import uy.kohesive.injekt.Injekt
@@ -34,6 +37,7 @@ import java.util.UUID
 class FeedsScreenModel(
     private val kind: SourceCatalogKind = SourceCatalogKind.MANGA,
     private val browseFeedService: BrowseFeedService = Injekt.get(),
+    private val sourcePreferences: SourcePreferences = Injekt.get(),
     private val getEnabledSources: GetEnabledSources = Injekt.get(),
     private val getEnabledAnimeSources: GetEnabledAnimeSources = Injekt.get(),
     private val sourceManager: SourceManager = Injekt.get(),
@@ -125,6 +129,7 @@ class FeedsScreenModel(
                 sourceId = sourceId,
                 presetId = presetId,
                 enabled = true,
+                displayMode = sourcePreferences.sourceDisplayMode(sourceId).get().serialize(),
             ),
         )
         closeDialog()
@@ -133,6 +138,19 @@ class FeedsScreenModel(
     fun toggleFeed(feedId: String, enabled: Boolean) {
         val feed = state.value.feeds.firstOrNull { it.id == feedId } ?: return
         browseFeedService.updateFeed(feed.copy(enabled = enabled))
+    }
+
+    fun updateFeedDisplayMode(feedId: String, displayMode: LibraryDisplayMode) {
+        val feed = state.value.feeds.firstOrNull { it.id == feedId } ?: return
+        browseFeedService.updateFeed(feed.copy(displayMode = displayMode.serialize()))
+    }
+
+    fun displayModeFor(feed: SourceFeed, defaultDisplayMode: LibraryDisplayMode): LibraryDisplayMode {
+        return feed.resolvedDisplayMode(defaultDisplayMode)
+    }
+
+    fun sourceDisplayMode(sourceId: Long): LibraryDisplayMode {
+        return sourcePreferences.sourceDisplayMode(sourceId).get()
     }
 
     fun removeFeed(feedId: String) {

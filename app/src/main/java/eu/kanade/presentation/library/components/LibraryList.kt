@@ -4,10 +4,14 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import eu.kanade.presentation.manga.components.toListCoverType
+import eu.kanade.tachiyomi.source.model.SourceItemOrientation
 import eu.kanade.tachiyomi.ui.library.LibraryItem
 import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.domain.manga.model.MangaCover
@@ -45,6 +49,7 @@ internal fun LibraryList(
             contentType = { "library_list_item" },
         ) { libraryItem ->
             val manga = libraryItem.libraryManga.manga
+            val useFitCover = libraryItem.sourceItemOrientation == SourceItemOrientation.HORIZONTAL
             MangaListItem(
                 isSelected = manga.id in selection,
                 title = manga.presentationTitle(),
@@ -56,6 +61,12 @@ internal fun LibraryList(
                     lastModified = manga.coverLastModified,
                 ),
                 coverType = libraryItem.sourceItemOrientation.toListCoverType(),
+                coverContentScale = if (useFitCover) ContentScale.Fit else ContentScale.Crop,
+                coverBackgroundColor = if (useFitCover) {
+                    MaterialTheme.colorScheme.surfaceContainerHigh
+                } else {
+                    Color.Transparent
+                },
                 badge = {
                     DownloadsBadge(count = libraryItem.downloadCount)
                     UnreadBadge(count = libraryItem.unreadCount)

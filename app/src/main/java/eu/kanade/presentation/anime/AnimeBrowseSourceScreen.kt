@@ -136,6 +136,14 @@ fun AnimeBrowseSourceContent(
             onAnimeClick = onAnimeClick,
             onAnimeLongClick = onAnimeLongClick,
         )
+        LibraryDisplayMode.ComfortableList -> AnimeBrowseComfortableGrid(
+            animeList = animeList,
+            columns = GridCells.Fixed(1),
+            contentPadding = contentPadding,
+            sourceItemOrientation = sourceItemOrientation,
+            onAnimeClick = onAnimeClick,
+            onAnimeLongClick = onAnimeLongClick,
+        )
         LibraryDisplayMode.List -> AnimeBrowseList(
             animeList = animeList,
             contentPadding = contentPadding,

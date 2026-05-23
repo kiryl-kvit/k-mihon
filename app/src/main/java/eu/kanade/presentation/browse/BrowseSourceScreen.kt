@@ -132,6 +132,16 @@ fun BrowseSourceContent(
                 onMangaLongClick = onMangaLongClick,
             )
         }
+        LibraryDisplayMode.ComfortableList -> {
+            BrowseSourceComfortableGrid(
+                mangaList = mangaList,
+                columns = GridCells.Fixed(1),
+                contentPadding = contentPadding,
+                sourceItemOrientation = sourceItemOrientation,
+                onMangaClick = onMangaClick,
+                onMangaLongClick = onMangaLongClick,
+            )
+        }
         LibraryDisplayMode.List -> {
             BrowseSourceList(
                 mangaList = mangaList,

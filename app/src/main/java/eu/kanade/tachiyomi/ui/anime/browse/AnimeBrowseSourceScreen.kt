@@ -463,7 +463,9 @@ private fun AnimeBrowseSourceToolbar(
                         add(
                             AppBar.Action(
                                 title = stringResource(MR.strings.action_display_mode),
-                                icon = if (displayMode == LibraryDisplayMode.List) {
+                                icon = if (displayMode == LibraryDisplayMode.List ||
+                                    displayMode == LibraryDisplayMode.ComfortableList
+                                ) {
                                     AutoMirrored.Filled.ViewList
                                 } else {
                                     Icons.Filled.ViewModule
@@ -501,6 +503,13 @@ private fun AnimeBrowseSourceToolbar(
                 ) {
                     selectingDisplayMode = false
                     onDisplayModeChange(LibraryDisplayMode.ComfortableGrid)
+                }
+                RadioMenuItem(
+                    text = { Text(text = stringResource(MR.strings.action_display_comfortable_list)) },
+                    isChecked = displayMode == LibraryDisplayMode.ComfortableList,
+                ) {
+                    selectingDisplayMode = false
+                    onDisplayModeChange(LibraryDisplayMode.ComfortableList)
                 }
                 RadioMenuItem(
                     text = { Text(text = stringResource(MR.strings.action_display_grid)) },

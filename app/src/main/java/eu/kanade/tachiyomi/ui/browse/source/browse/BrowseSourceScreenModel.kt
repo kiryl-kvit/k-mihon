@@ -112,7 +112,7 @@ class BrowseSourceScreenModel(
     initialBrowseSourceState(listingQuery),
 ) {
 
-    var displayMode by sourcePreferences.sourceDisplayMode.asState(screenModelScope)
+    var displayMode by sourcePreferences.sourceDisplayMode(sourceId).asState(screenModelScope)
     var feedsEnabled by customPreferences.enableFeeds.asState(screenModelScope)
     val browseLongPressAction by customPreferences.browseLongPressAction.asState(screenModelScope)
     val isMangaPreviewEnabled by customPreferences.enableMangaPreview.asState(screenModelScope)

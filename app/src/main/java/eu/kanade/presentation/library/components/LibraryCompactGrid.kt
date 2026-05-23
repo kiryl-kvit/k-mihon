@@ -4,9 +4,12 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import eu.kanade.presentation.manga.components.toGridCoverType
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import eu.kanade.presentation.manga.components.toLibraryGridCoverType
 import eu.kanade.tachiyomi.source.model.SourceItemOrientation
 import eu.kanade.tachiyomi.ui.library.LibraryItem
 import tachiyomi.domain.library.model.LibraryManga
@@ -47,6 +50,7 @@ internal fun LibraryCompactGrid(
             contentType = { "library_compact_grid_item" },
         ) { libraryItem ->
             val manga = libraryItem.libraryManga.manga
+            val useFitCover = libraryItem.sourceItemOrientation == SourceItemOrientation.HORIZONTAL
             MangaCompactGridItem(
                 isSelected = manga.id in selection,
                 title = manga.presentationTitle().takeIf { showTitle },
@@ -57,7 +61,13 @@ internal fun LibraryCompactGrid(
                     url = manga.thumbnailUrl,
                     lastModified = manga.coverLastModified,
                 ),
-                coverType = libraryItem.sourceItemOrientation.toGridCoverType(),
+                coverType = libraryItem.sourceItemOrientation.toLibraryGridCoverType(),
+                coverContentScale = if (useFitCover) ContentScale.Fit else ContentScale.Crop,
+                coverBackgroundColor = if (useFitCover) {
+                    MaterialTheme.colorScheme.surfaceContainerHigh
+                } else {
+                    Color.Transparent
+                },
                 coverBadgeStart = {
                     DownloadsBadge(count = libraryItem.downloadCount)
                     UnreadBadge(count = libraryItem.unreadCount)

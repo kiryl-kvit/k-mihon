@@ -229,6 +229,7 @@ private fun SortPage(
 private val displayModes = listOf(
     MR.strings.action_display_grid to LibraryDisplayMode.CompactGrid,
     MR.strings.action_display_comfortable_grid to LibraryDisplayMode.ComfortableGrid,
+    MR.strings.action_display_comfortable_list to LibraryDisplayMode.ComfortableList,
     MR.strings.action_display_cover_only_grid to LibraryDisplayMode.CoverOnlyGrid,
     MR.strings.action_display_list to LibraryDisplayMode.List,
 )
@@ -248,7 +249,7 @@ private fun DisplayPage(
         }
     }
 
-    if (displayMode != LibraryDisplayMode.List) {
+    if (displayMode != LibraryDisplayMode.List && displayMode != LibraryDisplayMode.ComfortableList) {
         val configuration = LocalConfiguration.current
         val columnPreference = remember {
             if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {

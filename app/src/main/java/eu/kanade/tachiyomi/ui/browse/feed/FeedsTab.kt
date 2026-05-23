@@ -18,8 +18,10 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
+import androidx.compose.material.icons.filled.ViewModule
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.DragHandle
@@ -43,6 +45,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -78,6 +81,8 @@ import eu.kanade.presentation.browse.components.SourceIcon
 import eu.kanade.presentation.category.components.ChangeCategoryDialog
 import eu.kanade.presentation.components.AdaptiveSheet
 import eu.kanade.presentation.components.AppBar
+import eu.kanade.presentation.components.DropdownMenu
+import eu.kanade.presentation.components.RadioMenuItem
 import eu.kanade.presentation.components.TabContent
 import eu.kanade.presentation.manga.DuplicateMangaDialog
 import eu.kanade.presentation.util.animateItemFastScroll
@@ -104,6 +109,7 @@ import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 import tachiyomi.core.common.Constants
 import tachiyomi.core.common.util.lang.launchIO
+import tachiyomi.domain.library.model.LibraryDisplayMode
 import tachiyomi.domain.manga.interactor.GetMergedManga
 import tachiyomi.domain.manga.model.presentationTitle
 import tachiyomi.domain.source.model.Source
@@ -231,6 +237,10 @@ private fun FeedsTabContent(
         val activeIndex = remember(enabledFeeds, activeFeed.id) {
             enabledFeeds.indexOfFirst { it.id == activeFeed.id }
         }
+        val activeDisplayMode = screenModel.displayModeFor(
+            activeFeed,
+            screenModel.sourceDisplayMode(activeFeed.sourceId),
+        )
         val hasPreviousFeed = activeIndex > 0
         val hasNextFeed = activeIndex in 0 until enabledFeeds.lastIndex
 
@@ -331,7 +341,7 @@ private fun FeedsTabContent(
                                         LocalConfiguration.current.orientation,
                                         browseModel.source.sourceItemOrientation(),
                                     ),
-                                    displayMode = browseModel.displayMode,
+                                    displayMode = activeDisplayMode,
                                     snackbarHostState = snackbarHostState,
                                     contentPadding = feedContentPadding,
                                     onWebViewClick = {
@@ -397,7 +407,7 @@ private fun FeedsTabContent(
                                             LocalConfiguration.current.orientation,
                                             browseModel.source.sourceItemOrientation(),
                                         ),
-                                        displayMode = browseModel.displayMode,
+                                        displayMode = activeDisplayMode,
                                         snackbarHostState = snackbarHostState,
                                         contentPadding = feedContentPadding,
                                         onWebViewClick = {
@@ -520,23 +530,23 @@ private fun FeedsTabContent(
                 }
             }
 
-            if (enabledFeeds.size > 1) {
-                FeedNavigationBar(
-                    feeds = enabledFeeds,
-                    selectedFeedId = activeFeed.id,
-                    chipListState = chipListState,
-                    screenModel = screenModel,
-                    canGoPrevious = hasPreviousFeed,
-                    canGoNext = hasNextFeed,
-                    onPreviousClick = {
-                        enabledFeeds.getOrNull(activeIndex - 1)?.let { screenModel.selectFeed(it.id) }
-                    },
-                    onNextClick = {
-                        enabledFeeds.getOrNull(activeIndex + 1)?.let { screenModel.selectFeed(it.id) }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
+            FeedNavigationBar(
+                feeds = enabledFeeds,
+                selectedFeedId = activeFeed.id,
+                selectedDisplayMode = activeDisplayMode,
+                chipListState = chipListState,
+                screenModel = screenModel,
+                canGoPrevious = hasPreviousFeed,
+                canGoNext = hasNextFeed,
+                onDisplayModeChange = { screenModel.updateFeedDisplayMode(activeFeed.id, it) },
+                onPreviousClick = {
+                    enabledFeeds.getOrNull(activeIndex - 1)?.let { screenModel.selectFeed(it.id) }
+                },
+                onNextClick = {
+                    enabledFeeds.getOrNull(activeIndex + 1)?.let { screenModel.selectFeed(it.id) }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 
@@ -591,10 +601,12 @@ private fun FeedBrowseContent(
 private fun FeedNavigationBar(
     feeds: List<SourceFeed>,
     selectedFeedId: String,
+    selectedDisplayMode: LibraryDisplayMode,
     chipListState: LazyListState,
     screenModel: FeedsScreenModel,
     canGoPrevious: Boolean,
     canGoNext: Boolean,
+    onDisplayModeChange: (LibraryDisplayMode) -> Unit,
     onPreviousClick: () -> Unit,
     onNextClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -660,7 +672,43 @@ private fun FeedNavigationBar(
                     contentDescription = stringResource(MR.strings.transition_next),
                 )
             }
+            FeedDisplayModeButton(
+                displayMode = selectedDisplayMode,
+                onDisplayModeChange = onDisplayModeChange,
+            )
         }
+    }
+}
+
+@Composable
+private fun FeedDisplayModeButton(
+    displayMode: LibraryDisplayMode,
+    onDisplayModeChange: (LibraryDisplayMode) -> Unit,
+) {
+    var selectingDisplayMode by remember { androidx.compose.runtime.mutableStateOf(false) }
+
+    Box {
+        IconButton(onClick = { selectingDisplayMode = true }) {
+            Icon(
+                imageVector = if (displayMode == LibraryDisplayMode.List ||
+                    displayMode == LibraryDisplayMode.ComfortableList
+                ) {
+                    Icons.AutoMirrored.Filled.ViewList
+                } else {
+                    Icons.Filled.ViewModule
+                },
+                contentDescription = stringResource(MR.strings.action_display_mode),
+            )
+        }
+        FeedDisplayModeDropdown(
+            expanded = selectingDisplayMode,
+            selectedDisplayMode = displayMode,
+            onDismissRequest = { selectingDisplayMode = false },
+            onDisplayModeChange = {
+                selectingDisplayMode = false
+                onDisplayModeChange(it)
+            },
+        )
     }
 }
 
@@ -961,5 +1009,62 @@ private fun ReorderableCollectionItemScope.ManageFeedItem(
                 .padding(MaterialTheme.padding.small),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+@Composable
+private fun FeedDisplayModeDropdown(
+    expanded: Boolean,
+    selectedDisplayMode: LibraryDisplayMode,
+    onDismissRequest: () -> Unit,
+    onDisplayModeChange: (LibraryDisplayMode) -> Unit,
+) {
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismissRequest,
+    ) {
+        FeedDisplayModeMenuItem(
+            displayMode = LibraryDisplayMode.ComfortableGrid,
+            selectedDisplayMode = selectedDisplayMode,
+            onDisplayModeChange = onDisplayModeChange,
+        )
+        FeedDisplayModeMenuItem(
+            displayMode = LibraryDisplayMode.ComfortableList,
+            selectedDisplayMode = selectedDisplayMode,
+            onDisplayModeChange = onDisplayModeChange,
+        )
+        FeedDisplayModeMenuItem(
+            displayMode = LibraryDisplayMode.CompactGrid,
+            selectedDisplayMode = selectedDisplayMode,
+            onDisplayModeChange = onDisplayModeChange,
+        )
+        FeedDisplayModeMenuItem(
+            displayMode = LibraryDisplayMode.List,
+            selectedDisplayMode = selectedDisplayMode,
+            onDisplayModeChange = onDisplayModeChange,
+        )
+    }
+}
+
+@Composable
+private fun FeedDisplayModeMenuItem(
+    displayMode: LibraryDisplayMode,
+    selectedDisplayMode: LibraryDisplayMode,
+    onDisplayModeChange: (LibraryDisplayMode) -> Unit,
+) {
+    RadioMenuItem(
+        text = { Text(text = displayMode.displayModeLabel()) },
+        isChecked = selectedDisplayMode == displayMode,
+    ) { onDisplayModeChange(displayMode) }
+}
+
+@Composable
+private fun LibraryDisplayMode.displayModeLabel(): String {
+    return when (this) {
+        LibraryDisplayMode.CompactGrid -> stringResource(MR.strings.action_display_grid)
+        LibraryDisplayMode.ComfortableGrid -> stringResource(MR.strings.action_display_comfortable_grid)
+        LibraryDisplayMode.ComfortableList -> stringResource(MR.strings.action_display_comfortable_list)
+        LibraryDisplayMode.CoverOnlyGrid -> stringResource(MR.strings.action_display_cover_only_grid)
+        LibraryDisplayMode.List -> stringResource(MR.strings.action_display_list)
     }
 }
