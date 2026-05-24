@@ -6,8 +6,8 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import com.hippo.unifile.UniFile
-import eu.kanade.tachiyomi.data.anime.download.AnimeDownloader
 import eu.kanade.tachiyomi.data.anime.download.AnimeDownloadProvider
+import eu.kanade.tachiyomi.data.anime.download.AnimeDownloader
 import eu.kanade.tachiyomi.data.anime.download.model.AnimeDownloadManifest
 import eu.kanade.tachiyomi.data.anime.download.model.DownloadedVideo
 import eu.kanade.tachiyomi.source.AnimeSource
