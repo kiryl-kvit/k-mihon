@@ -5,7 +5,11 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
+import com.hippo.unifile.UniFile
 import eu.kanade.tachiyomi.data.anime.download.AnimeDownloadProvider
+import eu.kanade.tachiyomi.data.anime.download.AnimeDownloader
+import eu.kanade.tachiyomi.data.anime.download.model.AnimeDownloadManifest
+import eu.kanade.tachiyomi.data.anime.download.model.DownloadedVideo
 import eu.kanade.tachiyomi.source.AnimeSource
 import eu.kanade.tachiyomi.source.AnimeSubtitleSource
 import eu.kanade.tachiyomi.source.model.VideoPlaybackData
@@ -17,6 +21,7 @@ import eu.kanade.tachiyomi.source.model.VideoSubtitle
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,6 +38,7 @@ import tachiyomi.domain.anime.repository.AnimeEpisodeRepository
 import tachiyomi.domain.anime.repository.AnimePlaybackPreferencesRepository
 import tachiyomi.domain.anime.repository.AnimeRepository
 import tachiyomi.domain.source.service.AnimeSourceManager
+import java.io.ByteArrayInputStream
 
 class ResolveVideoStreamTest {
 
@@ -58,6 +64,7 @@ class ResolveVideoStreamTest {
         video: AnimeTitle,
         episode: AnimeEpisode?,
         sourceManager: AnimeSourceManager,
+        downloadProvider: AnimeDownloadProvider = this.downloadProvider,
         sourceInitTimeoutMs: Long = 5_000L,
         streamFetchTimeoutMs: Long = 15_000L,
     ): ResolveVideoStream {
@@ -253,6 +260,67 @@ class ResolveVideoStreamTest {
 
         (result as ResolveVideoStream.Result.Success).stream shouldBe stream
         result.subtitles shouldBe emptyList()
+    }
+
+    @Test
+    fun `prefers downloaded HLS root playlist when manifest target is missing`() = runTest {
+        val video = videoTitle(id = 1L, sourceId = 99L)
+        val episode = videoEpisode(id = 2L, animeId = 1L)
+        val source = FakeAnimeSource(video.source) { emptyList() }
+        val manifestJson = Json.encodeToString(
+            AnimeDownloadManifest(
+                animeId = video.id,
+                episodeId = episode.id,
+                animeTitle = video.title,
+                episodeTitle = episode.name,
+                originalEpisodeUrl = episode.url,
+                qualityMode = "BEST",
+                selection = VideoPlaybackSelection(streamKey = "downloaded"),
+                video = DownloadedVideo(
+                    fileName = "166a04bb_index-v1-a1.m3u8",
+                    sourceUrl = "https://cdn.example.com/index-v1-a1.m3u8",
+                    headers = emptyMap(),
+                    label = "Downloaded",
+                    streamType = VideoStreamType.HLS,
+                    mimeType = "application/x-mpegURL",
+                ),
+                subtitles = emptyList(),
+            ),
+        )
+        val manifestFile = mockk<UniFile> {
+            every { openInputStream() } returns ByteArrayInputStream(manifestJson.toByteArray())
+        }
+        val rootPlaylist = mockk<UniFile> {
+            every { name } returns "video.m3u8"
+            every { uri } returns mockk(relaxed = true)
+        }
+        val variantPlaylist = mockk<UniFile> {
+            every { name } returns "166a04bb_index-v1-a1.m3u8"
+            every { uri } returns mockk(relaxed = true)
+        }
+        val episodeDir = mockk<UniFile> {
+            every { findFile(AnimeDownloader.MANIFEST_FILE_NAME) } returns manifestFile
+            every { findFile("video.m3u8") } returns rootPlaylist
+            every { findFile("video.m3u") } returns null
+            every { findFile("166a04bb_index-v1-a1.m3u8") } returns null
+            every { listFiles() } returns arrayOf(variantPlaylist, rootPlaylist)
+        }
+        val offlineDownloadProvider = mockk<AnimeDownloadProvider> {
+            every { findEpisodeDir(episode.name, episode.url, video.title, source) } returns episodeDir
+        }
+
+        val resolver = createResolver(
+            video = video,
+            episode = episode,
+            sourceManager = FakeAnimeSourceManager(source = source),
+            downloadProvider = offlineDownloadProvider,
+        )
+
+        val result = resolver(video.id, episode.id, ownerAnimeId = video.id)
+
+        (result is ResolveVideoStream.Result.Success) shouldBe true
+        verify(exactly = 1) { episodeDir.findFile("video.m3u8") }
+        verify(exactly = 0) { episodeDir.findFile("166a04bb_index-v1-a1.m3u8") }
     }
 
     private fun videoTitle(id: Long, sourceId: Long): AnimeTitle {

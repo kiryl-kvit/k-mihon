@@ -24,6 +24,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.OkHttpClient
 import okhttp3.Request
 import okio.buffer
 import okio.sink
@@ -33,6 +34,7 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 
 private val HEIGHT_REGEX = Regex("""(\d{3,4})p?""", RegexOption.IGNORE_CASE)
@@ -45,6 +47,8 @@ class AnimeDownloader(
     private val networkHelper: NetworkHelper = Injekt.get(),
     private val json: Json = Injekt.get(),
 ) {
+
+    private val fileTransferClient = createFileTransferClient(networkHelper.client)
 
     suspend fun download(download: AnimeDownload): AnimeDownloadFailure? {
         val source = sourceManager.get(download.anime.source)
@@ -223,7 +227,7 @@ class AnimeDownloader(
         val headers = Headers.Builder().apply {
             request.headers.forEach { (key, value) -> add(key, value) }
         }.build()
-        val response = networkHelper.client.newCall(
+        val response = fileTransferClient.newCall(
             Request.Builder()
                 .url(request.url)
                 .headers(headers)
@@ -255,7 +259,7 @@ class AnimeDownloader(
         val headers = Headers.Builder().apply {
             request.headers.forEach { (key, value) -> add(key, value) }
         }.build()
-        val response = networkHelper.client.newCall(
+        val response = fileTransferClient.newCall(
             Request.Builder()
                 .url(request.url)
                 .headers(headers)
@@ -288,6 +292,7 @@ class AnimeDownloader(
             var resolvedRootFileName = rootFileName
             val stagedFiles = stagingDir.listFiles().orEmpty()
             if (stagedFiles.isNotEmpty()) {
+                val stagedToActualNames = LinkedHashMap<String, String>(stagedFiles.size)
                 val copyStart = 90
                 val copyEnd = 94
                 stagedFiles.forEachIndexed { index, stagedFile ->
@@ -295,14 +300,20 @@ class AnimeDownloader(
                     val targetProgress = copyStart + ((copyEnd - copyStart) * copyFraction).toInt()
                     progressTracker.onNonVideoPhaseProgress(targetProgress)
                     val target = tmpDir.createFile(stagedFile.name) ?: error("Failed to create staged HLS file")
+                    val actualName = target.name ?: stagedFile.name
+                    stagedToActualNames[stagedFile.name] = actualName
                     stagedFile.inputStream().use { input ->
                         target.openOutputStream().use { output ->
                             input.copyTo(output)
                         }
                     }
                     if (stagedFile.name == rootFileName) {
-                        resolvedRootFileName = target.name ?: rootFileName
+                        resolvedRootFileName = actualName
                     }
+                }
+
+                if (stagedToActualNames.any { (stagedName, actualName) -> stagedName != actualName }) {
+                    rewriteDownloadedHlsPlaylists(tmpDir, stagedToActualNames)
                 }
             }
             resolvedRootFileName
@@ -429,6 +440,26 @@ class AnimeDownloader(
         downloaded[url] = fileName
         progressTracker.onAssetDownloaded()
         return fileName
+    }
+
+    private fun rewriteDownloadedHlsPlaylists(
+        tmpDir: UniFile,
+        stagedToActualNames: Map<String, String>,
+    ) {
+        stagedToActualNames.forEach { (stagedName, actualName) ->
+            if (!actualName.isHlsPlaylistFileName()) return@forEach
+
+            val playlistFile = tmpDir.findFile(actualName) ?: return@forEach
+            val playlistText = playlistFile.openInputStream().bufferedReader().use { it.readText() }
+            val rewrittenText = rewriteHlsPlaylistReferences(playlistText, stagedToActualNames)
+            if (rewrittenText == playlistText) return@forEach
+
+            playlistFile.openOutputStream().use { output ->
+                output.writer().use { writer ->
+                    writer.write(rewrittenText)
+                }
+            }
+        }
     }
 
     private suspend fun fetchToFile(
@@ -616,6 +647,23 @@ private fun String.isHlsPlaylistUrl(): Boolean {
     return substringBefore('?').substringBefore('#').endsWith(".m3u8", ignoreCase = true)
 }
 
+private fun String.isHlsPlaylistFileName(): Boolean {
+    return endsWith(".m3u8", ignoreCase = true) || endsWith(".m3u", ignoreCase = true)
+}
+
+internal fun rewriteHlsPlaylistReferences(
+    playlistText: String,
+    stagedToActualNames: Map<String, String>,
+): String {
+    return stagedToActualNames.entries.fold(playlistText) { rewritten, (stagedName, actualName) ->
+        if (stagedName == actualName) {
+            rewritten
+        } else {
+            rewritten.replace(stagedName, actualName)
+        }
+    }
+}
+
 internal fun isHlsPlaylistReference(
     url: String,
     previousTagLine: String? = null,
@@ -625,7 +673,10 @@ internal fun isHlsPlaylistReference(
 
     return when {
         previousTagLine?.startsWith("#EXT-X-STREAM-INF", ignoreCase = true) == true -> true
-        currentTagLine?.startsWith("#EXT-X-MEDIA", ignoreCase = true) == true -> true
+        currentTagLine?.startsWith("#EXT-X-MEDIA", ignoreCase = true) == true -> {
+            currentTagLine.contains("TYPE=AUDIO", ignoreCase = true) ||
+                currentTagLine.contains("TYPE=VIDEO", ignoreCase = true)
+        }
         currentTagLine?.startsWith("#EXT-X-I-FRAME-STREAM-INF", ignoreCase = true) == true -> true
         currentTagLine?.startsWith("#EXT-X-IMAGE-STREAM-INF", ignoreCase = true) == true -> true
         else -> false
@@ -711,4 +762,10 @@ private fun String.isHlsVideoAssetUrl(): Boolean {
         path.endsWith(".mp4", ignoreCase = true) ||
         path.endsWith(".m4v", ignoreCase = true) ||
         path.endsWith(".aac", ignoreCase = true)
+}
+
+internal fun createFileTransferClient(client: OkHttpClient): OkHttpClient {
+    return client.newBuilder()
+        .callTimeout(0, TimeUnit.MILLISECONDS)
+        .build()
 }

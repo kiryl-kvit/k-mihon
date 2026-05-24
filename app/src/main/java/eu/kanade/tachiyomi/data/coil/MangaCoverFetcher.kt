@@ -68,9 +68,8 @@ class MangaCoverFetcher(
         // Use custom cover if exists
         val useCustomCover = options.extras.getOrDefault(USE_CUSTOM_COVER_KEY)
         if (useCustomCover) {
-            val customCoverFile = customCoverFileLazy.value
-            if (customCoverFile.exists()) {
-                return fileLoader(customCoverFile)
+            validCoverCacheFile(customCoverFileLazy.value)?.let {
+                return fileLoader(it)
             }
         }
 
@@ -115,8 +114,10 @@ class MangaCoverFetcher(
         } else {
             null
         }
-        if (libraryCoverCacheFile?.exists() == true && options.diskCachePolicy.readEnabled) {
-            return fileLoader(libraryCoverCacheFile)
+        if (options.diskCachePolicy.readEnabled) {
+            validCoverCacheFile(libraryCoverCacheFile)?.let {
+                return fileLoader(it)
+            }
         }
 
         var snapshot = readFromDiskCache()
@@ -216,7 +217,7 @@ class MangaCoverFetcher(
                 }
                 remove(diskCacheKey)
             }
-            cacheFile.takeIf { it.exists() }
+            validCoverCacheFile(cacheFile)
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e) { "Failed to write snapshot data to cover cache ${cacheFile.name}" }
             null
@@ -229,7 +230,7 @@ class MangaCoverFetcher(
             response.peekBody(Long.MAX_VALUE).source().use { input ->
                 writeSourceToCoverCache(input, cacheFile)
             }
-            cacheFile.takeIf { it.exists() }
+            validCoverCacheFile(cacheFile)
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e) { "Failed to write response data to cover cache ${cacheFile.name}" }
             null
@@ -243,10 +244,21 @@ class MangaCoverFetcher(
             cacheFile.sink().buffer().use { output ->
                 output.writeAll(input)
             }
+            if (cacheFile.length() == 0L) {
+                throw IOException("Empty cover cache file")
+            }
         } catch (e: Exception) {
             cacheFile.delete()
             throw e
         }
+    }
+
+    private fun validCoverCacheFile(file: File?): File? {
+        if (file == null || !file.exists()) return null
+        if (file.length() > 0L) return file
+
+        file.delete()
+        return null
     }
 
     private fun readFromDiskCache(): DiskCache.Snapshot? {
