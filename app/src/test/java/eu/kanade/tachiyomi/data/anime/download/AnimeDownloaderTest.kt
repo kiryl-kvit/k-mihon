@@ -2,8 +2,10 @@ package eu.kanade.tachiyomi.data.anime.download
 
 import eu.kanade.tachiyomi.source.model.VideoPlaybackOption
 import io.kotest.matchers.shouldBe
+import okhttp3.OkHttpClient
 import org.junit.jupiter.api.Test
 import tachiyomi.domain.anime.model.AnimeDownloadQualityMode
+import java.util.concurrent.TimeUnit
 
 class AnimeDownloaderTest {
 
@@ -80,5 +82,20 @@ class AnimeDownloaderTest {
                 VideoPlaybackOption(key = "1080", label = "1080p"),
             ),
         ) shouldBe "240"
+    }
+
+    @Test
+    fun `file transfer client disables total call timeout`() {
+        val baseClient = OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .callTimeout(2, TimeUnit.MINUTES)
+            .build()
+
+        val fileTransferClient = createFileTransferClient(baseClient)
+
+        fileTransferClient.callTimeoutMillis shouldBe 0
+        fileTransferClient.connectTimeoutMillis shouldBe baseClient.connectTimeoutMillis
+        fileTransferClient.readTimeoutMillis shouldBe baseClient.readTimeoutMillis
     }
 }

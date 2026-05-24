@@ -24,6 +24,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.OkHttpClient
 import okhttp3.Request
 import okio.buffer
 import okio.sink
@@ -33,6 +34,7 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 
 private val HEIGHT_REGEX = Regex("""(\d{3,4})p?""", RegexOption.IGNORE_CASE)
@@ -45,6 +47,8 @@ class AnimeDownloader(
     private val networkHelper: NetworkHelper = Injekt.get(),
     private val json: Json = Injekt.get(),
 ) {
+
+    private val fileTransferClient = createFileTransferClient(networkHelper.client)
 
     suspend fun download(download: AnimeDownload): AnimeDownloadFailure? {
         val source = sourceManager.get(download.anime.source)
@@ -223,7 +227,7 @@ class AnimeDownloader(
         val headers = Headers.Builder().apply {
             request.headers.forEach { (key, value) -> add(key, value) }
         }.build()
-        val response = networkHelper.client.newCall(
+        val response = fileTransferClient.newCall(
             Request.Builder()
                 .url(request.url)
                 .headers(headers)
@@ -255,7 +259,7 @@ class AnimeDownloader(
         val headers = Headers.Builder().apply {
             request.headers.forEach { (key, value) -> add(key, value) }
         }.build()
-        val response = networkHelper.client.newCall(
+        val response = fileTransferClient.newCall(
             Request.Builder()
                 .url(request.url)
                 .headers(headers)
@@ -758,4 +762,10 @@ private fun String.isHlsVideoAssetUrl(): Boolean {
         path.endsWith(".mp4", ignoreCase = true) ||
         path.endsWith(".m4v", ignoreCase = true) ||
         path.endsWith(".aac", ignoreCase = true)
+}
+
+internal fun createFileTransferClient(client: OkHttpClient): OkHttpClient {
+    return client.newBuilder()
+        .callTimeout(0, TimeUnit.MILLISECONDS)
+        .build()
 }
