@@ -288,6 +288,7 @@ class AnimeDownloader(
             var resolvedRootFileName = rootFileName
             val stagedFiles = stagingDir.listFiles().orEmpty()
             if (stagedFiles.isNotEmpty()) {
+                val stagedToActualNames = LinkedHashMap<String, String>(stagedFiles.size)
                 val copyStart = 90
                 val copyEnd = 94
                 stagedFiles.forEachIndexed { index, stagedFile ->
@@ -295,14 +296,20 @@ class AnimeDownloader(
                     val targetProgress = copyStart + ((copyEnd - copyStart) * copyFraction).toInt()
                     progressTracker.onNonVideoPhaseProgress(targetProgress)
                     val target = tmpDir.createFile(stagedFile.name) ?: error("Failed to create staged HLS file")
+                    val actualName = target.name ?: stagedFile.name
+                    stagedToActualNames[stagedFile.name] = actualName
                     stagedFile.inputStream().use { input ->
                         target.openOutputStream().use { output ->
                             input.copyTo(output)
                         }
                     }
                     if (stagedFile.name == rootFileName) {
-                        resolvedRootFileName = target.name ?: rootFileName
+                        resolvedRootFileName = actualName
                     }
+                }
+
+                if (stagedToActualNames.any { (stagedName, actualName) -> stagedName != actualName }) {
+                    rewriteDownloadedHlsPlaylists(tmpDir, stagedToActualNames)
                 }
             }
             resolvedRootFileName
@@ -429,6 +436,26 @@ class AnimeDownloader(
         downloaded[url] = fileName
         progressTracker.onAssetDownloaded()
         return fileName
+    }
+
+    private fun rewriteDownloadedHlsPlaylists(
+        tmpDir: UniFile,
+        stagedToActualNames: Map<String, String>,
+    ) {
+        stagedToActualNames.forEach { (stagedName, actualName) ->
+            if (!actualName.isHlsPlaylistFileName()) return@forEach
+
+            val playlistFile = tmpDir.findFile(actualName) ?: return@forEach
+            val playlistText = playlistFile.openInputStream().bufferedReader().use { it.readText() }
+            val rewrittenText = rewriteHlsPlaylistReferences(playlistText, stagedToActualNames)
+            if (rewrittenText == playlistText) return@forEach
+
+            playlistFile.openOutputStream().use { output ->
+                output.writer().use { writer ->
+                    writer.write(rewrittenText)
+                }
+            }
+        }
     }
 
     private suspend fun fetchToFile(
@@ -616,6 +643,23 @@ private fun String.isHlsPlaylistUrl(): Boolean {
     return substringBefore('?').substringBefore('#').endsWith(".m3u8", ignoreCase = true)
 }
 
+private fun String.isHlsPlaylistFileName(): Boolean {
+    return endsWith(".m3u8", ignoreCase = true) || endsWith(".m3u", ignoreCase = true)
+}
+
+internal fun rewriteHlsPlaylistReferences(
+    playlistText: String,
+    stagedToActualNames: Map<String, String>,
+): String {
+    return stagedToActualNames.entries.fold(playlistText) { rewritten, (stagedName, actualName) ->
+        if (stagedName == actualName) {
+            rewritten
+        } else {
+            rewritten.replace(stagedName, actualName)
+        }
+    }
+}
+
 internal fun isHlsPlaylistReference(
     url: String,
     previousTagLine: String? = null,
@@ -625,7 +669,10 @@ internal fun isHlsPlaylistReference(
 
     return when {
         previousTagLine?.startsWith("#EXT-X-STREAM-INF", ignoreCase = true) == true -> true
-        currentTagLine?.startsWith("#EXT-X-MEDIA", ignoreCase = true) == true -> true
+        currentTagLine?.startsWith("#EXT-X-MEDIA", ignoreCase = true) == true -> {
+            currentTagLine.contains("TYPE=AUDIO", ignoreCase = true) ||
+                currentTagLine.contains("TYPE=VIDEO", ignoreCase = true)
+        }
         currentTagLine?.startsWith("#EXT-X-I-FRAME-STREAM-INF", ignoreCase = true) == true -> true
         currentTagLine?.startsWith("#EXT-X-IMAGE-STREAM-INF", ignoreCase = true) == true -> true
         else -> false

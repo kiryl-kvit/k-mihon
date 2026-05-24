@@ -24,11 +24,38 @@ class AnimeDownloaderTest {
     }
 
     @Test
+    fun `does not treat subtitle asset uri as nested playlist`() {
+        isHlsPlaylistReference(
+            url = "https://cdn.example.com/subtitles/ar.vtt",
+            currentTagLine = "#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"subs\",URI=\"subtitles/ar.vtt\"",
+        ) shouldBe false
+    }
+
+    @Test
     fun `does not treat key uri as nested playlist`() {
         isHlsPlaylistReference(
             url = "https://cdn.example.com/key",
             currentTagLine = "#EXT-X-KEY:METHOD=AES-128,URI=\"key\"",
         ) shouldBe false
+    }
+
+    @Test
+    fun `rewrites staged playlist references to actual SAF filenames`() {
+        rewriteHlsPlaylistReferences(
+            playlistText = """
+                |#EXTM3U
+                |#EXT-X-STREAM-INF:BANDWIDTH=2253013
+                |958c73d1_index-v1-a1.m3u8
+            """.trimMargin(),
+            stagedToActualNames = mapOf(
+                "video.m3u8" to "video.m3u",
+                "958c73d1_index-v1-a1.m3u8" to "958c73d1_index-v1-a1.m3u",
+            ),
+        ) shouldBe """
+            |#EXTM3U
+            |#EXT-X-STREAM-INF:BANDWIDTH=2253013
+            |958c73d1_index-v1-a1.m3u
+        """.trimMargin()
     }
 
     @Test

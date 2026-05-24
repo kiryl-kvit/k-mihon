@@ -325,23 +325,33 @@ class ResolveVideoStream(
         episodeDir: com.hippo.unifile.UniFile,
         manifest: AnimeDownloadManifest,
     ): com.hippo.unifile.UniFile? {
-        episodeDir.findFile(manifest.video.fileName)?.let { return it }
-
         if (manifest.video.streamType != VideoStreamType.HLS) {
-            return null
+            return episodeDir.findFile(manifest.video.fileName)
         }
 
-        val expectedBaseName = manifest.video.fileName.substringBeforeLast('.')
+        val preferredNames = buildList {
+            add(DOWNLOADED_HLS_ROOT_PLAYLIST)
+            add(DOWNLOADED_HLS_LEGACY_ROOT_PLAYLIST)
+            add(manifest.video.fileName)
+
+            val expectedBaseName = manifest.video.fileName.substringBeforeLast('.')
+            if (expectedBaseName.isNotBlank()) {
+                add("$expectedBaseName.m3u8")
+                add("$expectedBaseName.m3u")
+            }
+        }.distinct()
+
+        preferredNames.firstNotNullOfOrNull(episodeDir::findFile)?.let { return it }
+
         return episodeDir.listFiles()?.firstOrNull { file ->
             val name = file.name ?: return@firstOrNull false
-            name == "$expectedBaseName.m3u" ||
-                name == "$expectedBaseName.m3u8" ||
-                name.endsWith(".m3u8") ||
-                name.endsWith(".m3u")
+            name.endsWith(".m3u8") || name.endsWith(".m3u")
         }
     }
 
     private companion object {
+        private const val DOWNLOADED_HLS_ROOT_PLAYLIST = "video.m3u8"
+        private const val DOWNLOADED_HLS_LEGACY_ROOT_PLAYLIST = "video.m3u"
         private const val SOURCE_INIT_TIMEOUT_MS = 5_000L
         private const val STREAM_FETCH_TIMEOUT_MS = 15_000L
     }
