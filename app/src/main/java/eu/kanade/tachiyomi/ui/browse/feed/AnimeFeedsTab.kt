@@ -371,6 +371,7 @@ private fun AnimeFeedsTabContent(
                                             }
                                         }
                                     },
+                                    hoverPreviewEnabled = browseModel.isAnimeVideoPreviewEnabled,
                                     activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
                                     onAnimeHover = { anime ->
                                         activeHoverPreviewAnimeIds = (activeHoverPreviewAnimeIds - anime.id + anime.id)
@@ -443,6 +444,7 @@ private fun AnimeFeedsTabContent(
                                                 }
                                             }
                                         },
+                                        hoverPreviewEnabled = browseModel.isAnimeVideoPreviewEnabled,
                                         activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
                                         onAnimeHover = { anime ->
                                             activeHoverPreviewAnimeIds =

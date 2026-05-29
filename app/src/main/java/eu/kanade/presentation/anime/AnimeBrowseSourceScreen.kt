@@ -67,6 +67,7 @@ fun AnimeBrowseSourceContent(
     contentPadding: PaddingValues,
     onAnimeClick: (AnimeTitle) -> Unit,
     onAnimeLongClick: (AnimeTitle) -> Unit,
+    hoverPreviewEnabled: Boolean = false,
     activeHoverPreviewAnimeIds: List<Long> = emptyList(),
     onAnimeHover: (AnimeTitle) -> Unit = {},
     onAnimeHoverExit: (AnimeTitle) -> Unit = {},
@@ -150,6 +151,7 @@ fun AnimeBrowseSourceContent(
             sourceItemOrientation = sourceItemOrientation,
             onAnimeClick = onAnimeClick,
             onAnimeLongClick = onAnimeLongClick,
+            hoverPreviewEnabled = hoverPreviewEnabled,
             activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
             onAnimeHover = onAnimeHover,
             onAnimeHoverExit = onAnimeHoverExit,
@@ -164,6 +166,7 @@ fun AnimeBrowseSourceContent(
             sourceItemOrientation = sourceItemOrientation,
             onAnimeClick = onAnimeClick,
             onAnimeLongClick = onAnimeLongClick,
+            hoverPreviewEnabled = hoverPreviewEnabled,
             activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
             onAnimeHover = onAnimeHover,
             onAnimeHoverExit = onAnimeHoverExit,
@@ -177,6 +180,7 @@ fun AnimeBrowseSourceContent(
             sourceItemOrientation = sourceItemOrientation,
             onAnimeClick = onAnimeClick,
             onAnimeLongClick = onAnimeLongClick,
+            hoverPreviewEnabled = hoverPreviewEnabled,
             activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
             onAnimeHover = onAnimeHover,
             onAnimeHoverExit = onAnimeHoverExit,
@@ -191,6 +195,7 @@ fun AnimeBrowseSourceContent(
             sourceItemOrientation = sourceItemOrientation,
             onAnimeClick = onAnimeClick,
             onAnimeLongClick = onAnimeLongClick,
+            hoverPreviewEnabled = hoverPreviewEnabled,
             activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
             onAnimeHover = onAnimeHover,
             onAnimeHoverExit = onAnimeHoverExit,
@@ -208,6 +213,7 @@ private fun AnimeBrowseList(
     sourceItemOrientation: SourceItemOrientation,
     onAnimeClick: (AnimeTitle) -> Unit,
     onAnimeLongClick: (AnimeTitle) -> Unit,
+    hoverPreviewEnabled: Boolean,
     activeHoverPreviewAnimeIds: List<Long>,
     onAnimeHover: (AnimeTitle) -> Unit,
     onAnimeHoverExit: (AnimeTitle) -> Unit,
@@ -243,17 +249,25 @@ private fun AnimeBrowseList(
                 coverType = sourceItemOrientation.toListCoverType(),
                 coverAlpha = if (anime.favorite) CommonMangaItemDefaults.BrowseFavoriteCoverAlpha else 1f,
                 badge = { InLibraryBadge(enabled = anime.favorite) },
-                coverOverlay = animeHoverPreviewCover(
-                    anime = anime,
-                    activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
-                    onHoverPreviewEnded = onHoverPreviewEnded,
-                    onAnimeHoverPreviewRequest = onAnimeHoverPreviewRequest,
-                ),
-                coverModifier = Modifier.animeHoverPreview(
-                    anime = anime,
-                    onAnimeHover = onAnimeHover,
-                    onAnimeHoverExit = onAnimeHoverExit,
-                ),
+                coverOverlay = if (hoverPreviewEnabled) {
+                    animeHoverPreviewCover(
+                        anime = anime,
+                        activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
+                        onHoverPreviewEnded = onHoverPreviewEnded,
+                        onAnimeHoverPreviewRequest = onAnimeHoverPreviewRequest,
+                    )
+                } else {
+                    null
+                },
+                coverModifier = if (hoverPreviewEnabled) {
+                    Modifier.animeHoverPreview(
+                        anime = anime,
+                        onAnimeHover = onAnimeHover,
+                        onAnimeHoverExit = onAnimeHoverExit,
+                    )
+                } else {
+                    Modifier
+                },
                 onLongClick = { onAnimeLongClick(anime) },
                 onClick = { onAnimeClick(anime) },
             )
@@ -275,6 +289,7 @@ private fun AnimeBrowseComfortableGrid(
     sourceItemOrientation: SourceItemOrientation,
     onAnimeClick: (AnimeTitle) -> Unit,
     onAnimeLongClick: (AnimeTitle) -> Unit,
+    hoverPreviewEnabled: Boolean,
     activeHoverPreviewAnimeIds: List<Long>,
     onAnimeHover: (AnimeTitle) -> Unit,
     onAnimeHoverExit: (AnimeTitle) -> Unit,
@@ -312,17 +327,25 @@ private fun AnimeBrowseComfortableGrid(
                 coverData = anime.toMangaCover(),
                 coverType = sourceItemOrientation.toGridCoverType(),
                 coverAlpha = if (anime.favorite) CommonMangaItemDefaults.BrowseFavoriteCoverAlpha else 1f,
-                coverOverlay = animeHoverPreviewCover(
-                    anime = anime,
-                    activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
-                    onHoverPreviewEnded = onHoverPreviewEnded,
-                    onAnimeHoverPreviewRequest = onAnimeHoverPreviewRequest,
-                ),
-                coverModifier = Modifier.animeHoverPreview(
-                    anime = anime,
-                    onAnimeHover = onAnimeHover,
-                    onAnimeHoverExit = onAnimeHoverExit,
-                ),
+                coverOverlay = if (hoverPreviewEnabled) {
+                    animeHoverPreviewCover(
+                        anime = anime,
+                        activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
+                        onHoverPreviewEnded = onHoverPreviewEnded,
+                        onAnimeHoverPreviewRequest = onAnimeHoverPreviewRequest,
+                    )
+                } else {
+                    null
+                },
+                coverModifier = if (hoverPreviewEnabled) {
+                    Modifier.animeHoverPreview(
+                        anime = anime,
+                        onAnimeHover = onAnimeHover,
+                        onAnimeHoverExit = onAnimeHoverExit,
+                    )
+                } else {
+                    Modifier
+                },
                 coverBadgeStart = { InLibraryBadge(enabled = anime.favorite) },
                 onLongClick = { onAnimeLongClick(anime) },
                 onClick = { onAnimeClick(anime) },
@@ -345,6 +368,7 @@ private fun AnimeBrowseCompactGrid(
     sourceItemOrientation: SourceItemOrientation,
     onAnimeClick: (AnimeTitle) -> Unit,
     onAnimeLongClick: (AnimeTitle) -> Unit,
+    hoverPreviewEnabled: Boolean,
     activeHoverPreviewAnimeIds: List<Long>,
     onAnimeHover: (AnimeTitle) -> Unit,
     onAnimeHoverExit: (AnimeTitle) -> Unit,
@@ -382,17 +406,25 @@ private fun AnimeBrowseCompactGrid(
                 coverData = anime.toMangaCover(),
                 coverType = sourceItemOrientation.toGridCoverType(),
                 coverAlpha = if (anime.favorite) CommonMangaItemDefaults.BrowseFavoriteCoverAlpha else 1f,
-                coverOverlay = animeHoverPreviewCover(
-                    anime = anime,
-                    activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
-                    onHoverPreviewEnded = onHoverPreviewEnded,
-                    onAnimeHoverPreviewRequest = onAnimeHoverPreviewRequest,
-                ),
-                coverModifier = Modifier.animeHoverPreview(
-                    anime = anime,
-                    onAnimeHover = onAnimeHover,
-                    onAnimeHoverExit = onAnimeHoverExit,
-                ),
+                coverOverlay = if (hoverPreviewEnabled) {
+                    animeHoverPreviewCover(
+                        anime = anime,
+                        activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
+                        onHoverPreviewEnded = onHoverPreviewEnded,
+                        onAnimeHoverPreviewRequest = onAnimeHoverPreviewRequest,
+                    )
+                } else {
+                    null
+                },
+                coverModifier = if (hoverPreviewEnabled) {
+                    Modifier.animeHoverPreview(
+                        anime = anime,
+                        onAnimeHover = onAnimeHover,
+                        onAnimeHoverExit = onAnimeHoverExit,
+                    )
+                } else {
+                    Modifier
+                },
                 coverBadgeStart = { InLibraryBadge(enabled = anime.favorite) },
                 onLongClick = { onAnimeLongClick(anime) },
                 onClick = { onAnimeClick(anime) },

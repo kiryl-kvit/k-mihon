@@ -92,6 +92,7 @@ fun AnimeChronologicalFeedBrowseContent(
     contentPadding: PaddingValues,
     onAnimeClick: (AnimeTitle) -> Unit,
     onAnimeLongClick: (AnimeTitle) -> Unit,
+    hoverPreviewEnabled: Boolean = false,
     activeHoverPreviewAnimeIds: List<Long> = emptyList(),
     onAnimeHover: (AnimeTitle) -> Unit = {},
     onAnimeHoverExit: (AnimeTitle) -> Unit = {},
@@ -290,6 +291,7 @@ fun AnimeChronologicalFeedBrowseContent(
                 isAppending = state.isAppending,
                 onAnimeClick = onAnimeClick,
                 onAnimeLongClick = onAnimeLongClick,
+                hoverPreviewEnabled = hoverPreviewEnabled,
                 activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
                 onAnimeHover = onAnimeHover,
                 onAnimeHoverExit = onAnimeHoverExit,
@@ -306,6 +308,7 @@ fun AnimeChronologicalFeedBrowseContent(
                 isAppending = state.isAppending,
                 onAnimeClick = onAnimeClick,
                 onAnimeLongClick = onAnimeLongClick,
+                hoverPreviewEnabled = hoverPreviewEnabled,
                 activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
                 onAnimeHover = onAnimeHover,
                 onAnimeHoverExit = onAnimeHoverExit,
@@ -321,6 +324,7 @@ fun AnimeChronologicalFeedBrowseContent(
                 isAppending = state.isAppending,
                 onAnimeClick = onAnimeClick,
                 onAnimeLongClick = onAnimeLongClick,
+                hoverPreviewEnabled = hoverPreviewEnabled,
                 activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
                 onAnimeHover = onAnimeHover,
                 onAnimeHoverExit = onAnimeHoverExit,
@@ -337,6 +341,7 @@ fun AnimeChronologicalFeedBrowseContent(
                 isAppending = state.isAppending,
                 onAnimeClick = onAnimeClick,
                 onAnimeLongClick = onAnimeLongClick,
+                hoverPreviewEnabled = hoverPreviewEnabled,
                 activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
                 onAnimeHover = onAnimeHover,
                 onAnimeHoverExit = onAnimeHoverExit,
@@ -406,6 +411,7 @@ private fun AnimeChronologicalFeedList(
     isAppending: Boolean,
     onAnimeClick: (AnimeTitle) -> Unit,
     onAnimeLongClick: (AnimeTitle) -> Unit,
+    hoverPreviewEnabled: Boolean,
     activeHoverPreviewAnimeIds: List<Long>,
     onAnimeHover: (AnimeTitle) -> Unit,
     onAnimeHoverExit: (AnimeTitle) -> Unit,
@@ -426,6 +432,7 @@ private fun AnimeChronologicalFeedList(
                 sourceItemOrientation = sourceItemOrientation,
                 onAnimeClick = onAnimeClick,
                 onAnimeLongClick = onAnimeLongClick,
+                hoverPreviewEnabled = hoverPreviewEnabled,
                 activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
                 onAnimeHover = onAnimeHover,
                 onAnimeHoverExit = onAnimeHoverExit,
@@ -451,6 +458,7 @@ private fun AnimeChronologicalFeedCompactGrid(
     isAppending: Boolean,
     onAnimeClick: (AnimeTitle) -> Unit,
     onAnimeLongClick: (AnimeTitle) -> Unit,
+    hoverPreviewEnabled: Boolean,
     activeHoverPreviewAnimeIds: List<Long>,
     onAnimeHover: (AnimeTitle) -> Unit,
     onAnimeHoverExit: (AnimeTitle) -> Unit,
@@ -474,6 +482,7 @@ private fun AnimeChronologicalFeedCompactGrid(
                 sourceItemOrientation = sourceItemOrientation,
                 onAnimeClick = onAnimeClick,
                 onAnimeLongClick = onAnimeLongClick,
+                hoverPreviewEnabled = hoverPreviewEnabled,
                 activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
                 onAnimeHover = onAnimeHover,
                 onAnimeHoverExit = onAnimeHoverExit,
@@ -499,6 +508,7 @@ private fun AnimeChronologicalFeedComfortableGrid(
     isAppending: Boolean,
     onAnimeClick: (AnimeTitle) -> Unit,
     onAnimeLongClick: (AnimeTitle) -> Unit,
+    hoverPreviewEnabled: Boolean,
     activeHoverPreviewAnimeIds: List<Long>,
     onAnimeHover: (AnimeTitle) -> Unit,
     onAnimeHoverExit: (AnimeTitle) -> Unit,
@@ -522,6 +532,7 @@ private fun AnimeChronologicalFeedComfortableGrid(
                 sourceItemOrientation = sourceItemOrientation,
                 onAnimeClick = onAnimeClick,
                 onAnimeLongClick = onAnimeLongClick,
+                hoverPreviewEnabled = hoverPreviewEnabled,
                 activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
                 onAnimeHover = onAnimeHover,
                 onAnimeHoverExit = onAnimeHoverExit,
@@ -543,6 +554,7 @@ private fun AnimeChronologicalFeedListItem(
     sourceItemOrientation: SourceItemOrientation,
     onAnimeClick: (AnimeTitle) -> Unit,
     onAnimeLongClick: (AnimeTitle) -> Unit,
+    hoverPreviewEnabled: Boolean,
     activeHoverPreviewAnimeIds: List<Long>,
     onAnimeHover: (AnimeTitle) -> Unit,
     onAnimeHoverExit: (AnimeTitle) -> Unit,
@@ -561,17 +573,25 @@ private fun AnimeChronologicalFeedListItem(
         coverType = sourceItemOrientation.toListCoverType(),
         coverAlpha = anime.browseCoverAlpha(),
         badge = { InLibraryBadge(enabled = anime.favorite) },
-        coverOverlay = animeHoverPreviewCover(
-            anime = anime,
-            activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
-            onHoverPreviewEnded = onHoverPreviewEnded,
-            onAnimeHoverPreviewRequest = onAnimeHoverPreviewRequest,
-        ),
-        coverModifier = Modifier.animeHoverPreview(
-            anime = anime,
-            onAnimeHover = onAnimeHover,
-            onAnimeHoverExit = onAnimeHoverExit,
-        ),
+        coverOverlay = if (hoverPreviewEnabled) {
+            animeHoverPreviewCover(
+                anime = anime,
+                activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
+                onHoverPreviewEnded = onHoverPreviewEnded,
+                onAnimeHoverPreviewRequest = onAnimeHoverPreviewRequest,
+            )
+        } else {
+            null
+        },
+        coverModifier = if (hoverPreviewEnabled) {
+            Modifier.animeHoverPreview(
+                anime = anime,
+                onAnimeHover = onAnimeHover,
+                onAnimeHoverExit = onAnimeHoverExit,
+            )
+        } else {
+            Modifier
+        },
         onLongClick = { onAnimeLongClick(anime) },
         onClick = { onAnimeClick(anime) },
     )
@@ -584,6 +604,7 @@ private fun AnimeChronologicalFeedCompactGridItem(
     sourceItemOrientation: SourceItemOrientation,
     onAnimeClick: (AnimeTitle) -> Unit,
     onAnimeLongClick: (AnimeTitle) -> Unit,
+    hoverPreviewEnabled: Boolean,
     activeHoverPreviewAnimeIds: List<Long>,
     onAnimeHover: (AnimeTitle) -> Unit,
     onAnimeHoverExit: (AnimeTitle) -> Unit,
@@ -601,17 +622,25 @@ private fun AnimeChronologicalFeedCompactGridItem(
         coverData = anime.toMangaCover(),
         coverType = sourceItemOrientation.toGridCoverType(),
         coverAlpha = anime.browseCoverAlpha(),
-        coverOverlay = animeHoverPreviewCover(
-            anime = anime,
-            activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
-            onHoverPreviewEnded = onHoverPreviewEnded,
-            onAnimeHoverPreviewRequest = onAnimeHoverPreviewRequest,
-        ),
-        coverModifier = Modifier.animeHoverPreview(
-            anime = anime,
-            onAnimeHover = onAnimeHover,
-            onAnimeHoverExit = onAnimeHoverExit,
-        ),
+        coverOverlay = if (hoverPreviewEnabled) {
+            animeHoverPreviewCover(
+                anime = anime,
+                activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
+                onHoverPreviewEnded = onHoverPreviewEnded,
+                onAnimeHoverPreviewRequest = onAnimeHoverPreviewRequest,
+            )
+        } else {
+            null
+        },
+        coverModifier = if (hoverPreviewEnabled) {
+            Modifier.animeHoverPreview(
+                anime = anime,
+                onAnimeHover = onAnimeHover,
+                onAnimeHoverExit = onAnimeHoverExit,
+            )
+        } else {
+            Modifier
+        },
         coverBadgeStart = { InLibraryBadge(enabled = anime.favorite) },
         onLongClick = { onAnimeLongClick(anime) },
         onClick = { onAnimeClick(anime) },
@@ -625,6 +654,7 @@ private fun AnimeChronologicalFeedComfortableGridItem(
     sourceItemOrientation: SourceItemOrientation,
     onAnimeClick: (AnimeTitle) -> Unit,
     onAnimeLongClick: (AnimeTitle) -> Unit,
+    hoverPreviewEnabled: Boolean,
     activeHoverPreviewAnimeIds: List<Long>,
     onAnimeHover: (AnimeTitle) -> Unit,
     onAnimeHoverExit: (AnimeTitle) -> Unit,
@@ -642,17 +672,25 @@ private fun AnimeChronologicalFeedComfortableGridItem(
         coverData = anime.toMangaCover(),
         coverType = sourceItemOrientation.toGridCoverType(),
         coverAlpha = anime.browseCoverAlpha(),
-        coverOverlay = animeHoverPreviewCover(
-            anime = anime,
-            activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
-            onHoverPreviewEnded = onHoverPreviewEnded,
-            onAnimeHoverPreviewRequest = onAnimeHoverPreviewRequest,
-        ),
-        coverModifier = Modifier.animeHoverPreview(
-            anime = anime,
-            onAnimeHover = onAnimeHover,
-            onAnimeHoverExit = onAnimeHoverExit,
-        ),
+        coverOverlay = if (hoverPreviewEnabled) {
+            animeHoverPreviewCover(
+                anime = anime,
+                activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
+                onHoverPreviewEnded = onHoverPreviewEnded,
+                onAnimeHoverPreviewRequest = onAnimeHoverPreviewRequest,
+            )
+        } else {
+            null
+        },
+        coverModifier = if (hoverPreviewEnabled) {
+            Modifier.animeHoverPreview(
+                anime = anime,
+                onAnimeHover = onAnimeHover,
+                onAnimeHoverExit = onAnimeHoverExit,
+            )
+        } else {
+            Modifier
+        },
         coverBadgeStart = { InLibraryBadge(enabled = anime.favorite) },
         onLongClick = { onAnimeLongClick(anime) },
         onClick = { onAnimeClick(anime) },

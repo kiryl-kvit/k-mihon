@@ -112,6 +112,7 @@ object CustomSettingsScreen : SearchableSettings {
         val mangaPreviewPageCount by customPreferences.mangaPreviewPageCount.collectAsState()
         val animePreviewEnabled by customPreferences.enableAnimePreview.collectAsState()
         val animePreviewPageCount by customPreferences.animePreviewPageCount.collectAsState()
+        val animeVideoPreviewEnabled by customPreferences.enableAnimeVideoPreview.collectAsState()
         val autoScrollEnabled by readerPreferences.autoScrollEnabled.collectAsState()
         val autoScrollSpeed by readerPreferences.autoScrollSpeed.collectAsState()
         val startupTab by customPreferences.homeScreenStartupTab.collectAsState()
@@ -342,75 +343,97 @@ object CustomSettingsScreen : SearchableSettings {
                 add(
                     Preference.PreferenceGroup(
                         title = stringResource(MR.strings.browse),
-                        preferenceItems = persistentListOf(
-                            if (activeProfileType == ProfileType.ANIME) {
-                                Preference.PreferenceItem.SwitchPreference(
-                                    preference = customPreferences.enableAnimePreview,
-                                    title = stringResource(MR.strings.pref_enable_anime_preview),
-                                    subtitle = stringResource(MR.strings.pref_enable_anime_preview_summary),
-                                )
-                            } else {
-                                Preference.PreferenceItem.SwitchPreference(
-                                    preference = customPreferences.enableMangaPreview,
-                                    title = stringResource(MR.strings.pref_enable_manga_preview),
-                                    subtitle = stringResource(MR.strings.pref_enable_manga_preview_summary),
-                                )
-                            },
-                            if (activeProfileType == ProfileType.ANIME) {
-                                Preference.PreferenceItem.SliderPreference(
-                                    value = animePreviewPageCount,
-                                    preference = customPreferences.animePreviewPageCount,
-                                    valueRange = CustomPreferences.ANIME_PREVIEW_PAGE_COUNT_RANGE,
-                                    title = stringResource(MR.strings.pref_anime_preview_page_count),
-                                    valueString = animePreviewPageCount.toString(),
-                                    enabled = previewEnabled,
-                                    onValueChanged = {
-                                        customPreferences.animePreviewPageCount.set(it)
-                                    },
-                                )
-                            } else {
-                                Preference.PreferenceItem.SliderPreference(
-                                    value = mangaPreviewPageCount,
-                                    preference = customPreferences.mangaPreviewPageCount,
-                                    valueRange = CustomPreferences.MANGA_PREVIEW_PAGE_COUNT_RANGE,
-                                    title = stringResource(MR.strings.pref_manga_preview_page_count),
-                                    valueString = mangaPreviewPageCount.toString(),
-                                    enabled = previewEnabled,
-                                    onValueChanged = {
-                                        customPreferences.mangaPreviewPageCount.set(it)
-                                    },
-                                )
-                            },
-                            if (activeProfileType == ProfileType.ANIME) {
-                                Preference.PreferenceItem.ListPreference(
-                                    preference = customPreferences.animePreviewSize,
-                                    entries = CustomPreferences.AnimePreviewSize.entries
-                                        .associateWith { stringResource(it.titleRes) }
-                                        .toImmutableMap(),
-                                    title = stringResource(MR.strings.pref_anime_preview_size),
-                                    enabled = previewEnabled,
-                                )
-                            } else {
-                                Preference.PreferenceItem.ListPreference(
-                                    preference = customPreferences.mangaPreviewSize,
-                                    entries = CustomPreferences.MangaPreviewSize.entries
-                                        .associateWith { stringResource(it.titleRes) }
-                                        .toImmutableMap(),
-                                    title = stringResource(MR.strings.pref_manga_preview_size),
-                                    enabled = previewEnabled,
-                                )
-                            },
-                            Preference.PreferenceItem.ListPreference(
-                                preference = customPreferences.browseLongPressAction,
-                                entries = CustomPreferences.BrowseLongPressAction.entries
-                                    .associateWith { stringResource(it.titleRes) }
-                                    .toImmutableMap(),
-                                title = stringResource(MR.strings.pref_browse_long_press_action),
-                                entryEnabledProvider = {
-                                    previewEnabled || it != CustomPreferences.BrowseLongPressAction.PREVIEW
+                        preferenceItems = buildList {
+                            add(
+                                if (activeProfileType == ProfileType.ANIME) {
+                                    Preference.PreferenceItem.SwitchPreference(
+                                        preference = customPreferences.enableAnimePreview,
+                                        title = stringResource(MR.strings.pref_enable_anime_preview),
+                                        subtitle = stringResource(MR.strings.pref_enable_anime_preview_summary),
+                                    )
+                                } else {
+                                    Preference.PreferenceItem.SwitchPreference(
+                                        preference = customPreferences.enableMangaPreview,
+                                        title = stringResource(MR.strings.pref_enable_manga_preview),
+                                        subtitle = stringResource(MR.strings.pref_enable_manga_preview_summary),
+                                    )
                                 },
-                            ),
-                        ),
+                            )
+                            if (activeProfileType == ProfileType.ANIME) {
+                                add(
+                                    Preference.PreferenceItem.SwitchPreference(
+                                        preference = customPreferences.enableAnimeVideoPreview,
+                                        title = stringResource(MR.strings.pref_enable_anime_video_preview),
+                                        subtitle = stringResource(MR.strings.pref_enable_anime_video_preview_summary),
+                                    ),
+                                )
+                            }
+                            add(
+                                Preference.PreferenceItem.InfoPreference(
+                                    stringResource(MR.strings.pref_anime_preview_source_support_info),
+                                ),
+                            )
+                            add(
+                                if (activeProfileType == ProfileType.ANIME) {
+                                    Preference.PreferenceItem.SliderPreference(
+                                        value = animePreviewPageCount,
+                                        preference = customPreferences.animePreviewPageCount,
+                                        valueRange = CustomPreferences.ANIME_PREVIEW_PAGE_COUNT_RANGE,
+                                        title = stringResource(MR.strings.pref_anime_preview_page_count),
+                                        valueString = animePreviewPageCount.toString(),
+                                        enabled = previewEnabled,
+                                        onValueChanged = {
+                                            customPreferences.animePreviewPageCount.set(it)
+                                        },
+                                    )
+                                } else {
+                                    Preference.PreferenceItem.SliderPreference(
+                                        value = mangaPreviewPageCount,
+                                        preference = customPreferences.mangaPreviewPageCount,
+                                        valueRange = CustomPreferences.MANGA_PREVIEW_PAGE_COUNT_RANGE,
+                                        title = stringResource(MR.strings.pref_manga_preview_page_count),
+                                        valueString = mangaPreviewPageCount.toString(),
+                                        enabled = previewEnabled,
+                                        onValueChanged = {
+                                            customPreferences.mangaPreviewPageCount.set(it)
+                                        },
+                                    )
+                                },
+                            )
+                            add(
+                                if (activeProfileType == ProfileType.ANIME) {
+                                    Preference.PreferenceItem.ListPreference(
+                                        preference = customPreferences.animePreviewSize,
+                                        entries = CustomPreferences.AnimePreviewSize.entries
+                                            .associateWith { stringResource(it.titleRes) }
+                                            .toImmutableMap(),
+                                        title = stringResource(MR.strings.pref_anime_preview_size),
+                                        enabled = previewEnabled,
+                                    )
+                                } else {
+                                    Preference.PreferenceItem.ListPreference(
+                                        preference = customPreferences.mangaPreviewSize,
+                                        entries = CustomPreferences.MangaPreviewSize.entries
+                                            .associateWith { stringResource(it.titleRes) }
+                                            .toImmutableMap(),
+                                        title = stringResource(MR.strings.pref_manga_preview_size),
+                                        enabled = previewEnabled,
+                                    )
+                                },
+                            )
+                            add(
+                                Preference.PreferenceItem.ListPreference(
+                                    preference = customPreferences.browseLongPressAction,
+                                    entries = CustomPreferences.BrowseLongPressAction.entries
+                                        .associateWith { stringResource(it.titleRes) }
+                                        .toImmutableMap(),
+                                    title = stringResource(MR.strings.pref_browse_long_press_action),
+                                    entryEnabledProvider = {
+                                        previewEnabled || it != CustomPreferences.BrowseLongPressAction.PREVIEW
+                                    },
+                                ),
+                            )
+                        }.toImmutableList(),
                     ),
                 )
             }

@@ -113,6 +113,7 @@ class AnimeBrowseSourceScreenModel(
     var feedsEnabled by customPreferences.enableFeeds.asState(screenModelScope)
     val browseLongPressAction by customPreferences.browseLongPressAction.asState(screenModelScope)
     val isAnimePreviewEnabled by customPreferences.enableAnimePreview.asState(screenModelScope)
+    val isAnimeVideoPreviewEnabled by customPreferences.enableAnimeVideoPreview.asState(screenModelScope)
     val animePreviewSize by customPreferences.animePreviewSize.asState(screenModelScope)
 
     val source = animeSourceManager.get(sourceId) as? AnimeCatalogueSource
