@@ -515,7 +515,11 @@ class ExtensionManager(
             ?: availableExtensionMapFlow.value[pkgName]
             ?: return false
 
-        return (availableExt.versionCode > versionCode || availableExt.libVersion > libVersion)
+        val hasUpdatedLib = ExtensionLoader.compareLibVersions(
+            availableExt.versionName,
+            versionName,
+        )?.let { it > 0 } == true
+        return availableExt.versionCode > versionCode || hasUpdatedLib
     }
 
     private fun updatePendingUpdatesCount() {

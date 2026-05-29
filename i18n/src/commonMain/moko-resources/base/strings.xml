@@ -754,6 +754,9 @@
     <string name="pref_enable_anime_preview_summary">Display preview images on the anime screen</string>
     <string name="pref_anime_preview_page_count">Preview image count</string>
     <string name="pref_anime_preview_size">Preview image size</string>
+    <string name="pref_enable_anime_video_preview">Show anime video preview</string>
+    <string name="pref_enable_anime_video_preview_summary">Play short video clips when hovering or touching anime covers in browse</string>
+    <string name="pref_anime_preview_source_support_info">Preview features only work if the source supports them</string>
     <string name="pref_manga_preview_size_small">Small</string>
     <string name="pref_manga_preview_size_medium">Medium</string>
     <string name="pref_manga_preview_size_large">Large</string>

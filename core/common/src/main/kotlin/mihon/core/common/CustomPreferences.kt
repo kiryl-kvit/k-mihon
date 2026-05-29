@@ -78,6 +78,11 @@ class CustomPreferences(
         false,
     )
 
+    val enableAnimeVideoPreview: Preference<Boolean> = preferenceStore.getBoolean(
+        Preference.appStateKey("enable_anime_video_preview"),
+        false,
+    )
+
     val browseLongPressAction: Preference<BrowseLongPressAction> = preferenceStore.getObjectFromString(
         Preference.appStateKey("browse_long_press_action"),
         BrowseLongPressAction.LIBRARY_ACTION,

@@ -37,9 +37,11 @@ import eu.kanade.presentation.manga.components.buildMergeTargetQuery
 import eu.kanade.presentation.manga.components.rankMergeTargets
 import eu.kanade.presentation.util.ioCoroutineScope
 import eu.kanade.tachiyomi.source.AnimeCatalogueSource
+import eu.kanade.tachiyomi.source.AnimeHoverPreviewSource
 import eu.kanade.tachiyomi.source.AnimePreviewSource
 import eu.kanade.tachiyomi.source.AsyncAnimeCatalogueFilterSource
 import eu.kanade.tachiyomi.source.model.FilterList
+import eu.kanade.tachiyomi.source.model.SAnimeHoverPreview
 import eu.kanade.tachiyomi.source.model.SourceItemOrientation
 import eu.kanade.tachiyomi.source.resolveFilterList
 import kotlinx.collections.immutable.ImmutableList
@@ -52,6 +54,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import mihon.core.common.CustomPreferences
+import mihon.domain.anime.model.toSAnime
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.preference.CheckboxState
 import tachiyomi.core.common.preference.mapAsCheckboxState
@@ -110,9 +113,11 @@ class AnimeBrowseSourceScreenModel(
     var feedsEnabled by customPreferences.enableFeeds.asState(screenModelScope)
     val browseLongPressAction by customPreferences.browseLongPressAction.asState(screenModelScope)
     val isAnimePreviewEnabled by customPreferences.enableAnimePreview.asState(screenModelScope)
+    val isAnimeVideoPreviewEnabled by customPreferences.enableAnimeVideoPreview.asState(screenModelScope)
     val animePreviewSize by customPreferences.animePreviewSize.asState(screenModelScope)
 
     val source = animeSourceManager.get(sourceId) as? AnimeCatalogueSource
+    private val hoverPreviewCache = mutableMapOf<Long, SAnimeHoverPreview?>()
 
     init {
         source?.let { animeSource ->
@@ -272,6 +277,17 @@ class AnimeBrowseSourceScreenModel(
         }
         showLibraryActionChooserOrHandle(anime)
         return true
+    }
+
+    suspend fun getAnimeHoverPreview(anime: AnimeTitle): SAnimeHoverPreview? {
+        val hoverPreviewSource = source as? AnimeHoverPreviewSource ?: return null
+        if (hoverPreviewCache.containsKey(anime.id)) {
+            return hoverPreviewCache[anime.id]
+        }
+
+        return runCatching { hoverPreviewSource.getAnimeHoverPreview(anime.toSAnime()) }
+            .getOrNull()
+            .also { hoverPreviewCache[anime.id] = it }
     }
 
     fun animePreviewSizeUi(): PreviewSizeUi {
