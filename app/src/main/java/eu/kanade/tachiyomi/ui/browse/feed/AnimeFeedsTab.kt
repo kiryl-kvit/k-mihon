@@ -445,8 +445,9 @@ private fun AnimeFeedsTabContent(
                                         },
                                         activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
                                         onAnimeHover = { anime ->
-                                            activeHoverPreviewAnimeIds = (activeHoverPreviewAnimeIds - anime.id + anime.id)
-                                                .takeLast(MAX_ACTIVE_HOVER_PREVIEWS)
+                                            activeHoverPreviewAnimeIds =
+                                                (activeHoverPreviewAnimeIds - anime.id + anime.id)
+                                                    .takeLast(MAX_ACTIVE_HOVER_PREVIEWS)
                                         },
                                         onAnimeHoverExit = { anime ->
                                             activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds - anime.id

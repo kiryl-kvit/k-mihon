@@ -1,6 +1,7 @@
 package eu.kanade.presentation.anime
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -11,7 +12,6 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Refresh
@@ -43,8 +43,8 @@ import eu.kanade.presentation.library.components.MangaListItem
 import eu.kanade.presentation.manga.components.toGridCoverType
 import eu.kanade.presentation.manga.components.toListCoverType
 import eu.kanade.presentation.util.formattedMessage
-import eu.kanade.tachiyomi.source.model.SourceItemOrientation
 import eu.kanade.tachiyomi.source.model.SAnimeHoverPreview
+import eu.kanade.tachiyomi.source.model.SourceItemOrientation
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.StateFlow
 import tachiyomi.core.common.i18n.stringResource

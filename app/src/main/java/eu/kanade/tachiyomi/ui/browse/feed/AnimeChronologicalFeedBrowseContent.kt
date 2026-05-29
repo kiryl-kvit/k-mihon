@@ -62,8 +62,8 @@ import eu.kanade.presentation.library.components.MangaListItem
 import eu.kanade.presentation.manga.components.toGridCoverType
 import eu.kanade.presentation.manga.components.toListCoverType
 import eu.kanade.presentation.util.formattedMessage
-import eu.kanade.tachiyomi.source.model.SourceItemOrientation
 import eu.kanade.tachiyomi.source.model.SAnimeHoverPreview
+import eu.kanade.tachiyomi.source.model.SourceItemOrientation
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
