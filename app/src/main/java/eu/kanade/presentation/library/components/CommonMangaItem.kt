@@ -86,29 +86,40 @@ fun MangaCompactGridItem(
     continueReadingProgress: Float? = null,
     continueReadingContentDescription: StringResource = MR.strings.action_resume,
     coverAlpha: Float = 1f,
+    coverReplacement: @Composable (BoxScope.() -> Unit)? = null,
+    coverOverlay: @Composable (BoxScope.() -> Unit)? = null,
+    coverModifier: Modifier = Modifier,
     coverBadgeStart: @Composable (RowScope.() -> Unit)? = null,
     coverBadgeEnd: @Composable (RowScope.() -> Unit)? = null,
+    modifier: Modifier = Modifier,
 ) {
     GridItemSelectable(
         isSelected = isSelected,
         onClick = onClick,
         onLongClick = onLongClick,
+        modifier = modifier,
     ) {
         MangaGridCover(
+            modifier = coverModifier,
             coverType = coverType,
             cover = {
-                coverType(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .alpha(if (isSelected) GRID_SELECTED_COVER_ALPHA else coverAlpha),
-                    data = coverData,
-                    contentScale = coverContentScale,
-                    backgroundColor = coverBackgroundColor,
-                )
+                if (coverReplacement != null) {
+                    coverReplacement()
+                } else {
+                    coverType(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .alpha(if (isSelected) GRID_SELECTED_COVER_ALPHA else coverAlpha),
+                        data = coverData,
+                        contentScale = coverContentScale,
+                        backgroundColor = coverBackgroundColor,
+                    )
+                }
             },
             badgesStart = coverBadgeStart,
             badgesEnd = coverBadgeEnd,
             content = {
+                coverOverlay?.invoke(this)
                 if (title != null) {
                     CoverTextOverlay(
                         title = title,
@@ -207,33 +218,44 @@ fun MangaComfortableGridItem(
     coverContentScale: ContentScale = ContentScale.Crop,
     coverBackgroundColor: Color = Color.Transparent,
     coverAlpha: Float = 1f,
+    coverReplacement: @Composable (BoxScope.() -> Unit)? = null,
+    coverOverlay: @Composable (BoxScope.() -> Unit)? = null,
+    coverModifier: Modifier = Modifier,
     coverBadgeStart: (@Composable RowScope.() -> Unit)? = null,
     coverBadgeEnd: (@Composable RowScope.() -> Unit)? = null,
     onClickContinueReading: (() -> Unit)? = null,
     continueReadingProgress: Float? = null,
     continueReadingContentDescription: StringResource = MR.strings.action_resume,
+    modifier: Modifier = Modifier,
 ) {
     GridItemSelectable(
         isSelected = isSelected,
         onClick = onClick,
         onLongClick = onLongClick,
+        modifier = modifier,
     ) {
         Column {
             MangaGridCover(
+                modifier = coverModifier,
                 coverType = coverType,
                 cover = {
-                    coverType(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .alpha(if (isSelected) GRID_SELECTED_COVER_ALPHA else coverAlpha),
-                        data = coverData,
-                        contentScale = coverContentScale,
-                        backgroundColor = coverBackgroundColor,
-                    )
+                    if (coverReplacement != null) {
+                        coverReplacement()
+                    } else {
+                        coverType(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .alpha(if (isSelected) GRID_SELECTED_COVER_ALPHA else coverAlpha),
+                            data = coverData,
+                            contentScale = coverContentScale,
+                            backgroundColor = coverBackgroundColor,
+                        )
+                    }
                 },
                 badgesStart = coverBadgeStart,
                 badgesEnd = coverBadgeEnd,
                 content = {
+                    coverOverlay?.invoke(this)
                     if (onClickContinueReading != null) {
                         ContinueReadingButton(
                             size = ContinueReadingButtonSizeLarge,
@@ -373,12 +395,16 @@ fun MangaListItem(
     coverContentScale: ContentScale = ContentScale.Crop,
     coverBackgroundColor: Color = Color.Transparent,
     coverAlpha: Float = 1f,
+    coverReplacement: @Composable (BoxScope.() -> Unit)? = null,
+    coverOverlay: @Composable (BoxScope.() -> Unit)? = null,
+    coverModifier: Modifier = Modifier,
     onClickContinueReading: (() -> Unit)? = null,
     continueReadingProgress: Float? = null,
     continueReadingContentDescription: StringResource = MR.strings.action_resume,
+    modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .selectedBackground(isSelected)
             .height(56.dp)
             .combinedClickable(
@@ -388,14 +414,30 @@ fun MangaListItem(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        coverType(
-            modifier = Modifier
-                .fillMaxHeight()
-                .alpha(coverAlpha),
-            data = coverData,
-            contentScale = coverContentScale,
-            backgroundColor = coverBackgroundColor,
-        )
+        if (coverReplacement != null) {
+            Box(
+                modifier = coverModifier
+                    .fillMaxHeight()
+                    .aspectRatio(coverType.ratio),
+                content = coverReplacement,
+            )
+        } else {
+            Box(
+                modifier = coverModifier
+                    .fillMaxHeight()
+                    .aspectRatio(coverType.ratio),
+            ) {
+                coverType(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .alpha(coverAlpha),
+                    data = coverData,
+                    contentScale = coverContentScale,
+                    backgroundColor = coverBackgroundColor,
+                )
+                coverOverlay?.invoke(this)
+            }
+        }
         Text(
             text = title,
             modifier = Modifier

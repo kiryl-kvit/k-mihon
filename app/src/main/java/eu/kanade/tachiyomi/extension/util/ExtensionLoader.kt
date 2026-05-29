@@ -55,8 +55,8 @@ internal object ExtensionLoader {
     private const val METADATA_SOURCE_FACTORY = "tachiyomi.extension.factory"
     private const val METADATA_EXTENSION_TYPE = "tachiyomi.extension.type"
     private const val METADATA_NSFW = "tachiyomi.extension.nsfw"
-    const val LIB_VERSION_MIN = 1.4
-    const val LIB_VERSION_MAX = 1.9
+    const val LIB_VERSION_MIN = "1.4"
+    const val LIB_VERSION_MAX = "1.10"
 
     @Suppress("DEPRECATION")
     private val PACKAGE_FLAGS = PackageManager.GET_CONFIGURATIONS or
@@ -246,10 +246,11 @@ internal object ExtensionLoader {
         }
 
         // Validate lib version
-        val libVersion = versionName.substringBeforeLast('.').toDoubleOrNull()
-        if (libVersion == null || libVersion < LIB_VERSION_MIN || libVersion > LIB_VERSION_MAX) {
+        val libVersionName = versionName.substringBeforeLast('.')
+        val libVersion = libVersionName.toDoubleOrNull()
+        if (libVersion == null || !isLibVersionCompatible(versionName)) {
             logcat(LogPriority.WARN) {
-                "Lib version is $libVersion, while only versions " +
+                "Lib version is $libVersionName, while only versions " +
                     "$LIB_VERSION_MIN to $LIB_VERSION_MAX are allowed"
             }
             return LoadResult.Error
@@ -420,6 +421,42 @@ internal object ExtensionLoader {
      */
     private fun isPackageAnExtension(pkgInfo: PackageInfo): Boolean {
         return pkgInfo.reqFeatures.orEmpty().any { it.name == EXTENSION_FEATURE }
+    }
+
+    fun isLibVersionCompatible(versionName: String): Boolean {
+        val libVersion = parseVersionNameAsLibVersion(versionName) ?: return false
+        val minVersion = LibVersion.parse(LIB_VERSION_MIN) ?: return false
+        val maxVersion = LibVersion.parse(LIB_VERSION_MAX) ?: return false
+        return libVersion >= minVersion && libVersion <= maxVersion
+    }
+
+    fun compareLibVersions(firstVersionName: String, secondVersionName: String): Int? {
+        val first = parseVersionNameAsLibVersion(firstVersionName) ?: return null
+        val second = parseVersionNameAsLibVersion(secondVersionName) ?: return null
+        return first.compareTo(second)
+    }
+
+    private fun parseVersionNameAsLibVersion(versionName: String): LibVersion? {
+        return LibVersion.parse(versionName.substringBeforeLast('.'))
+    }
+
+    private data class LibVersion(
+        val major: Int,
+        val minor: Int,
+    ) : Comparable<LibVersion> {
+
+        override fun compareTo(other: LibVersion): Int {
+            return compareValuesBy(this, other, LibVersion::major, LibVersion::minor)
+        }
+
+        companion object {
+            fun parse(value: String): LibVersion? {
+                return LibVersion(
+                    major = value.substringBefore('.').toIntOrNull() ?: return null,
+                    minor = value.substringAfter('.', "").toIntOrNull() ?: return null,
+                )
+            }
+        }
     }
 
     /**

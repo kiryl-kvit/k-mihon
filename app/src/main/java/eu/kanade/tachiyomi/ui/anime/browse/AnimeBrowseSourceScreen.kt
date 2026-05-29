@@ -137,6 +137,7 @@ data class AnimeBrowseSourceScreen(
         val httpSource = source as? AnimeHttpSource
         val configurableSource = source as? ConfigurableAnimeSource
         var presetPendingDeletion by rememberSaveable { mutableStateOf<String?>(null) }
+        var activeHoverPreviewAnimeIds by remember { mutableStateOf(emptyList<Long>()) }
         val onWebViewClick = httpSource?.let {
             {
                 navigator.push(
@@ -159,6 +160,10 @@ data class AnimeBrowseSourceScreen(
                 }
                 presetPendingDeletion = null
             }
+        }
+
+        LaunchedEffect(state.listing, state.isWaitingForInitialFilterLoad) {
+            activeHoverPreviewAnimeIds = emptyList()
         }
 
         Scaffold(
@@ -270,6 +275,21 @@ data class AnimeBrowseSourceScreen(
                             }
                         }
                     },
+                    activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
+                    onAnimeHover = { anime ->
+                        activeHoverPreviewAnimeIds = (activeHoverPreviewAnimeIds - anime.id + anime.id)
+                            .takeLast(MAX_ACTIVE_HOVER_PREVIEWS)
+                    },
+                    onAnimeHoverExit = { anime ->
+                        activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds - anime.id
+                    },
+                    onHoverPreviewReset = { animeId ->
+                        activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds - animeId
+                    },
+                    onHoverPreviewEnded = { anime ->
+                        activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds - anime.id
+                    },
+                    onAnimeHoverPreviewRequest = screenModel::getAnimeHoverPreview,
                     onWebViewClick = onWebViewClick,
                     onSettingsClick = onSettingsClick,
                 )
@@ -434,6 +454,8 @@ data class AnimeBrowseSourceScreen(
         class Text(txt: String) : SearchType(txt)
     }
 }
+
+private const val MAX_ACTIVE_HOVER_PREVIEWS = 5
 
 @Composable
 private fun AnimeBrowseSourceToolbar(

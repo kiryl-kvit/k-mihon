@@ -112,7 +112,10 @@ internal class ExtensionApi {
             installedExtensions.forEach { installedExt ->
                 val availableExt = extensionsByPkg[installedExt.pkgName] ?: return@forEach
                 val hasUpdatedVer = availableExt.versionCode > installedExt.versionCode
-                val hasUpdatedLib = availableExt.libVersion > installedExt.libVersion
+                val hasUpdatedLib = ExtensionLoader.compareLibVersions(
+                    availableExt.versionName,
+                    installedExt.versionName,
+                )?.let { it > 0 } == true
                 val hasUpdate = hasUpdatedVer || hasUpdatedLib
                 if (hasUpdate) {
                     add(UpdateCandidate(installedExt, availableExt))
@@ -183,10 +186,7 @@ internal class ExtensionApi {
 
     private fun List<ExtensionJsonObject>.toExtensions(repoUrl: String): List<Extension.Available> {
         return this
-            .filter {
-                val libVersion = it.extractLibVersion()
-                libVersion >= ExtensionLoader.LIB_VERSION_MIN && libVersion <= ExtensionLoader.LIB_VERSION_MAX
-            }
+            .filter { ExtensionLoader.isLibVersionCompatible(it.version) }
             .map { extensionJson ->
                 when (extensionJson.toExtensionType()) {
                     ExtensionType.MANGA -> Extension.AvailableManga(

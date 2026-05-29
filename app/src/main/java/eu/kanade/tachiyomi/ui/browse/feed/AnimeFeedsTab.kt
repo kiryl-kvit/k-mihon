@@ -43,6 +43,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
@@ -237,8 +238,13 @@ private fun AnimeFeedsTabContent(
             activeFeed,
             screenModel.sourceDisplayMode(activeFeed.sourceId),
         )
+        var activeHoverPreviewAnimeIds by remember { mutableStateOf(emptyList<Long>()) }
         val hasPreviousFeed = activeIndex > 0
         val hasNextFeed = activeIndex in 0 until enabledFeeds.lastIndex
+
+        LaunchedEffect(activeProfileId, activeFeed.id, presetBehaviorKey) {
+            activeHoverPreviewAnimeIds = emptyList()
+        }
 
         Column {
             key(activeProfileId, activeFeed.id, presetBehaviorKey) {
@@ -365,6 +371,21 @@ private fun AnimeFeedsTabContent(
                                             }
                                         }
                                     },
+                                    activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
+                                    onAnimeHover = { anime ->
+                                        activeHoverPreviewAnimeIds = (activeHoverPreviewAnimeIds - anime.id + anime.id)
+                                            .takeLast(MAX_ACTIVE_HOVER_PREVIEWS)
+                                    },
+                                    onAnimeHoverExit = { anime ->
+                                        activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds - anime.id
+                                    },
+                                    onHoverPreviewReset = { animeId ->
+                                        activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds - animeId
+                                    },
+                                    onHoverPreviewEnded = { anime ->
+                                        activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds - anime.id
+                                    },
+                                    onAnimeHoverPreviewRequest = browseModel::getAnimeHoverPreview,
                                     onWebViewClick = onWebViewClick,
                                     onSettingsClick = onSettingsClick,
                                 )
@@ -422,6 +443,21 @@ private fun AnimeFeedsTabContent(
                                                 }
                                             }
                                         },
+                                        activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
+                                        onAnimeHover = { anime ->
+                                            activeHoverPreviewAnimeIds = (activeHoverPreviewAnimeIds - anime.id + anime.id)
+                                                .takeLast(MAX_ACTIVE_HOVER_PREVIEWS)
+                                        },
+                                        onAnimeHoverExit = { anime ->
+                                            activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds - anime.id
+                                        },
+                                        onHoverPreviewReset = { animeId ->
+                                            activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds - animeId
+                                        },
+                                        onHoverPreviewEnded = { anime ->
+                                            activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds - anime.id
+                                        },
+                                        onAnimeHoverPreviewRequest = browseModel::getAnimeHoverPreview,
                                         onWebViewClick = onWebViewClick,
                                         onSettingsClick = onSettingsClick,
                                     )
@@ -1083,3 +1119,5 @@ private fun LibraryDisplayMode.displayModeLabel(): String {
         LibraryDisplayMode.List -> stringResource(MR.strings.action_display_list)
     }
 }
+
+private const val MAX_ACTIVE_HOVER_PREVIEWS = 5

@@ -8,7 +8,10 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Refresh
@@ -20,7 +23,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.paging.LoadState
@@ -28,6 +35,7 @@ import androidx.paging.compose.LazyPagingItems
 import eu.kanade.domain.anime.model.toMangaCover
 import eu.kanade.presentation.browse.components.BrowseSourceLoadingItem
 import eu.kanade.presentation.browse.components.InLibraryBadge
+import eu.kanade.presentation.browse.components.InlineAnimeHoverPreview
 import eu.kanade.presentation.library.components.CommonMangaItemDefaults
 import eu.kanade.presentation.library.components.MangaComfortableGridItem
 import eu.kanade.presentation.library.components.MangaCompactGridItem
@@ -36,6 +44,7 @@ import eu.kanade.presentation.manga.components.toGridCoverType
 import eu.kanade.presentation.manga.components.toListCoverType
 import eu.kanade.presentation.util.formattedMessage
 import eu.kanade.tachiyomi.source.model.SourceItemOrientation
+import eu.kanade.tachiyomi.source.model.SAnimeHoverPreview
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.StateFlow
 import tachiyomi.core.common.i18n.stringResource
@@ -58,6 +67,12 @@ fun AnimeBrowseSourceContent(
     contentPadding: PaddingValues,
     onAnimeClick: (AnimeTitle) -> Unit,
     onAnimeLongClick: (AnimeTitle) -> Unit,
+    activeHoverPreviewAnimeIds: List<Long> = emptyList(),
+    onAnimeHover: (AnimeTitle) -> Unit = {},
+    onAnimeHoverExit: (AnimeTitle) -> Unit = {},
+    onHoverPreviewReset: (Long) -> Unit = {},
+    onHoverPreviewEnded: (AnimeTitle) -> Unit = {},
+    onAnimeHoverPreviewRequest: suspend (AnimeTitle) -> SAnimeHoverPreview? = { null },
     onWebViewClick: (() -> Unit)? = null,
     onSettingsClick: (() -> Unit)? = null,
 ) {
@@ -135,6 +150,12 @@ fun AnimeBrowseSourceContent(
             sourceItemOrientation = sourceItemOrientation,
             onAnimeClick = onAnimeClick,
             onAnimeLongClick = onAnimeLongClick,
+            activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
+            onAnimeHover = onAnimeHover,
+            onAnimeHoverExit = onAnimeHoverExit,
+            onHoverPreviewReset = onHoverPreviewReset,
+            onHoverPreviewEnded = onHoverPreviewEnded,
+            onAnimeHoverPreviewRequest = onAnimeHoverPreviewRequest,
         )
         LibraryDisplayMode.ComfortableList -> AnimeBrowseComfortableGrid(
             animeList = animeList,
@@ -143,6 +164,12 @@ fun AnimeBrowseSourceContent(
             sourceItemOrientation = sourceItemOrientation,
             onAnimeClick = onAnimeClick,
             onAnimeLongClick = onAnimeLongClick,
+            activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
+            onAnimeHover = onAnimeHover,
+            onAnimeHoverExit = onAnimeHoverExit,
+            onHoverPreviewReset = onHoverPreviewReset,
+            onHoverPreviewEnded = onHoverPreviewEnded,
+            onAnimeHoverPreviewRequest = onAnimeHoverPreviewRequest,
         )
         LibraryDisplayMode.List -> AnimeBrowseList(
             animeList = animeList,
@@ -150,6 +177,12 @@ fun AnimeBrowseSourceContent(
             sourceItemOrientation = sourceItemOrientation,
             onAnimeClick = onAnimeClick,
             onAnimeLongClick = onAnimeLongClick,
+            activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
+            onAnimeHover = onAnimeHover,
+            onAnimeHoverExit = onAnimeHoverExit,
+            onHoverPreviewReset = onHoverPreviewReset,
+            onHoverPreviewEnded = onHoverPreviewEnded,
+            onAnimeHoverPreviewRequest = onAnimeHoverPreviewRequest,
         )
         LibraryDisplayMode.CompactGrid, LibraryDisplayMode.CoverOnlyGrid -> AnimeBrowseCompactGrid(
             animeList = animeList,
@@ -158,6 +191,12 @@ fun AnimeBrowseSourceContent(
             sourceItemOrientation = sourceItemOrientation,
             onAnimeClick = onAnimeClick,
             onAnimeLongClick = onAnimeLongClick,
+            activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
+            onAnimeHover = onAnimeHover,
+            onAnimeHoverExit = onAnimeHoverExit,
+            onHoverPreviewReset = onHoverPreviewReset,
+            onHoverPreviewEnded = onHoverPreviewEnded,
+            onAnimeHoverPreviewRequest = onAnimeHoverPreviewRequest,
         )
     }
 }
@@ -169,8 +208,24 @@ private fun AnimeBrowseList(
     sourceItemOrientation: SourceItemOrientation,
     onAnimeClick: (AnimeTitle) -> Unit,
     onAnimeLongClick: (AnimeTitle) -> Unit,
+    activeHoverPreviewAnimeIds: List<Long>,
+    onAnimeHover: (AnimeTitle) -> Unit,
+    onAnimeHoverExit: (AnimeTitle) -> Unit,
+    onHoverPreviewReset: (Long) -> Unit,
+    onHoverPreviewEnded: (AnimeTitle) -> Unit,
+    onAnimeHoverPreviewRequest: suspend (AnimeTitle) -> SAnimeHoverPreview?,
 ) {
-    LazyColumn(contentPadding = contentPadding + PaddingValues(vertical = 8.dp)) {
+    val listState = rememberLazyListState()
+    ResetHoverPreviewOnScrollAway(
+        activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
+        visibleKeys = { listState.layoutInfo.visibleItemsInfo.map { it.key } },
+        onHoverPreviewReset = onHoverPreviewReset,
+    )
+
+    LazyColumn(
+        state = listState,
+        contentPadding = contentPadding + PaddingValues(vertical = 8.dp),
+    ) {
         item {
             if (animeList.loadState.prepend is LoadState.Loading) {
                 BrowseSourceLoadingItem()
@@ -188,6 +243,17 @@ private fun AnimeBrowseList(
                 coverType = sourceItemOrientation.toListCoverType(),
                 coverAlpha = if (anime.favorite) CommonMangaItemDefaults.BrowseFavoriteCoverAlpha else 1f,
                 badge = { InLibraryBadge(enabled = anime.favorite) },
+                coverOverlay = animeHoverPreviewCover(
+                    anime = anime,
+                    activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
+                    onHoverPreviewEnded = onHoverPreviewEnded,
+                    onAnimeHoverPreviewRequest = onAnimeHoverPreviewRequest,
+                ),
+                coverModifier = Modifier.animeHoverPreview(
+                    anime = anime,
+                    onAnimeHover = onAnimeHover,
+                    onAnimeHoverExit = onAnimeHoverExit,
+                ),
                 onLongClick = { onAnimeLongClick(anime) },
                 onClick = { onAnimeClick(anime) },
             )
@@ -209,9 +275,23 @@ private fun AnimeBrowseComfortableGrid(
     sourceItemOrientation: SourceItemOrientation,
     onAnimeClick: (AnimeTitle) -> Unit,
     onAnimeLongClick: (AnimeTitle) -> Unit,
+    activeHoverPreviewAnimeIds: List<Long>,
+    onAnimeHover: (AnimeTitle) -> Unit,
+    onAnimeHoverExit: (AnimeTitle) -> Unit,
+    onHoverPreviewReset: (Long) -> Unit,
+    onHoverPreviewEnded: (AnimeTitle) -> Unit,
+    onAnimeHoverPreviewRequest: suspend (AnimeTitle) -> SAnimeHoverPreview?,
 ) {
+    val gridState = rememberLazyGridState()
+    ResetHoverPreviewOnScrollAway(
+        activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
+        visibleKeys = { gridState.layoutInfo.visibleItemsInfo.map { it.key } },
+        onHoverPreviewReset = onHoverPreviewReset,
+    )
+
     LazyVerticalGrid(
         columns = columns,
+        state = gridState,
         contentPadding = contentPadding + PaddingValues(8.dp),
         verticalArrangement = Arrangement.spacedBy(CommonMangaItemDefaults.GridVerticalSpacer),
         horizontalArrangement = Arrangement.spacedBy(CommonMangaItemDefaults.GridHorizontalSpacer),
@@ -232,6 +312,17 @@ private fun AnimeBrowseComfortableGrid(
                 coverData = anime.toMangaCover(),
                 coverType = sourceItemOrientation.toGridCoverType(),
                 coverAlpha = if (anime.favorite) CommonMangaItemDefaults.BrowseFavoriteCoverAlpha else 1f,
+                coverOverlay = animeHoverPreviewCover(
+                    anime = anime,
+                    activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
+                    onHoverPreviewEnded = onHoverPreviewEnded,
+                    onAnimeHoverPreviewRequest = onAnimeHoverPreviewRequest,
+                ),
+                coverModifier = Modifier.animeHoverPreview(
+                    anime = anime,
+                    onAnimeHover = onAnimeHover,
+                    onAnimeHoverExit = onAnimeHoverExit,
+                ),
                 coverBadgeStart = { InLibraryBadge(enabled = anime.favorite) },
                 onLongClick = { onAnimeLongClick(anime) },
                 onClick = { onAnimeClick(anime) },
@@ -254,9 +345,23 @@ private fun AnimeBrowseCompactGrid(
     sourceItemOrientation: SourceItemOrientation,
     onAnimeClick: (AnimeTitle) -> Unit,
     onAnimeLongClick: (AnimeTitle) -> Unit,
+    activeHoverPreviewAnimeIds: List<Long>,
+    onAnimeHover: (AnimeTitle) -> Unit,
+    onAnimeHoverExit: (AnimeTitle) -> Unit,
+    onHoverPreviewReset: (Long) -> Unit,
+    onHoverPreviewEnded: (AnimeTitle) -> Unit,
+    onAnimeHoverPreviewRequest: suspend (AnimeTitle) -> SAnimeHoverPreview?,
 ) {
+    val gridState = rememberLazyGridState()
+    ResetHoverPreviewOnScrollAway(
+        activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
+        visibleKeys = { gridState.layoutInfo.visibleItemsInfo.map { it.key } },
+        onHoverPreviewReset = onHoverPreviewReset,
+    )
+
     LazyVerticalGrid(
         columns = columns,
+        state = gridState,
         contentPadding = contentPadding + PaddingValues(8.dp),
         verticalArrangement = Arrangement.spacedBy(CommonMangaItemDefaults.GridVerticalSpacer),
         horizontalArrangement = Arrangement.spacedBy(CommonMangaItemDefaults.GridHorizontalSpacer),
@@ -277,6 +382,17 @@ private fun AnimeBrowseCompactGrid(
                 coverData = anime.toMangaCover(),
                 coverType = sourceItemOrientation.toGridCoverType(),
                 coverAlpha = if (anime.favorite) CommonMangaItemDefaults.BrowseFavoriteCoverAlpha else 1f,
+                coverOverlay = animeHoverPreviewCover(
+                    anime = anime,
+                    activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
+                    onHoverPreviewEnded = onHoverPreviewEnded,
+                    onAnimeHoverPreviewRequest = onAnimeHoverPreviewRequest,
+                ),
+                coverModifier = Modifier.animeHoverPreview(
+                    anime = anime,
+                    onAnimeHover = onAnimeHover,
+                    onAnimeHoverExit = onAnimeHoverExit,
+                ),
                 coverBadgeStart = { InLibraryBadge(enabled = anime.favorite) },
                 onLongClick = { onAnimeLongClick(anime) },
                 onClick = { onAnimeClick(anime) },
@@ -286,6 +402,69 @@ private fun AnimeBrowseCompactGrid(
         if (animeList.loadState.refresh is LoadState.Loading || animeList.loadState.append is LoadState.Loading) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 BrowseSourceLoadingItem()
+            }
+        }
+    }
+}
+
+@Composable
+private fun ResetHoverPreviewOnScrollAway(
+    activeHoverPreviewAnimeIds: List<Long>,
+    visibleKeys: () -> List<Any>,
+    onHoverPreviewReset: (Long) -> Unit,
+) {
+    LaunchedEffect(activeHoverPreviewAnimeIds) {
+        snapshotFlow { visibleKeys() }
+            .collect { visible ->
+                activeHoverPreviewAnimeIds
+                    .filterNot { it in visible }
+                    .forEach(onHoverPreviewReset)
+            }
+    }
+}
+
+@Composable
+private fun animeHoverPreviewCover(
+    anime: AnimeTitle,
+    activeHoverPreviewAnimeIds: List<Long>,
+    onHoverPreviewEnded: (AnimeTitle) -> Unit,
+    onAnimeHoverPreviewRequest: suspend (AnimeTitle) -> SAnimeHoverPreview?,
+): (@Composable BoxScope.() -> Unit)? {
+    if (anime.id !in activeHoverPreviewAnimeIds) return null
+
+    val preview by produceState<SAnimeHoverPreview?>(initialValue = null, anime.id) {
+        value = onAnimeHoverPreviewRequest(anime).also { preview ->
+            if (preview == null) {
+                onHoverPreviewEnded(anime)
+            }
+        }
+    }
+
+    return preview?.let { hoverPreview ->
+        {
+            InlineAnimeHoverPreview(
+                preview = hoverPreview,
+                onEnded = { onHoverPreviewEnded(anime) },
+                modifier = Modifier.matchParentSize(),
+            )
+        }
+    }
+}
+
+private fun Modifier.animeHoverPreview(
+    anime: AnimeTitle,
+    onAnimeHover: (AnimeTitle) -> Unit,
+    onAnimeHoverExit: (AnimeTitle) -> Unit,
+): Modifier {
+    return pointerInput(anime.id) {
+        awaitPointerEventScope {
+            while (true) {
+                when (awaitPointerEvent().type) {
+                    PointerEventType.Enter -> onAnimeHover(anime)
+                    PointerEventType.Exit -> onAnimeHoverExit(anime)
+                    PointerEventType.Press -> onAnimeHover(anime)
+                    else -> Unit
+                }
             }
         }
     }
