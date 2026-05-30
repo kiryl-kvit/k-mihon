@@ -36,6 +36,7 @@ import uy.kohesive.injekt.api.get
 @Composable
 fun InlineAnimeHoverPreview(
     preview: SAnimeHoverPreview,
+    onReady: () -> Unit = {},
     onEnded: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -66,7 +67,10 @@ fun InlineAnimeHoverPreview(
             object : Player.Listener {
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     when (playbackState) {
-                        Player.STATE_READY -> isReady = true
+                        Player.STATE_READY -> {
+                            isReady = true
+                            onReady()
+                        }
                         Player.STATE_ENDED -> onEnded()
                         else -> Unit
                     }

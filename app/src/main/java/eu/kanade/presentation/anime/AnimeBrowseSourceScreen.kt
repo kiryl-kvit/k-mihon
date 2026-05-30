@@ -1,9 +1,12 @@
 package eu.kanade.presentation.anime
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -16,6 +19,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
@@ -23,8 +28,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -473,21 +482,38 @@ private fun animeHoverPreviewCover(
 ): (@Composable BoxScope.() -> Unit)? {
     if (anime.id !in activeHoverPreviewAnimeIds) return null
 
+    var isPreviewLoading by remember(anime.id) { mutableStateOf(true) }
+    var isVideoLoading by remember(anime.id) { mutableStateOf(true) }
     val preview by produceState<SAnimeHoverPreview?>(initialValue = null, anime.id) {
+        isPreviewLoading = true
         value = onAnimeHoverPreviewRequest(anime).also { preview ->
+            isPreviewLoading = false
             if (preview == null) {
                 onHoverPreviewEnded(anime)
             }
         }
     }
 
-    return preview?.let { hoverPreview ->
-        {
-            InlineAnimeHoverPreview(
-                preview = hoverPreview,
-                onEnded = { onHoverPreviewEnded(anime) },
-                modifier = Modifier.matchParentSize(),
-            )
+    return {
+        Box(modifier = Modifier.fillMaxSize()) {
+            preview?.let { hoverPreview ->
+                InlineAnimeHoverPreview(
+                    preview = hoverPreview,
+                    onReady = { isVideoLoading = false },
+                    onEnded = { onHoverPreviewEnded(anime) },
+                    modifier = Modifier.matchParentSize(),
+                )
+            }
+            if (isPreviewLoading || isVideoLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .size(20.dp),
+                    strokeWidth = 2.dp,
+                    trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                )
+            }
         }
     }
 }

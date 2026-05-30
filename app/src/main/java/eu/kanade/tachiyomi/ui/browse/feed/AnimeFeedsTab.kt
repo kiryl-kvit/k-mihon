@@ -84,6 +84,7 @@ import eu.kanade.presentation.components.DropdownMenu
 import eu.kanade.presentation.components.RadioMenuItem
 import eu.kanade.presentation.components.TabContent
 import eu.kanade.presentation.util.animateItemFastScroll
+import eu.kanade.tachiyomi.source.AnimeHoverPreviewSource
 import eu.kanade.tachiyomi.source.ConfigurableAnimeSource
 import eu.kanade.tachiyomi.source.model.SourceItemOrientation
 import eu.kanade.tachiyomi.source.online.AnimeHttpSource
@@ -371,7 +372,8 @@ private fun AnimeFeedsTabContent(
                                             }
                                         }
                                     },
-                                    hoverPreviewEnabled = browseModel.isAnimeVideoPreviewEnabled,
+                                    hoverPreviewEnabled = browseModel.isAnimeVideoPreviewEnabled &&
+                                        browseModel.source is AnimeHoverPreviewSource,
                                     activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
                                     onAnimeHover = { anime ->
                                         activeHoverPreviewAnimeIds = (activeHoverPreviewAnimeIds - anime.id + anime.id)
@@ -444,7 +446,8 @@ private fun AnimeFeedsTabContent(
                                                 }
                                             }
                                         },
-                                        hoverPreviewEnabled = browseModel.isAnimeVideoPreviewEnabled,
+                                        hoverPreviewEnabled = browseModel.isAnimeVideoPreviewEnabled &&
+                                            browseModel.source is AnimeHoverPreviewSource,
                                         activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
                                         onAnimeHover = { anime ->
                                             activeHoverPreviewAnimeIds =
