@@ -58,6 +58,7 @@ import dev.icerock.moko.resources.StringResource
 import eu.kanade.core.preference.PreferenceMutableState
 import eu.kanade.core.util.ifAnimeSourcesLoaded
 import eu.kanade.domain.anime.model.toMangaCover
+import eu.kanade.presentation.anime.AnimeDurationBadge
 import eu.kanade.presentation.anime.toMergeEditorEntry
 import eu.kanade.presentation.category.components.ChangeCategoryDialog
 import eu.kanade.presentation.components.AppSnackbarHost
@@ -610,6 +611,7 @@ private fun AnimeLibraryList(
                     if (item.unwatchedBadgeCount > 0) {
                         Badge(text = item.unwatchedBadgeCount.toString())
                     }
+                    AnimeDurationBadge(duration = item.anime.duration)
                     LanguageBadge(isLocal = false, sourceLanguage = item.sourceLanguage)
                 },
                 isSelected = item.animeId in selection,
@@ -686,6 +688,7 @@ private fun AnimeLibraryComfortableGrid(
                     if (item.unwatchedBadgeCount > 0) {
                         Badge(text = item.unwatchedBadgeCount.toString())
                     }
+                    AnimeDurationBadge(duration = item.anime.duration)
                 },
                 coverBadgeEnd = {
                     LanguageBadge(isLocal = false, sourceLanguage = item.sourceLanguage)
@@ -765,6 +768,7 @@ private fun AnimeLibraryCompactGrid(
                     if (item.unwatchedBadgeCount > 0) {
                         Badge(text = item.unwatchedBadgeCount.toString())
                     }
+                    AnimeDurationBadge(duration = item.anime.duration)
                 },
                 coverBadgeEnd = {
                     LanguageBadge(isLocal = false, sourceLanguage = item.sourceLanguage)

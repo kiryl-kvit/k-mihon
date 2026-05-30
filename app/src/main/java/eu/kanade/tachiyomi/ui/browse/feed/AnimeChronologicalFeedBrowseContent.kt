@@ -52,6 +52,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import eu.kanade.domain.anime.model.toMangaCover
+import eu.kanade.presentation.anime.AnimeDurationBadge
 import eu.kanade.presentation.browse.components.BrowseSourceLoadingItem
 import eu.kanade.presentation.browse.components.InLibraryBadge
 import eu.kanade.presentation.browse.components.InlineAnimeHoverPreview
@@ -572,7 +573,10 @@ private fun AnimeChronologicalFeedListItem(
         coverData = anime.toMangaCover(),
         coverType = sourceItemOrientation.toListCoverType(),
         coverAlpha = anime.browseCoverAlpha(),
-        badge = { InLibraryBadge(enabled = anime.favorite) },
+        badge = {
+            InLibraryBadge(enabled = anime.favorite)
+            AnimeDurationBadge(duration = anime.duration)
+        },
         coverOverlay = if (hoverPreviewEnabled) {
             animeHoverPreviewCover(
                 anime = anime,
@@ -641,7 +645,10 @@ private fun AnimeChronologicalFeedCompactGridItem(
         } else {
             Modifier
         },
-        coverBadgeStart = { InLibraryBadge(enabled = anime.favorite) },
+        coverBadgeStart = {
+            InLibraryBadge(enabled = anime.favorite)
+            AnimeDurationBadge(duration = anime.duration)
+        },
         onLongClick = { onAnimeLongClick(anime) },
         onClick = { onAnimeClick(anime) },
     )
@@ -691,7 +698,10 @@ private fun AnimeChronologicalFeedComfortableGridItem(
         } else {
             Modifier
         },
-        coverBadgeStart = { InLibraryBadge(enabled = anime.favorite) },
+        coverBadgeStart = {
+            InLibraryBadge(enabled = anime.favorite)
+            AnimeDurationBadge(duration = anime.duration)
+        },
         onLongClick = { onAnimeLongClick(anime) },
         onClick = { onAnimeClick(anime) },
     )

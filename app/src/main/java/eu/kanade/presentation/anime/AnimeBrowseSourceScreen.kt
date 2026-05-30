@@ -248,7 +248,10 @@ private fun AnimeBrowseList(
                 coverData = anime.toMangaCover(),
                 coverType = sourceItemOrientation.toListCoverType(),
                 coverAlpha = if (anime.favorite) CommonMangaItemDefaults.BrowseFavoriteCoverAlpha else 1f,
-                badge = { InLibraryBadge(enabled = anime.favorite) },
+                badge = {
+                    InLibraryBadge(enabled = anime.favorite)
+                    AnimeDurationBadge(duration = anime.duration)
+                },
                 coverOverlay = if (hoverPreviewEnabled) {
                     animeHoverPreviewCover(
                         anime = anime,
@@ -346,7 +349,10 @@ private fun AnimeBrowseComfortableGrid(
                 } else {
                     Modifier
                 },
-                coverBadgeStart = { InLibraryBadge(enabled = anime.favorite) },
+                coverBadgeStart = {
+                    InLibraryBadge(enabled = anime.favorite)
+                    AnimeDurationBadge(duration = anime.duration)
+                },
                 onLongClick = { onAnimeLongClick(anime) },
                 onClick = { onAnimeClick(anime) },
             )
@@ -425,7 +431,10 @@ private fun AnimeBrowseCompactGrid(
                 } else {
                     Modifier
                 },
-                coverBadgeStart = { InLibraryBadge(enabled = anime.favorite) },
+                coverBadgeStart = {
+                    InLibraryBadge(enabled = anime.favorite)
+                    AnimeDurationBadge(duration = anime.duration)
+                },
                 onLongClick = { onAnimeLongClick(anime) },
                 onClick = { onAnimeClick(anime) },
             )
