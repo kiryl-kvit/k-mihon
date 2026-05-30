@@ -7,11 +7,13 @@ import eu.kanade.domain.source.model.snapshot
 import eu.kanade.domain.source.service.BrowseFeedService
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.source.AnimeCatalogueSource
+import eu.kanade.tachiyomi.source.AnimeHoverPreviewSource
 import eu.kanade.tachiyomi.source.AnimePreviewSource
 import eu.kanade.tachiyomi.source.model.AnimesPage
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.SAnime
+import eu.kanade.tachiyomi.source.model.SAnimeHoverPreview
 import eu.kanade.tachiyomi.source.model.SAnimePreview
 import eu.kanade.tachiyomi.source.model.SEpisode
 import eu.kanade.tachiyomi.source.model.VideoPlaybackData
@@ -234,6 +236,38 @@ class AnimeBrowseSourceScreenModelTest {
         eventually(2.seconds) {
             model.state.value.dialog shouldBe AnimeBrowseSourceScreenModel.Dialog.LibraryActionChooser(anime)
         }
+    }
+
+    @Test
+    fun `hover preview caches successful response`() = runTest(dispatcher) {
+        val anime = anime(id = 13L, favorite = false)
+        val preview = SAnimeHoverPreview(videoUrl = "https://example.org/preview.mp4")
+        val source = FakeAnimeHoverPreviewSource(anime.source, preview, null)
+
+        val model = createModel(
+            anime = anime,
+            animeSourceManager = FakeAnimeSourceManager(source),
+        )
+
+        model.getAnimeHoverPreview(anime) shouldBe preview
+        model.getAnimeHoverPreview(anime) shouldBe preview
+        source.requestCount shouldBe 1
+    }
+
+    @Test
+    fun `hover preview does not cache null response`() = runTest(dispatcher) {
+        val anime = anime(id = 14L, favorite = false)
+        val preview = SAnimeHoverPreview(videoUrl = "https://example.org/preview.mp4")
+        val source = FakeAnimeHoverPreviewSource(anime.source, null, preview)
+
+        val model = createModel(
+            anime = anime,
+            animeSourceManager = FakeAnimeSourceManager(source),
+        )
+
+        model.getAnimeHoverPreview(anime) shouldBe null
+        model.getAnimeHoverPreview(anime) shouldBe preview
+        source.requestCount shouldBe 2
     }
 
     @Test
@@ -639,6 +673,19 @@ class AnimeBrowseSourceScreenModelTest {
     ) : FakeAnimeCatalogueSource(id), AnimePreviewSource {
         override suspend fun getAnimePreview(anime: SAnime): List<SAnimePreview> {
             return listOf(SAnimePreview(index = 0, imageUrl = "https://example.org/preview.jpg"))
+        }
+    }
+
+    private class FakeAnimeHoverPreviewSource(
+        id: Long,
+        private vararg val previews: SAnimeHoverPreview?,
+    ) : FakeAnimeCatalogueSource(id), AnimeHoverPreviewSource {
+        var requestCount = 0
+
+        override suspend fun getAnimeHoverPreview(anime: SAnime): SAnimeHoverPreview? {
+            val index = requestCount.coerceAtMost(previews.lastIndex)
+            requestCount++
+            return previews[index]
         }
     }
 
