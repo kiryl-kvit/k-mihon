@@ -287,7 +287,7 @@ class AnimeBrowseSourceScreenModel(
 
         return runCatching { hoverPreviewSource.getAnimeHoverPreview(anime.toSAnime()) }
             .getOrNull()
-            .also { hoverPreviewCache[anime.id] = it }
+            ?.also { hoverPreviewCache[anime.id] = it }
     }
 
     fun animePreviewSizeUi(): PreviewSizeUi {
