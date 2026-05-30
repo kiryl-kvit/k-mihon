@@ -57,6 +57,7 @@ import eu.kanade.presentation.components.DropdownMenu
 import eu.kanade.presentation.components.RadioMenuItem
 import eu.kanade.presentation.components.SearchToolbar
 import eu.kanade.presentation.util.Screen
+import eu.kanade.tachiyomi.source.AnimeHoverPreviewSource
 import eu.kanade.tachiyomi.source.AsyncAnimeCatalogueFilterSource
 import eu.kanade.tachiyomi.source.ConfigurableAnimeSource
 import eu.kanade.tachiyomi.source.online.AnimeHttpSource
@@ -275,7 +276,7 @@ data class AnimeBrowseSourceScreen(
                             }
                         }
                     },
-                    hoverPreviewEnabled = screenModel.isAnimeVideoPreviewEnabled,
+                    hoverPreviewEnabled = screenModel.isAnimeVideoPreviewEnabled && source is AnimeHoverPreviewSource,
                     activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
                     onAnimeHover = { anime ->
                         activeHoverPreviewAnimeIds = (activeHoverPreviewAnimeIds - anime.id + anime.id)

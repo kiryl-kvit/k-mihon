@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarDuration
@@ -814,21 +816,38 @@ private fun animeHoverPreviewCover(
 ): (@Composable BoxScope.() -> Unit)? {
     if (anime.id !in activeHoverPreviewAnimeIds) return null
 
+    var isPreviewLoading by remember(anime.id) { mutableStateOf(true) }
+    var isVideoLoading by remember(anime.id) { mutableStateOf(true) }
     val preview by produceState<SAnimeHoverPreview?>(initialValue = null, anime.id) {
+        isPreviewLoading = true
         value = onAnimeHoverPreviewRequest(anime).also { preview ->
+            isPreviewLoading = false
             if (preview == null) {
                 onHoverPreviewEnded(anime)
             }
         }
     }
 
-    return preview?.let { hoverPreview ->
-        {
-            InlineAnimeHoverPreview(
-                preview = hoverPreview,
-                onEnded = { onHoverPreviewEnded(anime) },
-                modifier = Modifier.matchParentSize(),
-            )
+    return {
+        Box(modifier = Modifier.fillMaxWidth().fillMaxHeight()) {
+            preview?.let { hoverPreview ->
+                InlineAnimeHoverPreview(
+                    preview = hoverPreview,
+                    onReady = { isVideoLoading = false },
+                    onEnded = { onHoverPreviewEnded(anime) },
+                    modifier = Modifier.matchParentSize(),
+                )
+            }
+            if (isPreviewLoading || isVideoLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .size(20.dp),
+                    strokeWidth = 2.dp,
+                    trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                )
+            }
         }
     }
 }
