@@ -1,16 +1,22 @@
 package eu.kanade.tachiyomi.ui.browse.feed
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyListState
@@ -26,6 +32,7 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.DragHandle
 import androidx.compose.material.icons.outlined.Favorite
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.NewReleases
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -39,6 +46,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -52,8 +60,12 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -97,6 +109,7 @@ import eu.kanade.tachiyomi.ui.anime.browse.BrowseFilterUiState
 import eu.kanade.tachiyomi.ui.anime.pushSourceAnimeScreen
 import eu.kanade.tachiyomi.ui.browse.source.SourceCatalogKind
 import eu.kanade.tachiyomi.ui.category.CategoryScreen
+import eu.kanade.tachiyomi.ui.home.HomeScreen
 import eu.kanade.tachiyomi.ui.webview.WebViewScreen
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.filter
@@ -134,9 +147,14 @@ fun Screen.animeFeedsTab(): TabContent {
     val singleEnabledFeed = state.enabledFeeds.singleOrNull()
     val singleEnabledFeedSource = singleEnabledFeed?.let { screenModel.sourceFor(it.sourceId) }
     val singleEnabledFeedPreset = singleEnabledFeed?.let(screenModel::presetFor)
+    var feedViewMode by remember { mutableStateOf(AnimeFeedViewMode.Regular) }
+    var playbackUiMode by remember { mutableStateOf(AnimeVideoFeedUiMode.Default) }
 
     return TabContent(
         titleRes = MR.strings.browse_feeds,
+        chromeVisible = {
+            feedViewMode == AnimeFeedViewMode.Regular || playbackUiMode == AnimeVideoFeedUiMode.Default
+        },
         tabLabel = if (singleEnabledFeedSource != null && singleEnabledFeedPreset != null) {
             {
                 AnimeSingleFeedTabLabel(
@@ -166,9 +184,18 @@ fun Screen.animeFeedsTab(): TabContent {
                 navigator = navigator,
                 contentPadding = contentPadding,
                 snackbarHostState = snackbarHostState,
+                feedViewMode = feedViewMode,
+                onFeedViewModeChange = { feedViewMode = it },
+                playbackUiMode = playbackUiMode,
+                onPlaybackUiModeChange = { playbackUiMode = it },
             )
         },
     )
+}
+
+private enum class AnimeFeedViewMode {
+    Regular,
+    Playback,
 }
 
 @Composable
@@ -204,6 +231,10 @@ private fun AnimeFeedsTabContent(
     navigator: Navigator,
     contentPadding: PaddingValues,
     snackbarHostState: SnackbarHostState,
+    feedViewMode: AnimeFeedViewMode,
+    onFeedViewModeChange: (AnimeFeedViewMode) -> Unit,
+    playbackUiMode: AnimeVideoFeedUiMode,
+    onPlaybackUiModeChange: (AnimeVideoFeedUiMode) -> Unit,
 ) {
     if (!state.sourcesLoaded) {
         LoadingScreen()
@@ -219,6 +250,18 @@ private fun AnimeFeedsTabContent(
     val openSourceAnime: (Long) -> Unit = { animeId ->
         scope.launch {
             navigator.pushSourceAnimeScreen(animeId, getMergedAnime)
+        }
+    }
+
+    LaunchedEffect(feedViewMode, playbackUiMode) {
+        HomeScreen.showBottomNav(
+            feedViewMode == AnimeFeedViewMode.Regular || playbackUiMode == AnimeVideoFeedUiMode.Default,
+        )
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            scope.launch { HomeScreen.showBottomNav(true) }
         }
     }
 
@@ -271,6 +314,28 @@ private fun AnimeFeedsTabContent(
                     null
                 }
                 val chronologicalFeedState = chronologicalFeedModel?.state?.collectAsState()?.value
+                val playbackTimelineModel = if (feedViewMode == AnimeFeedViewMode.Playback) {
+                    rememberAnimeFeedPlaybackTimelineModel(
+                        activeProfileId = activeProfileId,
+                        activeFeedId = activeFeed.id,
+                        presetBehaviorKey = presetBehaviorKey,
+                        sourceId = activeSource.id,
+                        listingQuery = SourceCatalogKind.ANIME.requestQuery(activePreset),
+                        initialFilterSnapshot = activePreset.filters,
+                    )
+                } else {
+                    null
+                }
+                val playbackTimelineState = playbackTimelineModel?.state?.collectAsState()?.value
+                val playbackModel = if (feedViewMode == AnimeFeedViewMode.Playback) {
+                    rememberAnimeFeedPlaybackModel(
+                        activeProfileId = activeProfileId,
+                        activeFeedId = activeFeed.id,
+                        presetBehaviorKey = presetBehaviorKey,
+                    )
+                } else {
+                    null
+                }
 
                 LaunchedEffect(activeProfileId) {
                     screenModel.closeDialog()
@@ -318,124 +383,111 @@ private fun AnimeFeedsTabContent(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .fillMaxWidth(),
+                        .fillMaxWidth()
+                        .immersiveFeedSwipe(
+                            enabled = feedViewMode == AnimeFeedViewMode.Playback &&
+                                playbackUiMode == AnimeVideoFeedUiMode.Immersive,
+                            canGoPrevious = hasPreviousFeed,
+                            canGoNext = hasNextFeed,
+                            onPrevious = {
+                                enabledFeeds.getOrNull(activeIndex - 1)?.let { screenModel.selectFeed(it.id) }
+                            },
+                            onNext = {
+                                enabledFeeds.getOrNull(activeIndex + 1)?.let { screenModel.selectFeed(it.id) }
+                            },
+                        ),
                 ) {
-                    val feedContentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding())
-                    AnimeFeedBrowseContent(
-                        stateHolder = browseContentStateHolder,
-                        activeProfileId = activeProfileId,
-                        activeFeedId = activeFeed.id,
-                        presetBehaviorKey = presetBehaviorKey,
+                    if (feedViewMode == AnimeFeedViewMode.Playback &&
+                        playbackTimelineModel != null &&
+                        playbackModel != null
                     ) {
-                        val httpSource = browseModel.source as? AnimeHttpSource
-                        val configurableSource = browseModel.source as? ConfigurableAnimeSource
-                        val onWebViewClick = httpSource?.let {
-                            {
-                                navigator.push(
-                                    WebViewScreen(
-                                        url = it.baseUrl,
-                                        initialTitle = it.name,
-                                        headers = it.headers.toMultimap().mapValues { values ->
-                                            values.value.firstOrNull().orEmpty()
-                                        },
-                                    ),
-                                )
-                            }
-                        }
-                        val onSettingsClick = configurableSource?.let {
-                            { navigator.push(AnimeSourcePreferencesScreen(activeSource.id, activeSource.name)) }
-                        }
-
-                        if (chronologicalFeedModel != null) {
-                            PullRefresh(
-                                refreshing = chronologicalFeedState?.isRefreshing == true,
-                                enabled = true,
-                                onRefresh = { chronologicalFeedModel.refresh(manual = true) },
-                                modifier = Modifier.fillMaxSize(),
+                        PullRefresh(
+                            refreshing = playbackTimelineState?.isRefreshing == true,
+                            enabled = true,
+                            onRefresh = { playbackTimelineModel.refresh(manual = true) },
+                            modifier = Modifier.fillMaxSize(),
+                        ) {
+                            AnimeFeedPlaybackContent(
+                                stateHolder = browseContentStateHolder,
+                                activeProfileId = activeProfileId,
+                                activeFeedId = activeFeed.id,
+                                presetBehaviorKey = presetBehaviorKey,
                             ) {
-                                AnimeChronologicalFeedBrowseContent(
-                                    screenModel = chronologicalFeedModel,
-                                    columns = browseModel.getColumnsPreference(
-                                        LocalConfiguration.current.orientation,
-                                        browseModel.source?.sourceItemOrientation() ?: SourceItemOrientation.VERTICAL,
-                                    ),
-                                    displayMode = activeDisplayMode,
-                                    sourceItemOrientation = browseModel.source?.sourceItemOrientation()
-                                        ?: SourceItemOrientation.VERTICAL,
+                                AnimeVideoFeedBrowseContent(
+                                    timelineModel = playbackTimelineModel,
+                                    playbackModel = playbackModel,
                                     snackbarHostState = snackbarHostState,
-                                    contentPadding = feedContentPadding,
+                                    contentPadding = if (playbackUiMode == AnimeVideoFeedUiMode.Immersive) {
+                                        contentPadding
+                                    } else {
+                                        PaddingValues()
+                                    },
+                                    uiMode = playbackUiMode,
+                                    onUiModeToggle = {
+                                        onPlaybackUiModeChange(
+                                            when (playbackUiMode) {
+                                                AnimeVideoFeedUiMode.Default -> AnimeVideoFeedUiMode.Immersive
+                                                AnimeVideoFeedUiMode.Immersive -> AnimeVideoFeedUiMode.Default
+                                            },
+                                        )
+                                    },
                                     onAnimeClick = { openSourceAnime(it.id) },
-                                    onAnimeLongClick = { anime ->
-                                        scope.launch {
-                                            if (browseModel.onAnimeLongClick(anime)) {
-                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            }
-                                        }
-                                    },
-                                    hoverPreviewEnabled = browseModel.isAnimeVideoPreviewEnabled &&
-                                        browseModel.source is AnimeHoverPreviewSource,
-                                    activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
-                                    onAnimeHover = { anime ->
-                                        activeHoverPreviewAnimeIds = (activeHoverPreviewAnimeIds - anime.id + anime.id)
-                                            .takeLast(MAX_ACTIVE_HOVER_PREVIEWS)
-                                    },
-                                    onAnimeHoverExit = { anime ->
-                                        activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds - anime.id
-                                    },
-                                    onHoverPreviewReset = { animeId ->
-                                        activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds - animeId
-                                    },
-                                    onHoverPreviewEnded = { anime ->
-                                        activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds - anime.id
-                                    },
-                                    onAnimeHoverPreviewRequest = browseModel::getAnimeHoverPreview,
-                                    onWebViewClick = onWebViewClick,
-                                    onSettingsClick = onSettingsClick,
+                                    modifier = Modifier.fillMaxSize(),
                                 )
                             }
-                        } else {
-                            val animeList = browseModel.animePagerFlow.collectAsLazyPagingItems()
-                            val isRefreshing = when {
-                                browseModelState.isWaitingForInitialFilterLoad -> {
-                                    browseModelState.filterState is BrowseFilterUiState.Loading
+                        }
+                        if (playbackUiMode == AnimeVideoFeedUiMode.Immersive) {
+                            AnimeFeedImmersiveSelector(
+                                feeds = enabledFeeds,
+                                selectedFeedId = activeFeed.id,
+                                screenModel = screenModel,
+                                modifier = Modifier.align(Alignment.TopCenter),
+                            )
+                        }
+                    } else {
+                        val feedContentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding())
+                        AnimeFeedBrowseContent(
+                            stateHolder = browseContentStateHolder,
+                            activeProfileId = activeProfileId,
+                            activeFeedId = activeFeed.id,
+                            presetBehaviorKey = presetBehaviorKey,
+                        ) {
+                            val httpSource = browseModel.source as? AnimeHttpSource
+                            val configurableSource = browseModel.source as? ConfigurableAnimeSource
+                            val onWebViewClick = httpSource?.let {
+                                {
+                                    navigator.push(
+                                        WebViewScreen(
+                                            url = it.baseUrl,
+                                            initialTitle = it.name,
+                                            headers = it.headers.toMultimap().mapValues { values ->
+                                                values.value.firstOrNull().orEmpty()
+                                            },
+                                        ),
+                                    )
                                 }
-                                else -> animeList.itemCount > 0 && animeList.loadState.refresh is LoadState.Loading
                             }
+                            val onSettingsClick = configurableSource?.let {
+                                { navigator.push(AnimeSourcePreferencesScreen(activeSource.id, activeSource.name)) }
+                            }
+                            val sourceItemOrientation = browseModel.source?.sourceItemOrientation()
+                                ?: SourceItemOrientation.VERTICAL
 
-                            PullRefresh(
-                                refreshing = isRefreshing,
-                                enabled = true,
-                                onRefresh = {
-                                    if (browseModelState.isWaitingForInitialFilterLoad) {
-                                        browseModel.retryFilterLoad()
-                                    } else {
-                                        animeList.refresh()
-                                    }
-                                },
-                                modifier = Modifier.fillMaxSize(),
-                            ) {
-                                if (browseModelState.isWaitingForInitialFilterLoad) {
-                                    when (val filterState = browseModelState.filterState) {
-                                        is BrowseFilterUiState.Error -> {
-                                            EmptyScreen(
-                                                message = filterState.throwable.message
-                                                    ?: stringResource(MR.strings.unknown_error),
-                                                modifier = Modifier.padding(feedContentPadding),
-                                            )
-                                        }
-                                        else -> LoadingScreen(Modifier.padding(feedContentPadding))
-                                    }
-                                } else {
-                                    AnimeBrowseSourceContent(
-                                        animeList = animeList,
+                            if (chronologicalFeedModel != null) {
+                                PullRefresh(
+                                    refreshing = chronologicalFeedState?.isRefreshing == true,
+                                    enabled = true,
+                                    onRefresh = { chronologicalFeedModel.refresh(manual = true) },
+                                    modifier = Modifier.fillMaxSize(),
+                                ) {
+                                    AnimeChronologicalFeedBrowseContent(
+                                        screenModel = chronologicalFeedModel,
                                         columns = browseModel.getColumnsPreference(
                                             LocalConfiguration.current.orientation,
-                                            browseModel.source?.sourceItemOrientation()
-                                                ?: SourceItemOrientation.VERTICAL,
+                                            sourceItemOrientation,
                                         ),
                                         displayMode = activeDisplayMode,
-                                        sourceItemOrientation = browseModel.source?.sourceItemOrientation()
-                                            ?: SourceItemOrientation.VERTICAL,
+                                        sourceItemOrientation = sourceItemOrientation,
                                         snackbarHostState = snackbarHostState,
                                         contentPadding = feedContentPadding,
                                         onAnimeClick = { openSourceAnime(it.id) },
@@ -450,137 +502,220 @@ private fun AnimeFeedsTabContent(
                                             browseModel.source is AnimeHoverPreviewSource,
                                         activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
                                         onAnimeHover = { anime ->
-                                            activeHoverPreviewAnimeIds =
-                                                (activeHoverPreviewAnimeIds - anime.id + anime.id)
-                                                    .takeLast(MAX_ACTIVE_HOVER_PREVIEWS)
+                                            val nextIds = activeHoverPreviewAnimeIds - anime.id + anime.id
+                                            activeHoverPreviewAnimeIds = nextIds
+                                                .takeLast(MAX_ACTIVE_HOVER_PREVIEWS)
                                         },
                                         onAnimeHoverExit = { anime ->
-                                            activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds - anime.id
+                                            activeHoverPreviewAnimeIds =
+                                                activeHoverPreviewAnimeIds - anime.id
                                         },
                                         onHoverPreviewReset = { animeId ->
-                                            activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds - animeId
+                                            activeHoverPreviewAnimeIds =
+                                                activeHoverPreviewAnimeIds - animeId
                                         },
                                         onHoverPreviewEnded = { anime ->
-                                            activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds - anime.id
+                                            activeHoverPreviewAnimeIds =
+                                                activeHoverPreviewAnimeIds - anime.id
                                         },
                                         onAnimeHoverPreviewRequest = browseModel::getAnimeHoverPreview,
                                         onWebViewClick = onWebViewClick,
                                         onSettingsClick = onSettingsClick,
                                     )
                                 }
+                            } else {
+                                val animeList = browseModel.animePagerFlow.collectAsLazyPagingItems()
+                                val isRefreshing = when {
+                                    browseModelState.isWaitingForInitialFilterLoad -> {
+                                        browseModelState.filterState is BrowseFilterUiState.Loading
+                                    }
+                                    else -> animeList.itemCount > 0 && animeList.loadState.refresh is LoadState.Loading
+                                }
+
+                                PullRefresh(
+                                    refreshing = isRefreshing,
+                                    enabled = true,
+                                    onRefresh = {
+                                        if (browseModelState.isWaitingForInitialFilterLoad) {
+                                            browseModel.retryFilterLoad()
+                                        } else {
+                                            animeList.refresh()
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxSize(),
+                                ) {
+                                    if (browseModelState.isWaitingForInitialFilterLoad) {
+                                        when (val filterState = browseModelState.filterState) {
+                                            is BrowseFilterUiState.Error -> {
+                                                EmptyScreen(
+                                                    message = filterState.throwable.message
+                                                        ?: stringResource(MR.strings.unknown_error),
+                                                    modifier = Modifier.padding(feedContentPadding),
+                                                )
+                                            }
+                                            else -> LoadingScreen(Modifier.padding(feedContentPadding))
+                                        }
+                                    } else {
+                                        AnimeBrowseSourceContent(
+                                            animeList = animeList,
+                                            columns = browseModel.getColumnsPreference(
+                                                LocalConfiguration.current.orientation,
+                                                sourceItemOrientation,
+                                            ),
+                                            displayMode = activeDisplayMode,
+                                            sourceItemOrientation = sourceItemOrientation,
+                                            snackbarHostState = snackbarHostState,
+                                            contentPadding = feedContentPadding,
+                                            onAnimeClick = { openSourceAnime(it.id) },
+                                            onAnimeLongClick = { anime ->
+                                                scope.launch {
+                                                    if (browseModel.onAnimeLongClick(anime)) {
+                                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    }
+                                                }
+                                            },
+                                            hoverPreviewEnabled = browseModel.isAnimeVideoPreviewEnabled &&
+                                                browseModel.source is AnimeHoverPreviewSource,
+                                            activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
+                                            onAnimeHover = { anime ->
+                                                activeHoverPreviewAnimeIds =
+                                                    (activeHoverPreviewAnimeIds - anime.id + anime.id)
+                                                        .takeLast(MAX_ACTIVE_HOVER_PREVIEWS)
+                                            },
+                                            onAnimeHoverExit = { anime ->
+                                                activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds - anime.id
+                                            },
+                                            onHoverPreviewReset = { animeId ->
+                                                activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds - animeId
+                                            },
+                                            onHoverPreviewEnded = { anime ->
+                                                activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds - anime.id
+                                            },
+                                            onAnimeHoverPreviewRequest = browseModel::getAnimeHoverPreview,
+                                            onWebViewClick = onWebViewClick,
+                                            onSettingsClick = onSettingsClick,
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
                 }
 
-                when (val dialog = browseModelState.dialog) {
-                    is AnimeBrowseSourceScreenModel.Dialog.ChangeAnimeCategory -> {
-                        ChangeCategoryDialog(
-                            initialSelection = dialog.initialSelection,
-                            onDismissRequest = browseModel::dismissDialog,
-                            onEditCategories = { navigator.push(CategoryScreen()) },
-                            onConfirm = { include, _ ->
-                                browseModel.changeAnimeFavorite(dialog.anime)
-                                browseModel.moveAnimeToCategories(dialog.anime, include)
-                            },
-                        )
+                if (feedViewMode == AnimeFeedViewMode.Regular) {
+                    when (val dialog = browseModelState.dialog) {
+                        is AnimeBrowseSourceScreenModel.Dialog.ChangeAnimeCategory -> {
+                            ChangeCategoryDialog(
+                                initialSelection = dialog.initialSelection,
+                                onDismissRequest = browseModel::dismissDialog,
+                                onEditCategories = { navigator.push(CategoryScreen()) },
+                                onConfirm = { include, _ ->
+                                    browseModel.changeAnimeFavorite(dialog.anime)
+                                    browseModel.moveAnimeToCategories(dialog.anime, include)
+                                },
+                            )
+                        }
+                        is AnimeBrowseSourceScreenModel.Dialog.AnimePreview -> {
+                            BrowseAnimePreviewSheet(
+                                animeId = dialog.animeId,
+                                previewSize = browseModel.animePreviewSizeUi(),
+                                onLibraryAction = browseModel::confirmBrowseLibraryAction,
+                                onMergeAction = browseModel::showMergeTargetPicker,
+                                onOpenAnime = openSourceAnime,
+                                onDismissRequest = browseModel::dismissDialog,
+                            )
+                        }
+                        is AnimeBrowseSourceScreenModel.Dialog.RemoveAnime -> {
+                            RemoveAnimeDialog(
+                                onDismissRequest = browseModel::dismissDialog,
+                                onConfirm = { browseModel.changeAnimeFavorite(dialog.anime) },
+                            )
+                        }
+                        is AnimeBrowseSourceScreenModel.Dialog.LibraryActionChooser -> {
+                            BrowseLibraryActionDialog(
+                                mangaTitle = dialog.anime.displayTitle,
+                                favorite = dialog.anime.favorite,
+                                onDismissRequest = browseModel::dismissDialog,
+                                onLibraryAction = {
+                                    browseModel.dismissDialog()
+                                    browseModel.confirmBrowseLibraryAction(dialog.anime)
+                                },
+                                onMergeIntoLibrary = { browseModel.showMergeTargetPicker(dialog.anime) },
+                            )
+                        }
+                        is AnimeBrowseSourceScreenModel.Dialog.DuplicateAnime -> {
+                            DuplicateAnimeDialog(
+                                duplicates = dialog.duplicates,
+                                onDismissRequest = browseModel::dismissDialog,
+                                onConfirm = { browseModel.addFavorite(dialog.anime) },
+                                onOpenAnime = { navigator.push(AnimeScreen(it.id)) },
+                                onMigrate = { browseModel.showMigrateDialog(current = it, target = dialog.anime) },
+                            )
+                        }
+                        is AnimeBrowseSourceScreenModel.Dialog.Migrate -> {
+                            MigrateAnimeDialog(
+                                current = dialog.current,
+                                target = dialog.target,
+                                onClickTitle = { navigator.push(AnimeScreen(dialog.target.id)) },
+                                onDismissRequest = browseModel::dismissDialog,
+                                onComplete = {
+                                    browseModel.dismissDialog()
+                                    navigator.push(AnimeScreen(dialog.target.id))
+                                },
+                            )
+                        }
+                        is AnimeBrowseSourceScreenModel.Dialog.SelectMergeTarget -> {
+                            AnimeMergeTargetPickerDialog(
+                                title = stringResource(MR.strings.action_merge_into_library),
+                                query = dialog.query,
+                                visibleTargets = dialog.visibleTargets,
+                                onDismissRequest = browseModel::dismissDialog,
+                                onQueryChange = browseModel::updateMergeTargetQuery,
+                                onSelectTarget = browseModel::openMergeEditor,
+                            )
+                        }
+                        is AnimeBrowseSourceScreenModel.Dialog.EditMerge -> {
+                            BrowseMergeEditorDialog(
+                                entries = dialog.entries,
+                                targetId = dialog.targetId,
+                                targetLocked = dialog.targetLocked,
+                                removedIds = dialog.removedIds,
+                                libraryRemovalIds = dialog.libraryRemovalIds,
+                                confirmEnabled = dialog.enabled,
+                                onDismissRequest = browseModel::dismissDialog,
+                                onMove = browseModel::moveMergeEntry,
+                                onSelectTarget = browseModel::setMergeTarget,
+                                onToggleRemove = browseModel::toggleMergeEntryRemoval,
+                                onToggleLibraryRemove = browseModel::toggleMergeEntryLibraryRemoval,
+                                onConfirm = browseModel::confirmBrowseMerge,
+                            )
+                        }
+                        else -> Unit
                     }
-                    is AnimeBrowseSourceScreenModel.Dialog.AnimePreview -> {
-                        BrowseAnimePreviewSheet(
-                            animeId = dialog.animeId,
-                            previewSize = browseModel.animePreviewSizeUi(),
-                            onLibraryAction = browseModel::confirmBrowseLibraryAction,
-                            onMergeAction = browseModel::showMergeTargetPicker,
-                            onOpenAnime = openSourceAnime,
-                            onDismissRequest = browseModel::dismissDialog,
-                        )
-                    }
-                    is AnimeBrowseSourceScreenModel.Dialog.RemoveAnime -> {
-                        RemoveAnimeDialog(
-                            onDismissRequest = browseModel::dismissDialog,
-                            onConfirm = { browseModel.changeAnimeFavorite(dialog.anime) },
-                        )
-                    }
-                    is AnimeBrowseSourceScreenModel.Dialog.LibraryActionChooser -> {
-                        BrowseLibraryActionDialog(
-                            mangaTitle = dialog.anime.displayTitle,
-                            favorite = dialog.anime.favorite,
-                            onDismissRequest = browseModel::dismissDialog,
-                            onLibraryAction = {
-                                browseModel.dismissDialog()
-                                browseModel.confirmBrowseLibraryAction(dialog.anime)
-                            },
-                            onMergeIntoLibrary = { browseModel.showMergeTargetPicker(dialog.anime) },
-                        )
-                    }
-                    is AnimeBrowseSourceScreenModel.Dialog.DuplicateAnime -> {
-                        DuplicateAnimeDialog(
-                            duplicates = dialog.duplicates,
-                            onDismissRequest = browseModel::dismissDialog,
-                            onConfirm = { browseModel.addFavorite(dialog.anime) },
-                            onOpenAnime = { navigator.push(AnimeScreen(it.id)) },
-                            onMigrate = { browseModel.showMigrateDialog(current = it, target = dialog.anime) },
-                        )
-                    }
-                    is AnimeBrowseSourceScreenModel.Dialog.Migrate -> {
-                        MigrateAnimeDialog(
-                            current = dialog.current,
-                            target = dialog.target,
-                            onClickTitle = { navigator.push(AnimeScreen(dialog.target.id)) },
-                            onDismissRequest = browseModel::dismissDialog,
-                            onComplete = {
-                                browseModel.dismissDialog()
-                                navigator.push(AnimeScreen(dialog.target.id))
-                            },
-                        )
-                    }
-                    is AnimeBrowseSourceScreenModel.Dialog.SelectMergeTarget -> {
-                        AnimeMergeTargetPickerDialog(
-                            title = stringResource(MR.strings.action_merge_into_library),
-                            query = dialog.query,
-                            visibleTargets = dialog.visibleTargets,
-                            onDismissRequest = browseModel::dismissDialog,
-                            onQueryChange = browseModel::updateMergeTargetQuery,
-                            onSelectTarget = browseModel::openMergeEditor,
-                        )
-                    }
-                    is AnimeBrowseSourceScreenModel.Dialog.EditMerge -> {
-                        BrowseMergeEditorDialog(
-                            entries = dialog.entries,
-                            targetId = dialog.targetId,
-                            targetLocked = dialog.targetLocked,
-                            removedIds = dialog.removedIds,
-                            libraryRemovalIds = dialog.libraryRemovalIds,
-                            confirmEnabled = dialog.enabled,
-                            onDismissRequest = browseModel::dismissDialog,
-                            onMove = browseModel::moveMergeEntry,
-                            onSelectTarget = browseModel::setMergeTarget,
-                            onToggleRemove = browseModel::toggleMergeEntryRemoval,
-                            onToggleLibraryRemove = browseModel::toggleMergeEntryLibraryRemoval,
-                            onConfirm = browseModel::confirmBrowseMerge,
-                        )
-                    }
-                    else -> Unit
                 }
             }
 
-            AnimeFeedNavigationBar(
-                feeds = enabledFeeds,
-                selectedFeedId = activeFeed.id,
-                selectedDisplayMode = activeDisplayMode,
-                chipListState = chipListState,
-                screenModel = screenModel,
-                canGoPrevious = hasPreviousFeed,
-                canGoNext = hasNextFeed,
-                onDisplayModeChange = { screenModel.updateFeedDisplayMode(activeFeed.id, it) },
-                onPreviousClick = {
-                    enabledFeeds.getOrNull(activeIndex - 1)?.let { screenModel.selectFeed(it.id) }
-                },
-                onNextClick = {
-                    enabledFeeds.getOrNull(activeIndex + 1)?.let { screenModel.selectFeed(it.id) }
-                },
-                modifier = Modifier.fillMaxWidth(),
-            )
+            if (feedViewMode == AnimeFeedViewMode.Regular || playbackUiMode == AnimeVideoFeedUiMode.Default) {
+                AnimeFeedNavigationBar(
+                    feeds = enabledFeeds,
+                    selectedFeedId = activeFeed.id,
+                    selectedDisplayMode = activeDisplayMode,
+                    selectedViewMode = feedViewMode,
+                    chipListState = chipListState,
+                    screenModel = screenModel,
+                    canGoPrevious = hasPreviousFeed,
+                    canGoNext = hasNextFeed,
+                    onDisplayModeChange = { screenModel.updateFeedDisplayMode(activeFeed.id, it) },
+                    onViewModeChange = onFeedViewModeChange,
+                    onPreviousClick = {
+                        enabledFeeds.getOrNull(activeIndex - 1)?.let { screenModel.selectFeed(it.id) }
+                    },
+                    onNextClick = {
+                        enabledFeeds.getOrNull(activeIndex + 1)?.let { screenModel.selectFeed(it.id) }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 
@@ -663,6 +798,133 @@ private fun AnimeFeedBrowseContent(
 }
 
 @Composable
+private fun Modifier.immersiveFeedSwipe(
+    enabled: Boolean,
+    canGoPrevious: Boolean,
+    canGoNext: Boolean,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+): Modifier {
+    if (!enabled) return this
+
+    val thresholdPx = with(LocalDensity.current) { IMMERSIVE_FEED_SWIPE_THRESHOLD.toPx() }
+    return pointerInput(canGoPrevious, canGoNext, onPrevious, onNext, thresholdPx) {
+        var dragDistance = 0f
+        detectHorizontalDragGestures(
+            onDragStart = { dragDistance = 0f },
+            onHorizontalDrag = { change, dragAmount ->
+                dragDistance += dragAmount
+                change.consume()
+            },
+            onDragEnd = {
+                when {
+                    dragDistance > thresholdPx && canGoPrevious -> onPrevious()
+                    dragDistance < -thresholdPx && canGoNext -> onNext()
+                }
+            },
+            onDragCancel = { dragDistance = 0f },
+        )
+    }
+}
+
+@Composable
+private fun BoxScope.AnimeFeedImmersiveSelector(
+    feeds: List<SourceFeed>,
+    selectedFeedId: String,
+    screenModel: FeedsScreenModel,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(
+                Brush.verticalGradient(
+                    0f to Color.Black.copy(alpha = 0.46f),
+                    1f to Color.Transparent,
+                ),
+            )
+            .padding(
+                top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 12.dp,
+                bottom = 28.dp,
+            ),
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        LazyRow(
+            modifier = Modifier.wrapContentWidth(),
+            horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            items(feeds.size, key = { feeds[it].id }) { index ->
+                val feed = feeds[index]
+                val source = screenModel.sourceFor(feed.sourceId) ?: return@items
+                val preset = screenModel.presetFor(feed) ?: return@items
+                AnimeFeedImmersiveTab(
+                    source = source,
+                    label = preset.name,
+                    selected = selectedFeedId == feed.id,
+                    onClick = { screenModel.selectFeed(feed.id) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AnimeFeedImmersiveTab(
+    source: Source,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .padding(horizontal = 2.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SourceIcon(
+                source = source,
+                modifier = Modifier
+                    .size(18.dp)
+                    .clip(MaterialTheme.shapes.extraSmall),
+            )
+            Text(
+                text = label,
+                color = Color.White.copy(alpha = if (selected) 1f else 0.62f),
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Box(
+            modifier = Modifier
+                .size(width = if (selected) 22.dp else 0.dp, height = 3.dp)
+                .background(Color.White, MaterialTheme.shapes.extraSmall),
+        )
+    }
+}
+
+@Composable
+private fun AnimeFeedPlaybackContent(
+    stateHolder: androidx.compose.runtime.saveable.SaveableStateHolder,
+    activeProfileId: Long?,
+    activeFeedId: String,
+    presetBehaviorKey: String,
+    content: @Composable () -> Unit,
+) {
+    stateHolder.SaveableStateProvider(
+        key = "anime-feed-playback-content-${activeProfileId ?: "none"}-$activeFeedId-$presetBehaviorKey",
+    ) {
+        content()
+    }
+}
+
+@Composable
 private fun rememberActiveAnimeFeedScreenModel(
     activeProfileId: Long?,
     activeFeedId: String,
@@ -716,6 +978,52 @@ private fun rememberAnimeChronologicalFeedScreenModel(
     }
 }
 
+@Composable
+private fun rememberAnimeFeedPlaybackTimelineModel(
+    activeProfileId: Long?,
+    activeFeedId: String,
+    presetBehaviorKey: String,
+    sourceId: Long,
+    listingQuery: String?,
+    initialFilterSnapshot: List<eu.kanade.domain.source.model.FilterStateNode>,
+): AnimeChronologicalFeedScreenModel {
+    val profileKey = activeProfileId?.toString() ?: "none"
+    return object : Screen {
+        override val key: ScreenKey = "anime-feed-playback-timeline-model-$profileKey-$activeFeedId-$presetBehaviorKey"
+
+        @Composable
+        override fun Content() {
+            error("Not used")
+        }
+    }.rememberScreenModel(tag = "anime-feed-playback-timeline:$profileKey:$activeFeedId:$presetBehaviorKey") {
+        AnimeChronologicalFeedScreenModel(
+            feedId = activeFeedId,
+            sourceId = sourceId,
+            listingQuery = listingQuery,
+            initialFilterSnapshot = initialFilterSnapshot,
+        )
+    }
+}
+
+@Composable
+private fun rememberAnimeFeedPlaybackModel(
+    activeProfileId: Long?,
+    activeFeedId: String,
+    presetBehaviorKey: String,
+): AnimeVideoFeedPlaybackScreenModel {
+    val profileKey = activeProfileId?.toString() ?: "none"
+    return object : Screen {
+        override val key: ScreenKey = "anime-feed-playback-model-$profileKey-$activeFeedId-$presetBehaviorKey"
+
+        @Composable
+        override fun Content() {
+            error("Not used")
+        }
+    }.rememberScreenModel(tag = "anime-feed-playback:$profileKey:$activeFeedId:$presetBehaviorKey") {
+        AnimeVideoFeedPlaybackScreenModel()
+    }
+}
+
 private fun SourceFeedPreset.behaviorKey(): String {
     return buildString {
         append(sourceId)
@@ -735,11 +1043,13 @@ private fun AnimeFeedNavigationBar(
     feeds: List<SourceFeed>,
     selectedFeedId: String,
     selectedDisplayMode: LibraryDisplayMode,
+    selectedViewMode: AnimeFeedViewMode,
     chipListState: LazyListState,
     screenModel: FeedsScreenModel,
     canGoPrevious: Boolean,
     canGoNext: Boolean,
     onDisplayModeChange: (LibraryDisplayMode) -> Unit,
+    onViewModeChange: (AnimeFeedViewMode) -> Unit,
     onPreviousClick: () -> Unit,
     onNextClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -804,11 +1114,75 @@ private fun AnimeFeedNavigationBar(
                     contentDescription = stringResource(MR.strings.transition_next),
                 )
             }
-            AnimeFeedDisplayModeButton(
-                displayMode = selectedDisplayMode,
-                onDisplayModeChange = onDisplayModeChange,
+            AnimeFeedMoreButton(
+                viewMode = selectedViewMode,
+                onViewModeChange = onViewModeChange,
+            )
+            if (selectedViewMode == AnimeFeedViewMode.Regular) {
+                AnimeFeedDisplayModeButton(
+                    displayMode = selectedDisplayMode,
+                    onDisplayModeChange = onDisplayModeChange,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AnimeFeedMoreButton(
+    viewMode: AnimeFeedViewMode,
+    onViewModeChange: (AnimeFeedViewMode) -> Unit,
+) {
+    var selectingViewMode by remember { mutableStateOf(false) }
+
+    Box {
+        IconButton(onClick = { selectingViewMode = true }) {
+            Icon(
+                imageVector = Icons.Outlined.MoreVert,
+                contentDescription = stringResource(MR.strings.action_menu_overflow_description),
             )
         }
+        DropdownMenu(
+            expanded = selectingViewMode,
+            onDismissRequest = { selectingViewMode = false },
+        ) {
+            AnimeFeedViewModeMenuItem(
+                viewMode = AnimeFeedViewMode.Regular,
+                selectedViewMode = viewMode,
+                onViewModeChange = {
+                    selectingViewMode = false
+                    onViewModeChange(it)
+                },
+            )
+            AnimeFeedViewModeMenuItem(
+                viewMode = AnimeFeedViewMode.Playback,
+                selectedViewMode = viewMode,
+                onViewModeChange = {
+                    selectingViewMode = false
+                    onViewModeChange(it)
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun AnimeFeedViewModeMenuItem(
+    viewMode: AnimeFeedViewMode,
+    selectedViewMode: AnimeFeedViewMode,
+    onViewModeChange: (AnimeFeedViewMode) -> Unit,
+) {
+    RadioMenuItem(
+        text = { Text(text = viewMode.label()) },
+        isChecked = selectedViewMode == viewMode,
+    ) { onViewModeChange(viewMode) }
+}
+
+@Composable
+private fun AnimeFeedViewMode.label(): String {
+    return when (this) {
+        AnimeFeedViewMode.Regular -> stringResource(MR.strings.browse_feed_regular_mode)
+        AnimeFeedViewMode.Playback -> stringResource(MR.strings.browse_feed_playback_mode)
     }
 }
 
@@ -898,6 +1272,8 @@ private fun AnimeFeedChip(
         },
     )
 }
+
+private val IMMERSIVE_FEED_SWIPE_THRESHOLD = 72.dp
 
 @Composable
 private fun AnimeFeedSourcePickerDialog(
