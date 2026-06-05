@@ -870,6 +870,8 @@
     <string name="browse_video_feeds">Video feeds</string>
     <string name="browse_video_feeds_empty">No video feeds configured yet</string>
     <string name="browse_manage_video_feeds">Manage video feeds</string>
+    <string name="browse_video_feed_enter_immersive">Enter immersive mode</string>
+    <string name="browse_video_feed_exit_immersive">Exit immersive mode</string>
     <string name="browse_video_feed_no_episode">No playable episode found</string>
     <string name="browse_video_feed_video_not_found">Video not found</string>
     <string name="browse_video_feed_episode_not_found">Episode not found</string>

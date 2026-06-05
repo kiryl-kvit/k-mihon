@@ -1,16 +1,22 @@
 package eu.kanade.tachiyomi.ui.browse.feed
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyListState
@@ -18,6 +24,8 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.DragHandle
@@ -26,6 +34,7 @@ import androidx.compose.material.icons.outlined.NewReleases
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -33,19 +42,24 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.model.rememberScreenModel
@@ -67,6 +81,7 @@ import eu.kanade.presentation.components.TabContent
 import eu.kanade.presentation.util.animateItemFastScroll
 import eu.kanade.tachiyomi.ui.anime.pushSourceAnimeScreen
 import eu.kanade.tachiyomi.ui.browse.source.SourceCatalogKind
+import eu.kanade.tachiyomi.ui.home.HomeScreen
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
@@ -99,9 +114,11 @@ fun Screen.animeVideoFeedsTab(): TabContent {
     val singleEnabledFeed = state.enabledFeeds.singleOrNull()
     val singleEnabledFeedSource = singleEnabledFeed?.let { screenModel.sourceFor(it.sourceId) }
     val singleEnabledFeedPreset = singleEnabledFeed?.let(screenModel::presetFor)
+    var uiMode by remember { mutableStateOf(AnimeVideoFeedUiMode.Default) }
 
     return TabContent(
         titleRes = MR.strings.browse_video_feeds,
+        chromeVisible = { uiMode == AnimeVideoFeedUiMode.Default },
         tabLabel = if (singleEnabledFeedSource != null && singleEnabledFeedPreset != null) {
             {
                 AnimeVideoSingleFeedTabLabel(
@@ -131,6 +148,8 @@ fun Screen.animeVideoFeedsTab(): TabContent {
                 navigator = navigator,
                 contentPadding = contentPadding,
                 snackbarHostState = snackbarHostState,
+                uiMode = uiMode,
+                onUiModeChange = { uiMode = it },
             )
         },
     )
@@ -169,6 +188,8 @@ private fun AnimeVideoFeedsTabContent(
     navigator: Navigator,
     contentPadding: PaddingValues,
     snackbarHostState: SnackbarHostState,
+    uiMode: AnimeVideoFeedUiMode,
+    onUiModeChange: (AnimeVideoFeedUiMode) -> Unit,
 ) {
     if (!state.sourcesLoaded) {
         LoadingScreen()
@@ -186,6 +207,16 @@ private fun AnimeVideoFeedsTabContent(
         }
     }
 
+    LaunchedEffect(uiMode) {
+        HomeScreen.showBottomNav(uiMode == AnimeVideoFeedUiMode.Default)
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            scope.launch { HomeScreen.showBottomNav(true) }
+        }
+    }
+
     if (state.enabledFeeds.isEmpty()) {
         EmptyScreen(
             message = stringResource(MR.strings.browse_video_feeds_empty),
@@ -193,6 +224,9 @@ private fun AnimeVideoFeedsTabContent(
         )
     } else if (activeFeed != null && activeSource != null && activePreset != null) {
         val enabledFeeds = state.enabledFeeds
+        val activeIndex = enabledFeeds.indexOfFirst { it.id == activeFeed.id }
+        val hasPreviousFeed = activeIndex > 0
+        val hasNextFeed = activeIndex in 0 until enabledFeeds.lastIndex
         val contentStateHolder = rememberSaveableStateHolder()
         val chipListState = rememberLazyListState()
         val presetBehaviorKey = activePreset.behaviorKey()
@@ -217,39 +251,86 @@ private fun AnimeVideoFeedsTabContent(
                 screenModel.closeDialog()
             }
 
-            Box(modifier = Modifier.fillMaxSize()) {
-                PullRefresh(
-                    refreshing = timelineState.isRefreshing,
-                    enabled = true,
-                    onRefresh = { timelineModel.refresh(manual = true) },
-                    modifier = Modifier.fillMaxSize(),
+            Column(modifier = Modifier.fillMaxSize()) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .immersiveFeedSwipe(
+                            enabled = uiMode == AnimeVideoFeedUiMode.Immersive,
+                            canGoPrevious = hasPreviousFeed,
+                            canGoNext = hasNextFeed,
+                            onPrevious = {
+                                enabledFeeds.getOrNull(activeIndex - 1)?.let { screenModel.selectFeed(it.id) }
+                            },
+                            onNext = {
+                                enabledFeeds.getOrNull(activeIndex + 1)?.let { screenModel.selectFeed(it.id) }
+                            },
+                        ),
                 ) {
-                    AnimeVideoFeedContentState(
-                        stateHolder = contentStateHolder,
-                        activeProfileId = activeProfileId,
-                        activeFeedId = activeFeed.id,
-                        presetBehaviorKey = presetBehaviorKey,
+                    PullRefresh(
+                        refreshing = timelineState.isRefreshing,
+                        enabled = true,
+                        onRefresh = { timelineModel.refresh(manual = true) },
+                        modifier = Modifier.fillMaxSize(),
                     ) {
-                        AnimeVideoFeedBrowseContent(
-                            timelineModel = timelineModel,
-                            playbackModel = playbackModel,
-                            snackbarHostState = snackbarHostState,
-                            contentPadding = contentPadding,
-                            onAnimeClick = { openSourceAnime(it.id) },
-                            modifier = Modifier.fillMaxSize(),
+                        AnimeVideoFeedContentState(
+                            stateHolder = contentStateHolder,
+                            activeProfileId = activeProfileId,
+                            activeFeedId = activeFeed.id,
+                            presetBehaviorKey = presetBehaviorKey,
+                        ) {
+                            AnimeVideoFeedBrowseContent(
+                                timelineModel = timelineModel,
+                                playbackModel = playbackModel,
+                                snackbarHostState = snackbarHostState,
+                                contentPadding = if (uiMode == AnimeVideoFeedUiMode.Immersive) {
+                                    contentPadding
+                                } else {
+                                    PaddingValues()
+                                },
+                                uiMode = uiMode,
+                                onUiModeToggle = {
+                                    onUiModeChange(
+                                        when (uiMode) {
+                                            AnimeVideoFeedUiMode.Default -> AnimeVideoFeedUiMode.Immersive
+                                            AnimeVideoFeedUiMode.Immersive -> AnimeVideoFeedUiMode.Default
+                                        },
+                                    )
+                                },
+                                onAnimeClick = { openSourceAnime(it.id) },
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                    }
+
+                    if (uiMode == AnimeVideoFeedUiMode.Immersive) {
+                        AnimeVideoFeedImmersiveSelector(
+                            feeds = enabledFeeds,
+                            selectedFeedId = activeFeed.id,
+                            screenModel = screenModel,
+                            modifier = Modifier.align(Alignment.TopCenter),
                         )
                     }
                 }
 
-                AnimeVideoFeedSelectorBar(
-                    feeds = enabledFeeds,
-                    selectedFeedId = activeFeed.id,
-                    chipListState = chipListState,
-                    screenModel = screenModel,
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .fillMaxWidth(),
-                )
+                if (uiMode == AnimeVideoFeedUiMode.Default) {
+                    AnimeVideoFeedNavigationBar(
+                        feeds = enabledFeeds,
+                        selectedFeedId = activeFeed.id,
+                        chipListState = chipListState,
+                        screenModel = screenModel,
+                        canGoPrevious = hasPreviousFeed,
+                        canGoNext = hasNextFeed,
+                        onPreviousClick = {
+                            enabledFeeds.getOrNull(activeIndex - 1)?.let { screenModel.selectFeed(it.id) }
+                        },
+                        onNextClick = {
+                            enabledFeeds.getOrNull(activeIndex + 1)?.let { screenModel.selectFeed(it.id) }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
         }
     }
@@ -285,6 +366,118 @@ private fun AnimeVideoFeedsTabContent(
 }
 
 @Composable
+private fun Modifier.immersiveFeedSwipe(
+    enabled: Boolean,
+    canGoPrevious: Boolean,
+    canGoNext: Boolean,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+): Modifier {
+    if (!enabled) return this
+
+    val thresholdPx = with(LocalDensity.current) { IMMERSIVE_FEED_SWIPE_THRESHOLD.toPx() }
+    return pointerInput(canGoPrevious, canGoNext, onPrevious, onNext, thresholdPx) {
+        var dragDistance = 0f
+        detectHorizontalDragGestures(
+            onDragStart = { dragDistance = 0f },
+            onHorizontalDrag = { change, dragAmount ->
+                dragDistance += dragAmount
+                change.consume()
+            },
+            onDragEnd = {
+                when {
+                    dragDistance > thresholdPx && canGoPrevious -> onPrevious()
+                    dragDistance < -thresholdPx && canGoNext -> onNext()
+                }
+            },
+            onDragCancel = { dragDistance = 0f },
+        )
+    }
+}
+
+@Composable
+private fun BoxScope.AnimeVideoFeedImmersiveSelector(
+    feeds: List<SourceFeed>,
+    selectedFeedId: String,
+    screenModel: FeedsScreenModel,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(
+                Brush.verticalGradient(
+                    0f to Color.Black.copy(alpha = 0.46f),
+                    1f to Color.Transparent,
+                ),
+            )
+            .padding(
+                top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 12.dp,
+                bottom = 28.dp,
+            ),
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        LazyRow(
+            modifier = Modifier.wrapContentWidth(),
+            horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            items(feeds.size, key = { feeds[it].id }) { index ->
+                val feed = feeds[index]
+                val source = screenModel.sourceFor(feed.sourceId) ?: return@items
+                val preset = screenModel.presetFor(feed) ?: return@items
+                AnimeVideoFeedImmersiveTab(
+                    source = source,
+                    label = preset.name,
+                    selected = selectedFeedId == feed.id,
+                    onClick = { screenModel.selectFeed(feed.id) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AnimeVideoFeedImmersiveTab(
+    source: Source,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .padding(horizontal = 2.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SourceIcon(
+                source = source,
+                modifier = Modifier
+                    .size(18.dp)
+                    .clip(MaterialTheme.shapes.extraSmall),
+            )
+            Text(
+                text = label,
+                color = Color.White.copy(alpha = if (selected) 1f else 0.62f),
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Box(
+            modifier = Modifier
+                .size(width = if (selected) 22.dp else 0.dp, height = 3.dp)
+                .background(Color.White, MaterialTheme.shapes.extraSmall),
+        )
+    }
+}
+
+@Composable
 private fun AnimeVideoFeedContentState(
     stateHolder: androidx.compose.runtime.saveable.SaveableStateHolder,
     activeProfileId: Long?,
@@ -300,11 +493,15 @@ private fun AnimeVideoFeedContentState(
 }
 
 @Composable
-private fun AnimeVideoFeedSelectorBar(
+private fun AnimeVideoFeedNavigationBar(
     feeds: List<SourceFeed>,
     selectedFeedId: String,
     chipListState: LazyListState,
     screenModel: FeedsScreenModel,
+    canGoPrevious: Boolean,
+    canGoNext: Boolean,
+    onPreviousClick: () -> Unit,
+    onNextClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LaunchedEffect(selectedFeedId, feeds) {
@@ -322,29 +519,49 @@ private fun AnimeVideoFeedSelectorBar(
         }
     }
 
-    Box(
+    Column(
         modifier = modifier
-            .background(
-                Brush.verticalGradient(
-                    0f to Color.Black.copy(alpha = 0.72f),
-                    1f to Color.Transparent,
-                ),
-            )
-            .padding(horizontal = MaterialTheme.padding.small, vertical = MaterialTheme.padding.small),
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(bottom = MaterialTheme.padding.small),
     ) {
-        LazyRow(
-            state = chipListState,
-            horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+        HorizontalDivider()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    start = MaterialTheme.padding.small,
+                    end = MaterialTheme.padding.small,
+                    top = MaterialTheme.padding.small,
+                ),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            items(feeds.size, key = { feeds[it].id }) { index ->
-                val feed = feeds[index]
-                val source = screenModel.sourceFor(feed.sourceId) ?: return@items
-                val preset = screenModel.presetFor(feed) ?: return@items
-                AnimeVideoFeedChip(
-                    source = source,
-                    preset = preset,
-                    selected = selectedFeedId == feed.id,
-                    onClick = { screenModel.selectFeed(feed.id) },
+            IconButton(onClick = onPreviousClick, enabled = canGoPrevious) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                    contentDescription = stringResource(MR.strings.transition_previous),
+                )
+            }
+            LazyRow(
+                modifier = Modifier.weight(1f),
+                state = chipListState,
+                horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+            ) {
+                items(feeds.size, key = { feeds[it].id }) { index ->
+                    val feed = feeds[index]
+                    val source = screenModel.sourceFor(feed.sourceId) ?: return@items
+                    val preset = screenModel.presetFor(feed) ?: return@items
+                    AnimeVideoFeedChip(
+                        source = source,
+                        preset = preset,
+                        selected = selectedFeedId == feed.id,
+                        onClick = { screenModel.selectFeed(feed.id) },
+                    )
+                }
+            }
+            IconButton(onClick = onNextClick, enabled = canGoNext) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
+                    contentDescription = stringResource(MR.strings.transition_next),
                 )
             }
         }
@@ -622,3 +839,5 @@ private fun SourceFeedPreset.behaviorKey(): String {
         append(filters.hashCode())
     }
 }
+
+private val IMMERSIVE_FEED_SWIPE_THRESHOLD = 72.dp

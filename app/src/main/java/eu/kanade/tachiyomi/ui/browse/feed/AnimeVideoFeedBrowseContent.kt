@@ -23,6 +23,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.outlined.Fullscreen
+import androidx.compose.material.icons.outlined.FullscreenExit
 import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.Button
@@ -91,11 +93,13 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 @Composable
-fun AnimeVideoFeedBrowseContent(
+internal fun AnimeVideoFeedBrowseContent(
     timelineModel: AnimeChronologicalFeedScreenModel,
     playbackModel: AnimeVideoFeedPlaybackScreenModel,
     snackbarHostState: SnackbarHostState,
     contentPadding: PaddingValues,
+    uiMode: AnimeVideoFeedUiMode,
+    onUiModeToggle: () -> Unit,
     onAnimeClick: (AnimeTitle) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -196,6 +200,8 @@ fun AnimeVideoFeedBrowseContent(
                 itemState = itemState,
                 isActive = isActive,
                 playbackModel = playbackModel,
+                uiMode = uiMode,
+                onUiModeToggle = onUiModeToggle,
                 onAnimeClick = onAnimeClick,
                 showBackToTop = pagerState.currentPage > 0,
                 onBackToTop = { scope.launch { pagerState.animateScrollToPage(0) } },
@@ -211,6 +217,8 @@ private fun AnimeVideoFeedPage(
     itemState: AnimeVideoFeedPlaybackScreenModel.ItemState?,
     isActive: Boolean,
     playbackModel: AnimeVideoFeedPlaybackScreenModel,
+    uiMode: AnimeVideoFeedUiMode,
+    onUiModeToggle: () -> Unit,
     onAnimeClick: (AnimeTitle) -> Unit,
     showBackToTop: Boolean,
     onBackToTop: () -> Unit,
@@ -259,6 +267,8 @@ private fun AnimeVideoFeedPage(
             AnimeVideoFeedOverlay(
                 anime = anime,
                 onAnimeClick = { onAnimeClick(anime) },
+                uiMode = uiMode,
+                onUiModeToggle = onUiModeToggle,
                 showBackToTop = showBackToTop,
                 onBackToTop = onBackToTop,
                 modifier = Modifier.align(Alignment.BottomStart),
@@ -286,6 +296,8 @@ private fun AnimeVideoFeedPoster(anime: AnimeTitle) {
 private fun AnimeVideoFeedOverlay(
     anime: AnimeTitle,
     onAnimeClick: () -> Unit,
+    uiMode: AnimeVideoFeedUiMode,
+    onUiModeToggle: () -> Unit,
     showBackToTop: Boolean,
     onBackToTop: () -> Unit,
     modifier: Modifier = Modifier,
@@ -327,6 +339,24 @@ private fun AnimeVideoFeedOverlay(
         ) {
             if (showBackToTop) {
                 VideoFeedBackToTopButton(onClick = onBackToTop)
+            }
+            IconButton(
+                onClick = onUiModeToggle,
+                modifier = Modifier
+                    .background(Color.Black.copy(alpha = 0.36f), CircleShape)
+                    .size(40.dp),
+            ) {
+                Icon(
+                    imageVector = when (uiMode) {
+                        AnimeVideoFeedUiMode.Default -> Icons.Outlined.Fullscreen
+                        AnimeVideoFeedUiMode.Immersive -> Icons.Outlined.FullscreenExit
+                    },
+                    contentDescription = when (uiMode) {
+                        AnimeVideoFeedUiMode.Default -> stringResource(MR.strings.browse_video_feed_enter_immersive)
+                        AnimeVideoFeedUiMode.Immersive -> stringResource(MR.strings.browse_video_feed_exit_immersive)
+                    },
+                    tint = Color.White,
+                )
             }
             IconButton(
                 onClick = onAnimeClick,
@@ -751,6 +781,11 @@ private fun ResolveVideoStream.Reason.videoFeedMessage(): String {
         ResolveVideoStream.Reason.OfflineNoDownload -> stringResource(MR.strings.browse_video_feed_offline_no_download)
         is ResolveVideoStream.Reason.StreamFetchFailed -> cause.message ?: stringResource(MR.strings.unknown_error)
     }
+}
+
+internal enum class AnimeVideoFeedUiMode {
+    Default,
+    Immersive,
 }
 
 private const val LOAD_MORE_PAGE_THRESHOLD = 3
