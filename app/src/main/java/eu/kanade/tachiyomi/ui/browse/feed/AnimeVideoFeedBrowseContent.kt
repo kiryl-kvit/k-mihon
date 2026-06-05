@@ -1,22 +1,24 @@
 package eu.kanade.tachiyomi.ui.browse.feed
 
+import android.view.ViewGroup
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -60,7 +62,6 @@ import eu.kanade.tachiyomi.ui.video.player.ResolveVideoStream
 import eu.kanade.tachiyomi.ui.video.player.VideoPlayerMediaCache
 import eu.kanade.tachiyomi.ui.video.player.buildVideoPlayer
 import eu.kanade.tachiyomi.ui.video.player.capturePlaybackSnapshot
-import eu.kanade.tachiyomi.ui.video.player.formatPlaybackTimestamp
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -233,7 +234,6 @@ private fun AnimeVideoFeedPage(
         if (anime != null) {
             AnimeVideoFeedOverlay(
                 anime = anime,
-                itemState = itemState,
                 onAnimeClick = { onAnimeClick(anime) },
                 modifier = Modifier.align(Alignment.BottomStart),
             )
@@ -259,7 +259,6 @@ private fun AnimeVideoFeedPoster(anime: AnimeTitle) {
 @Composable
 private fun AnimeVideoFeedOverlay(
     anime: AnimeTitle,
-    itemState: AnimeVideoFeedPlaybackScreenModel.ItemState?,
     onAnimeClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -278,47 +277,23 @@ private fun AnimeVideoFeedOverlay(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(end = 56.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.Bottom,
         ) {
-            Spacer(modifier = Modifier.height(80.dp))
             Text(
                 text = anime.displayTitle,
                 color = Color.White,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold,
-                maxLines = 2,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            val subtitle = when (itemState) {
-                is AnimeVideoFeedPlaybackScreenModel.ItemState.Ready -> itemState.episode.name
-                else -> anime.duration
-            }
-            if (!subtitle.isNullOrBlank()) {
-                Text(
-                    text = subtitle,
-                    color = Color.White.copy(alpha = 0.86f),
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            val description = anime.description
-            if (!description.isNullOrBlank()) {
-                Text(
-                    text = description,
-                    color = Color.White.copy(alpha = 0.74f),
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
         }
         IconButton(
             onClick = onAnimeClick,
             modifier = Modifier.align(Alignment.BottomEnd),
         ) {
             Icon(
-                imageVector = Icons.Outlined.Info,
+                imageVector = Icons.AutoMirrored.Outlined.OpenInNew,
                 contentDescription = stringResource(MR.strings.action_open),
                 tint = Color.White,
             )
@@ -367,6 +342,7 @@ private fun AnimeVideoFeedInlinePlayer(
     var playerErrorMessage by remember(itemState.episode.id, itemState.result.stream.request.url) {
         mutableStateOf<String?>(null)
     }
+    val surfaceInteractionSource = remember { MutableInteractionSource() }
 
     val player = remember(itemState.episode.id, itemState.result.stream.request.url) {
         buildVideoPlayer(
@@ -376,6 +352,7 @@ private fun AnimeVideoFeedInlinePlayer(
             stream = itemState.result.stream,
             subtitles = itemState.result.subtitles,
         ).also { exoPlayer ->
+            exoPlayer.repeatMode = Player.REPEAT_MODE_ONE
             exoPlayer.addListener(
                 object : Player.Listener {
                     override fun onPlayerError(error: PlaybackException) {
@@ -385,6 +362,7 @@ private fun AnimeVideoFeedInlinePlayer(
             )
         }
     }
+    var playbackSnapshot by remember(player) { mutableStateOf(player.capturePlaybackSnapshot()) }
 
     LaunchedEffect(player, itemState.resumePositionMs) {
         if (itemState.resumePositionMs > 0L) {
@@ -392,6 +370,13 @@ private fun AnimeVideoFeedInlinePlayer(
         }
         player.playWhenReady = true
         player.prepare()
+    }
+
+    LaunchedEffect(player) {
+        while (isActive) {
+            playbackSnapshot = player.capturePlaybackSnapshot()
+            delay(PLAYBACK_SNAPSHOT_INTERVAL_MS)
+        }
     }
 
     LaunchedEffect(player, itemState.episode.id) {
@@ -426,38 +411,54 @@ private fun AnimeVideoFeedInlinePlayer(
                     useController = false
                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                     this.player = player
+                    setKeepContentOnPlayerReset(true)
+                    setEnableComposeSurfaceSyncWorkaround(true)
+                    setShutterBackgroundColor(android.graphics.Color.BLACK)
+                    setBackgroundColor(android.graphics.Color.BLACK)
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                    )
                 }
             },
-            update = { playerView -> playerView.player = player },
+            update = { playerView ->
+                playerView.player = player
+                playerView.setKeepContentOnPlayerReset(true)
+                playerView.useController = false
+            },
             modifier = Modifier.fillMaxSize(),
         )
 
-        val snapshot = player.capturePlaybackSnapshot()
-        if (snapshot.durationMs > 0L) {
-            Row(
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(
+                    interactionSource = surfaceInteractionSource,
+                    indication = null,
+                ) {
+                    if (playbackSnapshot.playbackEnded) {
+                        player.seekTo(0L)
+                    }
+                    if (player.isPlaying) {
+                        player.pause()
+                    } else {
+                        player.play()
+                    }
+                    playbackSnapshot = player.capturePlaybackSnapshot()
+                },
+        )
+
+        if (!playbackSnapshot.isPlaying && !playbackSnapshot.isLoading && player.playbackState == Player.STATE_READY) {
+            Icon(
+                imageVector = Icons.Filled.PlayArrow,
+                contentDescription = stringResource(MR.strings.action_play),
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(16.dp)
-                    .background(Color.Black.copy(alpha = 0.52f), MaterialTheme.shapes.extraLarge)
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text(
-                    text = formatPlaybackTimestamp(snapshot.positionMs),
-                    color = Color.White,
-                    style = MaterialTheme.typography.labelMedium,
-                )
-                Text(
-                    text = "/",
-                    color = Color.White.copy(alpha = 0.68f),
-                    style = MaterialTheme.typography.labelMedium,
-                )
-                Text(
-                    text = formatPlaybackTimestamp(snapshot.durationMs),
-                    color = Color.White.copy(alpha = 0.68f),
-                    style = MaterialTheme.typography.labelMedium,
-                )
-            }
+                    .align(Alignment.Center)
+                    .size(72.dp)
+                    .background(Color.Black.copy(alpha = 0.36f), CircleShape)
+                    .padding(18.dp),
+                tint = Color.White,
+            )
         }
 
         playerErrorMessage?.let { message ->
@@ -516,4 +517,5 @@ private fun ResolveVideoStream.Reason.videoFeedMessage(): String {
 }
 
 private const val LOAD_MORE_PAGE_THRESHOLD = 3
+private const val PLAYBACK_SNAPSHOT_INTERVAL_MS = 250L
 private const val PROGRESS_SAVE_INTERVAL_MS = 10_000L
