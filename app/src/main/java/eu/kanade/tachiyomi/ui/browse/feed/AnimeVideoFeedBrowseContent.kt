@@ -42,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -166,7 +167,10 @@ fun AnimeVideoFeedBrowseContent(
         val itemState = anime?.let { playbackState.items[it.id] }
         val isActive = page == pagerState.currentPage
 
-        if (anime != null && isActive) {
+        val shouldLoad =
+            page in (pagerState.currentPage - PRELOAD_PAGE_RADIUS)..(pagerState.currentPage + PRELOAD_PAGE_RADIUS)
+
+        if (anime != null && shouldLoad) {
             LaunchedEffect(anime.id) {
                 playbackModel.load(anime)
             }
@@ -342,6 +346,9 @@ private fun AnimeVideoFeedInlinePlayer(
     var playerErrorMessage by remember(itemState.episode.id, itemState.result.stream.request.url) {
         mutableStateOf<String?>(null)
     }
+    var hasRenderedFirstFrame by remember(itemState.episode.id, itemState.result.stream.request.url) {
+        mutableStateOf(false)
+    }
     val surfaceInteractionSource = remember { MutableInteractionSource() }
 
     val player = remember(itemState.episode.id, itemState.result.stream.request.url) {
@@ -355,6 +362,10 @@ private fun AnimeVideoFeedInlinePlayer(
             exoPlayer.repeatMode = Player.REPEAT_MODE_ONE
             exoPlayer.addListener(
                 object : Player.Listener {
+                    override fun onRenderedFirstFrame() {
+                        hasRenderedFirstFrame = true
+                    }
+
                     override fun onPlayerError(error: PlaybackException) {
                         playerErrorMessage = error.message ?: unknownError
                     }
@@ -409,7 +420,7 @@ private fun AnimeVideoFeedInlinePlayer(
             factory = { androidContext ->
                 PlayerView(androidContext).apply {
                     useController = false
-                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                     this.player = player
                     setKeepContentOnPlayerReset(true)
                     setEnableComposeSurfaceSyncWorkaround(true)
@@ -425,8 +436,11 @@ private fun AnimeVideoFeedInlinePlayer(
                 playerView.player = player
                 playerView.setKeepContentOnPlayerReset(true)
                 playerView.useController = false
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             },
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .alpha(if (hasRenderedFirstFrame) 1f else 0f),
         )
 
         Box(
@@ -517,5 +531,6 @@ private fun ResolveVideoStream.Reason.videoFeedMessage(): String {
 }
 
 private const val LOAD_MORE_PAGE_THRESHOLD = 3
+private const val PRELOAD_PAGE_RADIUS = 1
 private const val PLAYBACK_SNAPSHOT_INTERVAL_MS = 250L
 private const val PROGRESS_SAVE_INTERVAL_MS = 10_000L
