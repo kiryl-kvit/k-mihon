@@ -4,6 +4,7 @@ import eu.kanade.domain.source.model.BUILTIN_LATEST_PRESET_ID
 import eu.kanade.domain.source.model.BUILTIN_POPULAR_PRESET_ID
 import eu.kanade.domain.source.model.FeedListingMode
 import eu.kanade.domain.source.model.SourceFeed
+import eu.kanade.domain.source.model.SourceFeedContentMode
 import eu.kanade.domain.source.model.SourceFeedKind
 import eu.kanade.domain.source.model.SourceFeedPreset
 import eu.kanade.domain.source.service.BrowseFeedService
@@ -251,6 +252,63 @@ class FeedsScreenModelTest {
 
         states.last().feeds.map(SourceFeed::id) shouldBe listOf("anime-feed")
         states.last().presets.map(SourceFeedPreset::id) shouldBe listOf("anime-preset")
+
+        job.cancel()
+    }
+
+    @Test
+    fun `video feed state ignores regular feeds and uses video selection`() = runTest {
+        val activeProfileIdFlow = MutableStateFlow(1L)
+        val sourcesLoaded = MutableStateFlow(true)
+        val sourcesByProfile = mapOf(
+            1L to MutableSharedFlow<List<Source>>(replay = 1),
+        )
+        val browseStateByProfile = mapOf(
+            1L to MutableSharedFlow<BrowseFeedService.State>(replay = 1),
+        )
+        val states = mutableListOf<FeedsScreenModel.State>()
+
+        val job = launch {
+            observeProfileAwareFeedState(
+                activeProfileIdFlow = activeProfileIdFlow,
+                enabledSources = { sourcesByProfile.getValue(it) },
+                browseState = { browseStateByProfile.getValue(it) },
+                sourcesLoaded = sourcesLoaded,
+                kind = SourceFeedKind.ANIME,
+                contentMode = SourceFeedContentMode.Video,
+            ).toList(states)
+        }
+
+        sourcesByProfile.getValue(1L).emit(
+            listOf(Source(id = 1L, lang = "en", name = "Anime Source", supportsLatest = true, isStub = false)),
+        )
+        browseStateByProfile.getValue(1L).emit(
+            BrowseFeedService.State(
+                presets = emptyList(),
+                feeds = listOf(
+                    SourceFeed(
+                        id = "regular-feed",
+                        kind = SourceFeedKind.ANIME,
+                        contentMode = SourceFeedContentMode.Browse,
+                        sourceId = 1L,
+                        presetId = BUILTIN_POPULAR_PRESET_ID,
+                    ),
+                    SourceFeed(
+                        id = "video-feed",
+                        kind = SourceFeedKind.ANIME,
+                        contentMode = SourceFeedContentMode.Video,
+                        sourceId = 1L,
+                        presetId = BUILTIN_POPULAR_PRESET_ID,
+                    ),
+                ),
+                selectedFeedId = "regular-feed",
+                selectedVideoFeedId = "video-feed",
+            ),
+        )
+        advanceUntilIdle()
+
+        states.last().feeds.map(SourceFeed::id) shouldBe listOf("video-feed")
+        states.last().selectedFeedId shouldBe "video-feed"
 
         job.cancel()
     }

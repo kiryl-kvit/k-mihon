@@ -30,6 +30,7 @@ import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.ui.anime.browse.extension.AnimeExtensionsScreenModel
 import eu.kanade.tachiyomi.ui.anime.browse.extension.animeExtensionsTab
 import eu.kanade.tachiyomi.ui.browse.feed.animeFeedsTab
+import eu.kanade.tachiyomi.ui.browse.feed.animeVideoFeedsTab
 import eu.kanade.tachiyomi.ui.browse.source.SourceCatalogKind
 import eu.kanade.tachiyomi.ui.browse.source.sourcesTab
 import eu.kanade.tachiyomi.ui.main.MainActivity
@@ -105,6 +106,7 @@ data object AnimeBrowseTab : Tab {
         val tabs = if (feedsEnabled) {
             persistentListOf(
                 animeFeedsTab(),
+                animeVideoFeedsTab(),
                 sourcesTab(SourceCatalogKind.ANIME),
                 animeExtensionsTab(extensionsScreenModel),
             )

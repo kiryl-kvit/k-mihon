@@ -20,6 +20,15 @@ enum class SourceFeedKind {
 }
 
 @Serializable
+enum class SourceFeedContentMode {
+    @SerialName("browse")
+    Browse,
+
+    @SerialName("video")
+    Video,
+}
+
+@Serializable
 data class SourceFeedPreset(
     val id: String,
     val kind: SourceFeedKind = SourceFeedKind.MANGA,
@@ -35,6 +44,7 @@ data class SourceFeedPreset(
 data class SourceFeed(
     val id: String,
     val kind: SourceFeedKind = SourceFeedKind.MANGA,
+    val contentMode: SourceFeedContentMode = SourceFeedContentMode.Browse,
     val sourceId: Long,
     val presetId: String,
     val enabled: Boolean = true,

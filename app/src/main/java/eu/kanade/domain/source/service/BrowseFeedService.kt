@@ -2,6 +2,7 @@ package eu.kanade.domain.source.service
 
 import eu.kanade.domain.source.model.SourceFeed
 import eu.kanade.domain.source.model.SourceFeedAnchor
+import eu.kanade.domain.source.model.SourceFeedContentMode
 import eu.kanade.domain.source.model.SourceFeedPreset
 import eu.kanade.domain.source.model.SourceFeedTimeline
 import kotlinx.coroutines.flow.Flow
@@ -16,6 +17,7 @@ class BrowseFeedService(
             presets = preferences.savedFeedPresets.get(),
             feeds = preferences.savedFeeds.get(),
             selectedFeedId = preferences.selectedFeedId.get().takeIf { it.isNotBlank() },
+            selectedVideoFeedId = preferences.selectedVideoFeedId.get().takeIf { it.isNotBlank() },
         )
     }
 
@@ -32,11 +34,13 @@ class BrowseFeedService(
             presets(),
             feeds(),
             preferences.selectedFeedId.changes(),
-        ) { presets, feeds, selectedFeedId ->
+            preferences.selectedVideoFeedId.changes(),
+        ) { presets, feeds, selectedFeedId, selectedVideoFeedId ->
             State(
                 presets = presets,
                 feeds = feeds,
                 selectedFeedId = selectedFeedId.takeIf { it.isNotBlank() },
+                selectedVideoFeedId = selectedVideoFeedId.takeIf { it.isNotBlank() },
             )
         }
     }
@@ -73,7 +77,19 @@ class BrowseFeedService(
 
         val selectedFeedId = preferences.selectedFeedId.get()
         if (selectedFeedId.isNotBlank() && remainingFeeds.none { it.id == selectedFeedId }) {
-            preferences.selectedFeedId.set(remainingFeeds.firstOrNull { it.enabled }?.id.orEmpty())
+            preferences.selectedFeedId.set(
+                remainingFeeds.firstOrNull {
+                    it.enabled && it.contentMode == SourceFeedContentMode.Browse
+                }?.id.orEmpty(),
+            )
+        }
+        val selectedVideoFeedId = preferences.selectedVideoFeedId.get()
+        if (selectedVideoFeedId.isNotBlank() && remainingFeeds.none { it.id == selectedVideoFeedId }) {
+            preferences.selectedVideoFeedId.set(
+                remainingFeeds.firstOrNull {
+                    it.enabled && it.contentMode == SourceFeedContentMode.Video
+                }?.id.orEmpty(),
+            )
         }
     }
 
@@ -84,7 +100,7 @@ class BrowseFeedService(
                 .plus(feed),
         )
         if (feed.enabled) {
-            preferences.selectedFeedId.set(feed.id)
+            selectedFeedPreference(feed.contentMode).set(feed.id)
         }
     }
 
@@ -93,9 +109,9 @@ class BrowseFeedService(
             preferences.savedFeeds.get().map { if (it.id == feed.id) feed else it },
         )
         if (feed.enabled) {
-            preferences.selectedFeedId.set(feed.id)
-        } else if (preferences.selectedFeedId.get() == feed.id) {
-            preferences.selectedFeedId.set("")
+            selectedFeedPreference(feed.contentMode).set(feed.id)
+        } else if (selectedFeedPreference(feed.contentMode).get() == feed.id) {
+            selectedFeedPreference(feed.contentMode).set("")
         }
     }
 
@@ -106,6 +122,9 @@ class BrowseFeedService(
         clearTimeline(feedId)
         if (preferences.selectedFeedId.get() == feedId) {
             preferences.selectedFeedId.set("")
+        }
+        if (preferences.selectedVideoFeedId.get() == feedId) {
+            preferences.selectedVideoFeedId.set("")
         }
     }
 
@@ -122,6 +141,10 @@ class BrowseFeedService(
 
     fun selectFeed(feedId: String) {
         preferences.selectedFeedId.set(feedId)
+    }
+
+    fun selectVideoFeed(feedId: String) {
+        preferences.selectedVideoFeedId.set(feedId)
     }
 
     fun timeline(feedId: String): Flow<SourceFeedTimeline> {
@@ -157,7 +180,13 @@ class BrowseFeedService(
         val presets: List<SourceFeedPreset>,
         val feeds: List<SourceFeed>,
         val selectedFeedId: String?,
+        val selectedVideoFeedId: String? = null,
     )
+
+    private fun selectedFeedPreference(contentMode: SourceFeedContentMode) = when (contentMode) {
+        SourceFeedContentMode.Browse -> preferences.selectedFeedId
+        SourceFeedContentMode.Video -> preferences.selectedVideoFeedId
+    }
 }
 
 private fun SourceFeedPreset.feedBehaviorChanged(other: SourceFeedPreset): Boolean {

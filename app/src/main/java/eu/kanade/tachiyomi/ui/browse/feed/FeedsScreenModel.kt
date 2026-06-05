@@ -8,6 +8,7 @@ import eu.kanade.domain.source.interactor.GetEnabledSources
 import eu.kanade.domain.source.model.BUILTIN_LATEST_PRESET_ID
 import eu.kanade.domain.source.model.BUILTIN_POPULAR_PRESET_ID
 import eu.kanade.domain.source.model.SourceFeed
+import eu.kanade.domain.source.model.SourceFeedContentMode
 import eu.kanade.domain.source.model.SourceFeedKind
 import eu.kanade.domain.source.model.SourceFeedPreset
 import eu.kanade.domain.source.model.latestFeedPreset
@@ -36,6 +37,7 @@ import java.util.UUID
 
 class FeedsScreenModel(
     private val kind: SourceCatalogKind = SourceCatalogKind.MANGA,
+    private val contentMode: SourceFeedContentMode = SourceFeedContentMode.Browse,
     private val browseFeedService: BrowseFeedService = Injekt.get(),
     private val sourcePreferences: SourcePreferences = Injekt.get(),
     private val getEnabledSources: GetEnabledSources = Injekt.get(),
@@ -57,6 +59,7 @@ class FeedsScreenModel(
                 browseState = { browseFeedService.state() },
                 sourcesLoaded = sourceManager.isInitialized,
                 kind = kind.feedKind,
+                contentMode = contentMode,
             ).collectLatest { observedState ->
                 mutableState.update { state ->
                     val nextState = state.copy(
@@ -107,7 +110,7 @@ class FeedsScreenModel(
     }
 
     fun selectFeed(feedId: String) {
-        browseFeedService.selectFeed(feedId)
+        persistSelectedFeed(feedId)
         mutableState.update { it.copy(selectedFeedId = feedId) }
     }
 
@@ -126,6 +129,7 @@ class FeedsScreenModel(
             SourceFeed(
                 id = UUID.randomUUID().toString(),
                 kind = kind.feedKind,
+                contentMode = contentMode,
                 sourceId = sourceId,
                 presetId = presetId,
                 enabled = true,
@@ -206,7 +210,14 @@ class FeedsScreenModel(
         return when {
             enabledFeeds.isEmpty() -> null
             requestedId != null && enabledFeeds.any { it.id == requestedId } -> requestedId
-            else -> enabledFeeds.first().id.also(browseFeedService::selectFeed)
+            else -> enabledFeeds.first().id.also(::persistSelectedFeed)
+        }
+    }
+
+    private fun persistSelectedFeed(feedId: String) {
+        when (contentMode) {
+            SourceFeedContentMode.Browse -> browseFeedService.selectFeed(feedId)
+            SourceFeedContentMode.Video -> browseFeedService.selectVideoFeed(feedId)
         }
     }
 
@@ -259,6 +270,7 @@ internal fun observeProfileAwareFeedState(
     browseState: (Long) -> Flow<BrowseFeedService.State>,
     sourcesLoaded: Flow<Boolean>,
     kind: SourceFeedKind = SourceFeedKind.MANGA,
+    contentMode: SourceFeedContentMode = SourceFeedContentMode.Browse,
 ): Flow<FeedsScreenModel.State> {
     return activeProfileIdFlow
         .distinctUntilChanged()
@@ -278,9 +290,14 @@ internal fun observeProfileAwareFeedState(
                         .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
                         .toImmutableList(),
                     presets = browseState.presets.filter { it.kind == kind }.toImmutableList(),
-                    feeds = browseState.feeds.filter { it.kind == kind }.toImmutableList(),
+                    feeds = browseState.feeds
+                        .filter { it.kind == kind && it.contentMode == contentMode }
+                        .toImmutableList(),
                     sourcesLoaded = sourcesLoaded,
-                    selectedFeedId = browseState.selectedFeedId,
+                    selectedFeedId = when (contentMode) {
+                        SourceFeedContentMode.Browse -> browseState.selectedFeedId
+                        SourceFeedContentMode.Video -> browseState.selectedVideoFeedId
+                    },
                 )
             }
         }

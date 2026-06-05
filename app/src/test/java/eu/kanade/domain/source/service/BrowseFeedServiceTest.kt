@@ -4,6 +4,7 @@ import eu.kanade.domain.source.model.BUILTIN_POPULAR_PRESET_ID
 import eu.kanade.domain.source.model.FeedListingMode
 import eu.kanade.domain.source.model.SourceFeed
 import eu.kanade.domain.source.model.SourceFeedAnchor
+import eu.kanade.domain.source.model.SourceFeedContentMode
 import eu.kanade.domain.source.model.SourceFeedPreset
 import eu.kanade.domain.source.model.SourceFeedTimeline
 import io.kotest.matchers.shouldBe
@@ -68,6 +69,23 @@ class BrowseFeedServiceTest {
 
         service.timelineSnapshot(feed.id) shouldBe SourceFeedTimeline()
         service.anchorSnapshot(feed.id) shouldBe SourceFeedAnchor()
+    }
+
+    @Test
+    fun `createFeed selects video feeds separately from regular feeds`() {
+        val regularFeed = SourceFeed(id = "feed-1", sourceId = 1L, presetId = BUILTIN_POPULAR_PRESET_ID)
+        val videoFeed = SourceFeed(
+            id = "feed-2",
+            contentMode = SourceFeedContentMode.Video,
+            sourceId = 1L,
+            presetId = BUILTIN_POPULAR_PRESET_ID,
+        )
+
+        service.createFeed(regularFeed)
+        service.createFeed(videoFeed)
+
+        preferences.selectedFeedId.get() shouldBe regularFeed.id
+        preferences.selectedVideoFeedId.get() shouldBe videoFeed.id
     }
 
     @Test
