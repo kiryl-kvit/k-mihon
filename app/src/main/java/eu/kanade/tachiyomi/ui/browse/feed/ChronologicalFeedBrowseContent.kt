@@ -332,6 +332,30 @@ fun ChronologicalFeedBrowseContent(
                     .align(androidx.compose.ui.Alignment.TopCenter),
             )
         }
+
+        if (
+            when (displayMode) {
+                LibraryDisplayMode.List -> listState.firstVisibleItemIndex > 0
+                else -> gridState.firstVisibleItemIndex > 0
+            }
+        ) {
+            FeedBackToTopButton(
+                onClick = {
+                    scope.launch {
+                        when (displayMode) {
+                            LibraryDisplayMode.List -> listState.animateScrollToItem(0)
+                            else -> gridState.animateScrollToItem(0)
+                        }
+                    }
+                },
+                modifier = Modifier
+                    .padding(
+                        end = 16.dp,
+                        bottom = contentPadding.calculateBottomPadding() + 16.dp,
+                    )
+                    .align(androidx.compose.ui.Alignment.BottomEnd),
+            )
+        }
     }
 }
 
@@ -361,6 +385,36 @@ private fun NewItemsChip(
             Text(
                 style = MaterialTheme.typography.labelLarge,
                 text = pluralStringResource(MR.plurals.browse_feed_new_items, count, count),
+            )
+        }
+    }
+}
+
+@Composable
+private fun FeedBackToTopButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        shape = MaterialTheme.shapes.extraLarge,
+        tonalElevation = 3.dp,
+        shadowElevation = 3.dp,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.KeyboardArrowUp,
+                contentDescription = null,
+            )
+            Text(
+                style = MaterialTheme.typography.labelLarge,
+                text = stringResource(MR.strings.action_move_to_top),
             )
         }
     }

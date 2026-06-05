@@ -133,6 +133,11 @@ class SourcePreferences(
         "",
     )
 
+    val selectedVideoFeedId: Preference<String> = preferenceStore.getString(
+        Preference.appStateKey("selected_video_source_feed_id"),
+        "",
+    )
+
     fun feedTimeline(feedId: String): Preference<SourceFeedTimeline> {
         return preferenceStore.getObjectFromString(
             key = Preference.appStateKey("source_feed_timeline_$feedId"),
