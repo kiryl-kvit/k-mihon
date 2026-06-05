@@ -2,15 +2,19 @@ package eu.kanade.tachiyomi.ui.browse.feed
 
 import android.view.ViewGroup
 import androidx.annotation.OptIn
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.VerticalPager
@@ -19,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -37,16 +42,19 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -61,13 +69,18 @@ import eu.kanade.domain.anime.model.toMangaCover
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.ui.video.player.ResolveVideoStream
 import eu.kanade.tachiyomi.ui.video.player.VideoPlayerMediaCache
+import eu.kanade.tachiyomi.ui.video.player.VideoPlayerPlaybackSnapshot
 import eu.kanade.tachiyomi.ui.video.player.buildVideoPlayer
 import eu.kanade.tachiyomi.ui.video.player.capturePlaybackSnapshot
+import eu.kanade.tachiyomi.ui.video.player.coerceToPlaybackDuration
+import eu.kanade.tachiyomi.ui.video.player.formatPlaybackTimestamp
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import tachiyomi.domain.anime.model.AnimeTitle
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
@@ -91,6 +104,7 @@ fun AnimeVideoFeedBrowseContent(
     val retryLabel = stringResource(MR.strings.action_retry)
     val unknownError = stringResource(MR.strings.unknown_error)
     val pagerState = rememberPagerState { state.animeIds.size }
+    val scope = rememberCoroutineScope()
     val savedAnchor = timelineModel.savedAnchorSnapshot()
     var restored by rememberSaveable { mutableStateOf(false) }
 
@@ -154,36 +168,40 @@ fun AnimeVideoFeedBrowseContent(
         return
     }
 
-    VerticalPager(
-        state = pagerState,
-        modifier = modifier
-            .fillMaxSize()
-            .background(Color.Black)
-            .padding(bottom = contentPadding.calculateBottomPadding()),
-        key = { page -> state.animeIds[page] },
-    ) { page ->
-        val animeId = state.animeIds[page]
-        val anime = rememberVideoFeedAnime(animeId, timelineModel)
-        val itemState = anime?.let { playbackState.items[it.id] }
-        val isActive = page == pagerState.currentPage
+    Box(modifier = modifier.fillMaxSize()) {
+        VerticalPager(
+            state = pagerState,
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .padding(bottom = contentPadding.calculateBottomPadding()),
+            key = { page -> state.animeIds[page] },
+        ) { page ->
+            val animeId = state.animeIds[page]
+            val anime = rememberVideoFeedAnime(animeId, timelineModel)
+            val itemState = anime?.let { playbackState.items[it.id] }
+            val isActive = page == pagerState.currentPage
 
-        val shouldLoad =
-            page in (pagerState.currentPage - PRELOAD_PAGE_RADIUS)..(pagerState.currentPage + PRELOAD_PAGE_RADIUS)
+            val shouldLoad =
+                page in (pagerState.currentPage - PRELOAD_PAGE_RADIUS)..(pagerState.currentPage + PRELOAD_PAGE_RADIUS)
 
-        if (anime != null && shouldLoad) {
-            LaunchedEffect(anime.id) {
-                playbackModel.load(anime)
+            if (anime != null && shouldLoad) {
+                LaunchedEffect(anime.id) {
+                    playbackModel.load(anime)
+                }
             }
-        }
 
-        AnimeVideoFeedPage(
-            anime = anime,
-            itemState = itemState,
-            isActive = isActive,
-            playbackModel = playbackModel,
-            onAnimeClick = onAnimeClick,
-            onRetry = { anime?.let(playbackModel::retry) },
-        )
+            AnimeVideoFeedPage(
+                anime = anime,
+                itemState = itemState,
+                isActive = isActive,
+                playbackModel = playbackModel,
+                onAnimeClick = onAnimeClick,
+                showBackToTop = pagerState.currentPage > 0,
+                onBackToTop = { scope.launch { pagerState.animateScrollToPage(0) } },
+                onRetry = { anime?.let(playbackModel::retry) },
+            )
+        }
     }
 }
 
@@ -194,6 +212,8 @@ private fun AnimeVideoFeedPage(
     isActive: Boolean,
     playbackModel: AnimeVideoFeedPlaybackScreenModel,
     onAnimeClick: (AnimeTitle) -> Unit,
+    showBackToTop: Boolean,
+    onBackToTop: () -> Unit,
     onRetry: () -> Unit,
 ) {
     Box(
@@ -239,6 +259,8 @@ private fun AnimeVideoFeedPage(
             AnimeVideoFeedOverlay(
                 anime = anime,
                 onAnimeClick = { onAnimeClick(anime) },
+                showBackToTop = showBackToTop,
+                onBackToTop = onBackToTop,
                 modifier = Modifier.align(Alignment.BottomStart),
             )
         }
@@ -264,43 +286,60 @@ private fun AnimeVideoFeedPoster(anime: AnimeTitle) {
 private fun AnimeVideoFeedOverlay(
     anime: AnimeTitle,
     onAnimeClick: () -> Unit,
+    showBackToTop: Boolean,
+    onBackToTop: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .background(
-                Brush.verticalGradient(
-                    0f to Color.Transparent,
-                    1f to Color.Black.copy(alpha = 0.86f),
-                ),
-            )
-            .padding(horizontal = 20.dp, vertical = 18.dp),
+            .padding(
+                start = 12.dp,
+                top = 8.dp,
+                end = 12.dp,
+                bottom = 44.dp,
+            ),
     ) {
         Column(
             modifier = Modifier
+                .align(Alignment.BottomStart)
                 .fillMaxWidth()
-                .padding(end = 56.dp),
+                .padding(end = 48.dp),
             verticalArrangement = Arrangement.Bottom,
         ) {
             Text(
                 text = anime.displayTitle,
                 color = Color.White,
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .background(Color.Black.copy(alpha = 0.36f), MaterialTheme.shapes.medium)
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
             )
         }
-        IconButton(
-            onClick = onAnimeClick,
-            modifier = Modifier.align(Alignment.BottomEnd),
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomEnd),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Outlined.OpenInNew,
-                contentDescription = stringResource(MR.strings.action_open),
-                tint = Color.White,
-            )
+            if (showBackToTop) {
+                VideoFeedBackToTopButton(onClick = onBackToTop)
+            }
+            IconButton(
+                onClick = onAnimeClick,
+                modifier = Modifier
+                    .background(Color.Black.copy(alpha = 0.36f), CircleShape)
+                    .size(40.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Outlined.OpenInNew,
+                    contentDescription = stringResource(MR.strings.action_open),
+                    tint = Color.White,
+                )
+            }
         }
     }
 }
@@ -349,8 +388,6 @@ private fun AnimeVideoFeedInlinePlayer(
     var hasRenderedFirstFrame by remember(itemState.episode.id, itemState.result.stream.request.url) {
         mutableStateOf(false)
     }
-    val surfaceInteractionSource = remember { MutableInteractionSource() }
-
     val player = remember(itemState.episode.id, itemState.result.stream.request.url) {
         buildVideoPlayer(
             context = context,
@@ -374,6 +411,7 @@ private fun AnimeVideoFeedInlinePlayer(
         }
     }
     var playbackSnapshot by remember(player) { mutableStateOf(player.capturePlaybackSnapshot()) }
+    var speedBoostActive by remember(player) { mutableStateOf(false) }
 
     LaunchedEffect(player, itemState.resumePositionMs) {
         if (itemState.resumePositionMs > 0L) {
@@ -446,20 +484,70 @@ private fun AnimeVideoFeedInlinePlayer(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .clickable(
-                    interactionSource = surfaceInteractionSource,
-                    indication = null,
-                ) {
-                    if (playbackSnapshot.playbackEnded) {
-                        player.seekTo(0L)
-                    }
-                    if (player.isPlaying) {
-                        player.pause()
-                    } else {
-                        player.play()
-                    }
-                    playbackSnapshot = player.capturePlaybackSnapshot()
+                .pointerInput(player) {
+                    detectTapGestures(
+                        onPress = {
+                            coroutineScope {
+                                var boosted = false
+                                val boostJob = launch {
+                                    delay(SPEED_BOOST_PRESS_DELAY_MS)
+                                    player.setPlaybackSpeed(SPEED_BOOST_MULTIPLIER)
+                                    boosted = true
+                                    speedBoostActive = true
+                                }
+                                try {
+                                    val released = tryAwaitRelease()
+                                    if (!boosted && released) {
+                                        if (playbackSnapshot.playbackEnded) {
+                                            player.seekTo(0L)
+                                        }
+                                        if (player.isPlaying) {
+                                            player.pause()
+                                        } else {
+                                            player.play()
+                                        }
+                                        playbackSnapshot = player.capturePlaybackSnapshot()
+                                    }
+                                } finally {
+                                    boostJob.cancel()
+                                    if (boosted) {
+                                        player.setPlaybackSpeed(NORMAL_PLAYBACK_SPEED)
+                                        speedBoostActive = false
+                                        playbackSnapshot = player.capturePlaybackSnapshot()
+                                    }
+                                }
+                            }
+                        },
+                    )
                 },
+        )
+
+        if (speedBoostActive) {
+            Text(
+                text = "2x",
+                color = Color.White,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 84.dp)
+                    .background(Color.Black.copy(alpha = 0.48f), CircleShape)
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+            )
+        }
+
+        AnimeVideoFeedTimeline(
+            snapshot = playbackSnapshot,
+            onSeek = { positionMs ->
+                player.seekTo(positionMs)
+                if (playbackSnapshot.playbackEnded) {
+                    player.play()
+                }
+                playbackSnapshot = player.capturePlaybackSnapshot()
+            },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 4.dp),
         )
 
         if (!playbackSnapshot.isPlaying && !playbackSnapshot.isLoading && player.playbackState == Player.STATE_READY) {
@@ -485,6 +573,141 @@ private fun AnimeVideoFeedInlinePlayer(
                     .padding(16.dp),
             )
         }
+    }
+}
+
+@Composable
+private fun AnimeVideoFeedTimeline(
+    snapshot: VideoPlayerPlaybackSnapshot,
+    onSeek: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val durationMs = snapshot.durationMs
+    var isScrubbing by remember(durationMs) { mutableStateOf(false) }
+    var scrubPositionMs by remember(durationMs) { mutableStateOf(snapshot.positionMs) }
+    val displayedPositionMs = if (isScrubbing) scrubPositionMs else snapshot.positionMs
+    val playedFraction = if (durationMs > 0L) {
+        displayedPositionMs.toFloat() / durationMs.toFloat()
+    } else {
+        0f
+    }
+    val bufferedFraction = if (durationMs > 0L) {
+        snapshot.bufferedPositionMs.toFloat() / durationMs.toFloat()
+    } else {
+        0f
+    }
+    val density = LocalDensity.current
+
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp),
+    ) {
+        val widthPx = with(density) { maxWidth.toPx() }
+        val updateScrubPosition: (Float) -> Unit = { x ->
+            if (durationMs > 0L && widthPx > 0f) {
+                scrubPositionMs = (durationMs * (x / widthPx).coerceIn(0f, 1f)).toLong()
+                    .coerceToPlaybackDuration(durationMs)
+            }
+        }
+
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            if (isScrubbing) {
+                Text(
+                    text = buildString {
+                        append(formatPlaybackTimestamp(scrubPositionMs))
+                        append(" / ")
+                        append(formatPlaybackTimestamp(durationMs))
+                    },
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier
+                        .background(Color.Black.copy(alpha = 0.48f), CircleShape)
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                )
+            }
+
+            Canvas(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(28.dp)
+                    .pointerInput(durationMs, widthPx) {
+                        if (durationMs <= 0L) return@pointerInput
+                        detectDragGestures(
+                            onDragStart = { offset ->
+                                isScrubbing = true
+                                updateScrubPosition(offset.x)
+                            },
+                            onDrag = { change, _ ->
+                                updateScrubPosition(change.position.x)
+                            },
+                            onDragEnd = {
+                                onSeek(scrubPositionMs)
+                                isScrubbing = false
+                            },
+                            onDragCancel = {
+                                isScrubbing = false
+                            },
+                        )
+                    },
+            ) {
+                val centerY = size.height / 2f
+                val trackStroke = if (isScrubbing) 5.dp.toPx() else 3.dp.toPx()
+                drawLine(
+                    color = Color.White.copy(alpha = 0.28f),
+                    start = androidx.compose.ui.geometry.Offset(0f, centerY),
+                    end = androidx.compose.ui.geometry.Offset(size.width, centerY),
+                    strokeWidth = trackStroke,
+                    cap = StrokeCap.Round,
+                )
+                drawLine(
+                    color = Color.White.copy(alpha = 0.42f),
+                    start = androidx.compose.ui.geometry.Offset(0f, centerY),
+                    end = androidx.compose.ui.geometry.Offset(size.width * bufferedFraction.coerceIn(0f, 1f), centerY),
+                    strokeWidth = trackStroke,
+                    cap = StrokeCap.Round,
+                )
+                drawLine(
+                    color = Color.White,
+                    start = androidx.compose.ui.geometry.Offset(0f, centerY),
+                    end = androidx.compose.ui.geometry.Offset(size.width * playedFraction.coerceIn(0f, 1f), centerY),
+                    strokeWidth = trackStroke,
+                    cap = StrokeCap.Round,
+                )
+                if (isScrubbing) {
+                    drawCircle(
+                        color = Color.White,
+                        radius = 6.dp.toPx(),
+                        center = androidx.compose.ui.geometry.Offset(
+                            x = size.width * playedFraction.coerceIn(0f, 1f),
+                            y = centerY,
+                        ),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VideoFeedBackToTopButton(
+    onClick: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier.clickable(onClick = onClick),
+        color = Color.Black.copy(alpha = 0.48f),
+        contentColor = Color.White,
+        shape = CircleShape,
+        tonalElevation = 0.dp,
+        shadowElevation = 3.dp,
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.KeyboardArrowUp,
+            contentDescription = stringResource(MR.strings.action_move_to_top),
+            modifier = Modifier
+                .size(48.dp)
+                .padding(12.dp),
+        )
     }
 }
 
@@ -534,3 +757,6 @@ private const val LOAD_MORE_PAGE_THRESHOLD = 3
 private const val PRELOAD_PAGE_RADIUS = 1
 private const val PLAYBACK_SNAPSHOT_INTERVAL_MS = 250L
 private const val PROGRESS_SAVE_INTERVAL_MS = 10_000L
+private const val SPEED_BOOST_PRESS_DELAY_MS = 350L
+private const val SPEED_BOOST_MULTIPLIER = 2f
+private const val NORMAL_PLAYBACK_SPEED = 1f
