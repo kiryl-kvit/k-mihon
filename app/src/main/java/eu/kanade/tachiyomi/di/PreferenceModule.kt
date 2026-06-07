@@ -98,7 +98,7 @@ class PreferenceModule(val app: Application) : InjektModule {
             BasePreferences(app, get<ProfileStore>().basePreferenceStore())
         }
         addSingletonFactory {
-            CustomPreferences(get<ProfileStore>().appStateStore())
+            CustomPreferences(get<ProfileStore>().profileStore())
         }
         addSingletonFactory { GlobalCustomPreferences(get<ProfileStore>().basePreferenceStore()) }
     }

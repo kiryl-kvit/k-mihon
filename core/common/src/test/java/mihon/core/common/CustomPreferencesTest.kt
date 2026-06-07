@@ -25,7 +25,7 @@ class CustomPreferencesTest {
 
     @Test
     fun `manga preview page count clamps stored values to shared range`() {
-        val key = Preference.appStateKey("manga_preview_page_count")
+        val key = CustomPreferences.MANGA_PREVIEW_PAGE_COUNT_KEY
         val preferenceStore = InMemoryPreferenceStore(
             sequenceOf(
                 InMemoryPreferenceStore.InMemoryPreference(key, 75, 5),
@@ -39,7 +39,7 @@ class CustomPreferencesTest {
 
     @Test
     fun `manga preview page count clamps writes to shared range`() {
-        val key = Preference.appStateKey("manga_preview_page_count")
+        val key = CustomPreferences.MANGA_PREVIEW_PAGE_COUNT_KEY
         val preferenceStore = TestPreferenceStore()
         val preferences = CustomPreferences(preferenceStore)
 

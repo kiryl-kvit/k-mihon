@@ -132,7 +132,7 @@ class ProfileManager(
         profileStore.profileStore(id)
             .getStringSet(SourcePreferences.ANIME_HIDDEN_SOURCES_KEY, hiddenAnimeSourceIds)
             .set(hiddenAnimeSourceIds)
-        val customPreferences = CustomPreferences(profileStore.appStateStore(id))
+        val customPreferences = CustomPreferences(profileStore.profileStore(id))
         customPreferences.homeScreenTabs.set(defaultHomeScreenTabsFor(type))
         customPreferences.homeScreenStartupTab.set(defaultHomeScreenStartupTabFor(type))
         seedDuplicateTitleExclusions(profileId = id)
@@ -246,6 +246,9 @@ class ProfileManager(
         if (currentVersion < 8) {
             migrateLegacyDuplicateDetectionPreferences(sharedPreferences)
         }
+        if (currentVersion < 9) {
+            migrateCustomPreferencesToProfileKeys(sharedPreferences)
+        }
 
         migrateKeyBackToGlobal(
             sharedPreferences = sharedPreferences,
@@ -283,6 +286,47 @@ class ProfileManager(
         )
     }
 
+    private suspend fun migrateCustomPreferencesToProfileKeys(
+        sharedPreferences: android.content.SharedPreferences,
+    ) {
+        val profileIds = profileDatabase.getProfiles(includeArchived = true)
+            .map(Profile::id)
+            .ifEmpty { listOf(ProfileConstants.DEFAULT_PROFILE_ID) }
+
+        profileIds.forEach { profileId ->
+            CustomPreferences.profileKeys.forEach { key ->
+                migrateProfileAppStateKeyToProfileKey(sharedPreferences, profileId, key)
+            }
+        }
+    }
+
+    private fun migrateProfileAppStateKeyToProfileKey(
+        sharedPreferences: android.content.SharedPreferences,
+        profileId: Long,
+        key: String,
+    ) {
+        val sourceKey = ProfileAwarePreferenceStore.Namespace.namespacedKey(
+            Preference.appStateKey(key),
+            profileId,
+        )
+        if (!sharedPreferences.contains(sourceKey)) return
+
+        val targetKey = ProfileAwarePreferenceStore.Namespace.namespacedKey(key, profileId)
+        sharedPreferences.edit(commit = true) {
+            if (!sharedPreferences.contains(targetKey)) {
+                when (val value = sharedPreferences.all[sourceKey]) {
+                    is String -> putString(targetKey, value)
+                    is Int -> putInt(targetKey, value)
+                    is Long -> putLong(targetKey, value)
+                    is Float -> putFloat(targetKey, value)
+                    is Boolean -> putBoolean(targetKey, value)
+                    is Set<*> -> putStringSet(targetKey, value.filterIsInstance<String>().toSet())
+                }
+            }
+            remove(sourceKey)
+        }
+    }
+
     private fun seedDuplicateTitleExclusionsForProfiles(profileIds: Iterable<Long>) {
         profileIds.forEach(::seedDuplicateTitleExclusions)
     }
@@ -307,7 +351,7 @@ class ProfileManager(
             .ifEmpty { listOf(ProfileConstants.DEFAULT_PROFILE_ID) }
 
         profileIds.forEach { profileId ->
-            val customPreferences = CustomPreferences(profileStore.appStateStore(profileId))
+            val customPreferences = CustomPreferences(profileStore.profileStore(profileId))
             val updatedTabs = (customPreferences.homeScreenTabs.get().ifEmpty { defaultHomeScreenTabs() })
                 .toMutableSet()
                 .apply { add(HomeScreenTabs.Profiles.name) }
@@ -498,6 +542,6 @@ class ProfileManager(
     }
 
     companion object {
-        private const val LEGACY_PROFILE_MIGRATION_VERSION = 8
+        private const val LEGACY_PROFILE_MIGRATION_VERSION = 9
     }
 }
