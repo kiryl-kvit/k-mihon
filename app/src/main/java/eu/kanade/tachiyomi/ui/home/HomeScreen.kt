@@ -106,7 +106,7 @@ object HomeScreen : Screen() {
         val activeProfile by profileManager.activeProfile.collectFlowAsState()
         val activeProfileId = activeProfile?.id ?: profileStore.currentProfileId
         val customPreferences = remember(activeProfileId) {
-            CustomPreferences(profileStore.appStateStore(activeProfileId))
+            CustomPreferences(profileStore.profileStore(activeProfileId))
         }
         val configuredTab by customPreferences.homeScreenStartupTab.collectAsState()
         val configuredTabs by customPreferences.homeScreenTabs.collectAsState()
