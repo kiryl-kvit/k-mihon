@@ -5,13 +5,20 @@ import cafe.adriel.voyager.core.model.screenModelScope
 import eu.kanade.tachiyomi.ui.video.player.ResolveVideoStream
 import eu.kanade.tachiyomi.ui.video.player.VideoPlaybackSession
 import eu.kanade.tachiyomi.ui.video.player.VideoStreamResolver
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import logcat.LogPriority
 import tachiyomi.core.common.util.lang.launchIO
+import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.anime.interactor.SyncAnimeWithSource
 import tachiyomi.domain.anime.model.AnimeEpisode
 import tachiyomi.domain.anime.model.AnimePlaybackState
@@ -32,24 +39,98 @@ class AnimeVideoFeedPlaybackScreenModel(
 ) : StateScreenModel<AnimeVideoFeedPlaybackScreenModel.State>(State()) {
 
     private val playbackSessions = mutableMapOf<Long, VideoPlaybackSession>()
+    private val loadJobs = mutableMapOf<Long, Job>()
+    private val loadTokens = mutableMapOf<Long, Any>()
     private val persistMutex = Mutex()
 
     fun load(anime: AnimeTitle, force: Boolean = false) {
         val existing = state.value.items[anime.id]
-        if (!force && (existing is ItemState.Loading || existing is ItemState.Ready)) return
+        if (!force && (existing is ItemState.Loading || existing is ItemState.Ready)) {
+            logcat(LogPriority.DEBUG) {
+                "AnimeFeed: skipping load for animeId=${anime.id}, already ${existing::class.simpleName}"
+            }
+            return
+        }
+
+        val replacedJob = loadJobs.remove(anime.id)
+        if (replacedJob != null) {
+            logcat(LogPriority.DEBUG) { "AnimeFeed: replacing in-flight load for animeId=${anime.id}" }
+            replacedJob.cancel()
+        }
+        val token = Any()
+        loadTokens[anime.id] = token
+        logcat(LogPriority.DEBUG) { "AnimeFeed: starting load for animeId=${anime.id} force=$force" }
 
         mutableState.update { current ->
             current.copy(items = current.items + (anime.id to ItemState.Loading(anime)))
         }
 
-        screenModelScope.launchIO {
-            val nextState = runCatching { resolveItem(anime) }
-                .getOrElse { ItemState.Error(anime = anime, failure = Failure.Unexpected(it)) }
+        val job = screenModelScope.launch(Dispatchers.IO, start = CoroutineStart.LAZY) {
+            try {
+                val nextState = resolveItem(anime, forceSync = force)
 
-            mutableState.update { current ->
-                current.copy(items = current.items + (anime.id to nextState))
+                mutableState.update { current ->
+                    if (loadTokens[anime.id] !== token) return@update current
+                    current.copy(items = current.items + (anime.id to nextState))
+                }
+                logcat(LogPriority.DEBUG) {
+                    "AnimeFeed: load completed for animeId=${anime.id} -> ${nextState::class.simpleName}"
+                }
+            } catch (e: CancellationException) {
+                logcat(LogPriority.DEBUG) { "AnimeFeed: load cancelled for animeId=${anime.id}" }
+                throw e
+            } catch (e: Throwable) {
+                logcat(LogPriority.DEBUG, e) { "AnimeFeed: load failed for animeId=${anime.id}" }
+                mutableState.update { current ->
+                    if (loadTokens[anime.id] !== token) return@update current
+                    current.copy(
+                        items = current.items + (
+                            anime.id to ItemState.Error(anime = anime, failure = Failure.Unexpected(e))
+                            ),
+                    )
+                }
+            } finally {
+                if (loadTokens[anime.id] === token) {
+                    loadTokens.remove(anime.id)
+                    loadJobs.remove(anime.id)
+                }
             }
         }
+        loadJobs[anime.id] = job
+        job.start()
+    }
+
+    fun retainActiveLoads(animeIds: Set<Long>) {
+        val cancelledIds = loadJobs.keys.filterNot(animeIds::contains).toSet()
+        if (cancelledIds.isEmpty()) {
+            logcat(LogPriority.DEBUG) {
+                "AnimeFeed: retainActiveLoads active=$animeIds (nothing to cancel, ${loadJobs.size} in-flight)"
+            }
+            return
+        }
+
+        logcat(LogPriority.DEBUG) { "AnimeFeed: retainActiveLoads active=$animeIds cancelling=$cancelledIds" }
+        cancelledIds.forEach { animeId ->
+            loadJobs.remove(animeId)?.cancel()
+            loadTokens.remove(animeId)
+        }
+
+        mutableState.update { current ->
+            current.copy(
+                items = current.items.filterNot { (animeId, itemState) ->
+                    animeId in cancelledIds && itemState is ItemState.Loading
+                },
+            )
+        }
+    }
+
+    override fun onDispose() {
+        super.onDispose()
+        val count = loadJobs.size
+        logcat(LogPriority.DEBUG) { "AnimeFeed: onDispose cancelling $count in-flight loads" }
+        loadJobs.values.forEach(Job::cancel)
+        loadJobs.clear()
+        loadTokens.clear()
     }
 
     fun retry(anime: AnimeTitle) {
@@ -70,11 +151,16 @@ class AnimeVideoFeedPlaybackScreenModel(
         }
     }
 
-    private suspend fun resolveItem(anime: AnimeTitle): ItemState {
-        syncAnimeWithSource(anime)
-
-        val episodes = animeEpisodeRepository.getEpisodesByAnimeId(anime.id)
+    private suspend fun resolveItem(anime: AnimeTitle, forceSync: Boolean): ItemState {
+        var episodes = animeEpisodeRepository.getEpisodesByAnimeId(anime.id)
             .sortedForReading(anime)
+
+        if (forceSync || episodes.isEmpty()) {
+            syncAnimeWithSource(anime)
+            episodes = animeEpisodeRepository.getEpisodesByAnimeId(anime.id)
+                .sortedForReading(anime)
+        }
+
         if (episodes.isEmpty()) {
             return ItemState.Error(anime = anime, failure = Failure.NoEpisode)
         }

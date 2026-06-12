@@ -13,6 +13,7 @@ import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.resolveFilterList
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
@@ -139,6 +140,7 @@ class ChronologicalFeedScreenModel(
         val pagingSource = try {
             newPagingSource()
         } catch (e: Throwable) {
+            if (e is CancellationException) throw e
             mutableState.update {
                 it.copy(
                     isRefreshing = false,
@@ -154,6 +156,7 @@ class ChronologicalFeedScreenModel(
             val page = try {
                 loadPage(pagingSource, currentPageKey)
             } catch (e: Throwable) {
+                if (e is CancellationException) throw e
                 error = e
                 break
             }
@@ -224,6 +227,7 @@ class ChronologicalFeedScreenModel(
         val pagingSource = try {
             newPagingSource()
         } catch (e: Throwable) {
+            if (e is CancellationException) throw e
             mutableState.update {
                 it.copy(
                     isAppending = false,
@@ -238,6 +242,7 @@ class ChronologicalFeedScreenModel(
             val page = try {
                 loadPage(pagingSource, currentPageKey)
             } catch (e: Throwable) {
+                if (e is CancellationException) throw e
                 error = e
                 break
             }

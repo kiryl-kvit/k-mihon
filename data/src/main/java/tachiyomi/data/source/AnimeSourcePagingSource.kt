@@ -4,6 +4,7 @@ import androidx.paging.PagingState
 import eu.kanade.tachiyomi.source.AnimeCatalogueSource
 import eu.kanade.tachiyomi.source.model.AnimesPage
 import eu.kanade.tachiyomi.source.model.FilterList
+import kotlinx.coroutines.CancellationException
 import mihon.domain.anime.model.toDomainAnime
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.domain.anime.interactor.NetworkToLocalAnime
@@ -64,6 +65,7 @@ abstract class BaseAnimeSourcePagingSource(
                 nextKey = if (animePage.hasNextPage) page + 1 else null,
             )
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             LoadResult.Error(e)
         }
     }
