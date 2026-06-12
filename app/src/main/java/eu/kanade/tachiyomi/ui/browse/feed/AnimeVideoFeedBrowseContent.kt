@@ -110,7 +110,8 @@ internal fun AnimeVideoFeedBrowseContent(
     val pagerState = rememberPagerState { state.animeIds.size }
     val scope = rememberCoroutineScope()
     val savedAnchor = timelineModel.savedAnchorSnapshot()
-    var restored by rememberSaveable { mutableStateOf(false) }
+    val anchorRestoreKey = "${savedAnchor.mangaId}:${savedAnchor.scrollOffset}"
+    var restoredAnchorKey by rememberSaveable { mutableStateOf<String?>(null) }
 
     LaunchedEffect(state.error) {
         val error = state.error ?: return@LaunchedEffect
@@ -127,21 +128,22 @@ internal fun AnimeVideoFeedBrowseContent(
         }
     }
 
-    LaunchedEffect(state.animeIds, savedAnchor) {
-        if (restored || state.animeIds.isEmpty()) return@LaunchedEffect
+    LaunchedEffect(state.animeIds, anchorRestoreKey) {
+        if (restoredAnchorKey == anchorRestoreKey || state.animeIds.isEmpty()) return@LaunchedEffect
 
         val anchorIndex = savedAnchor.mangaId
             ?.let(state.animeIds::indexOf)
             ?.takeIf { it >= 0 }
             ?: 0
         pagerState.scrollToPage(anchorIndex)
-        restored = true
+        restoredAnchorKey = anchorRestoreKey
     }
 
     LaunchedEffect(state.animeIds) {
         snapshotFlow { pagerState.currentPage }
             .distinctUntilChanged()
             .collectLatest { page ->
+                if (restoredAnchorKey != anchorRestoreKey) return@collectLatest
                 timelineModel.saveAnchor(
                     animeId = state.animeIds.getOrNull(page),
                     scrollOffset = 0,

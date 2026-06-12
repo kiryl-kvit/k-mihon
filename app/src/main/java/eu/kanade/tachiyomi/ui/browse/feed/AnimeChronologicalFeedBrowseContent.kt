@@ -110,7 +110,7 @@ fun AnimeChronologicalFeedBrowseContent(
     val listState = rememberLazyListState()
     val gridState = rememberLazyGridState()
     val scope = rememberCoroutineScope()
-    var restoredDisplayMode by rememberSaveable { mutableStateOf<String?>(null) }
+    var restoredAnchorKey by rememberSaveable { mutableStateOf<String?>(null) }
 
     LaunchedEffect(activeHoverPreviewAnimeIds, displayMode) {
         snapshotFlow {
@@ -129,6 +129,7 @@ fun AnimeChronologicalFeedBrowseContent(
         with(context) { throwable.formattedMessage }
     }
     val savedAnchor = screenModel.savedAnchorSnapshot()
+    val anchorRestoreKey = "${displayMode.serialize()}:${savedAnchor.mangaId}:${savedAnchor.scrollOffset}"
 
     LaunchedEffect(state.error) {
         val error = state.error ?: return@LaunchedEffect
@@ -145,11 +146,10 @@ fun AnimeChronologicalFeedBrowseContent(
         }
     }
 
-    LaunchedEffect(displayMode, state.animeIds, savedAnchor) {
+    LaunchedEffect(displayMode, state.animeIds, anchorRestoreKey) {
         if (state.animeIds.isEmpty()) return@LaunchedEffect
 
-        val modeKey = displayMode.serialize()
-        if (restoredDisplayMode == modeKey) return@LaunchedEffect
+        if (restoredAnchorKey == anchorRestoreKey) return@LaunchedEffect
 
         val anchorIndex = savedAnchor.mangaId
             ?.let(state.animeIds::indexOf)
@@ -161,7 +161,7 @@ fun AnimeChronologicalFeedBrowseContent(
             else -> gridState.scrollToItem(anchorIndex, savedAnchor.scrollOffset)
         }
 
-        restoredDisplayMode = modeKey
+        restoredAnchorKey = anchorRestoreKey
     }
 
     LaunchedEffect(displayMode, state.animeIds) {
@@ -171,6 +171,7 @@ fun AnimeChronologicalFeedBrowseContent(
             .distinctUntilChanged()
             .debounce(ANCHOR_SAVE_DEBOUNCE_MILLIS)
             .collectLatest { (index, offset) ->
+                if (restoredAnchorKey != anchorRestoreKey) return@collectLatest
                 screenModel.saveAnchor(
                     animeId = state.animeIds.getOrNull(index),
                     scrollOffset = offset,
@@ -185,6 +186,7 @@ fun AnimeChronologicalFeedBrowseContent(
             .distinctUntilChanged()
             .debounce(ANCHOR_SAVE_DEBOUNCE_MILLIS)
             .collectLatest { (index, offset) ->
+                if (restoredAnchorKey != anchorRestoreKey) return@collectLatest
                 screenModel.saveAnchor(
                     animeId = state.animeIds.getOrNull(index),
                     scrollOffset = offset,

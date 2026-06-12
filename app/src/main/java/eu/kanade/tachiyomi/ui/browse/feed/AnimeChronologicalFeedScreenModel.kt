@@ -30,6 +30,7 @@ class AnimeChronologicalFeedScreenModel(
     private val sourceId: Long,
     private val listingQuery: String?,
     private val initialFilterSnapshot: List<FilterStateNode>,
+    private val chronological: Boolean = true,
     private val browseFeedService: BrowseFeedService = Injekt.get(),
     private val sourcePreferences: SourcePreferences = Injekt.get(),
     private val animeSourceManager: AnimeSourceManager = Injekt.get(),
@@ -113,6 +114,11 @@ class AnimeChronologicalFeedScreenModel(
     }
 
     private suspend fun refreshInternal(manual: Boolean) {
+        if (!chronological) {
+            refreshCurrentPageInternal(manual = manual)
+            return
+        }
+
         val currentState = state.value
         val existingIds = currentState.animeIds
         val existingIdSet = existingIds.toHashSet()
@@ -189,6 +195,62 @@ class AnimeChronologicalFeedScreenModel(
                 isRefreshing = false,
                 isManualRefresh = false,
                 newItemsAvailableCount = if (manual && error == null) prependedIds.size else 0,
+                hasLoaded = true,
+                error = error,
+            )
+        }
+    }
+
+    private suspend fun refreshCurrentPageInternal(manual: Boolean) {
+        var error: Throwable? = null
+
+        mutableState.update {
+            it.copy(
+                isRefreshing = true,
+                isManualRefresh = manual,
+                newItemsAvailableCount = 0,
+                error = null,
+            )
+        }
+
+        val pagingSource = try {
+            newPagingSource()
+        } catch (e: Throwable) {
+            mutableState.update {
+                it.copy(
+                    isRefreshing = false,
+                    isManualRefresh = false,
+                    hasLoaded = true,
+                    error = e,
+                )
+            }
+            return
+        }
+
+        val page = try {
+            loadPage(pagingSource, null)
+        } catch (e: Throwable) {
+            error = e
+            null
+        }
+
+        val ids = page?.data?.let(::visibleIds).orEmpty()
+        val nextPageKey = page?.nextKey
+
+        if (page != null) {
+            persistTimeline(
+                animeIds = ids,
+                nextPageKey = nextPageKey,
+            )
+        }
+
+        mutableState.update {
+            it.copy(
+                animeIds = if (page != null) ids else it.animeIds,
+                nextPageKey = if (page != null) nextPageKey else it.nextPageKey,
+                isRefreshing = false,
+                isManualRefresh = false,
+                newItemsAvailableCount = 0,
                 hasLoaded = true,
                 error = error,
             )
