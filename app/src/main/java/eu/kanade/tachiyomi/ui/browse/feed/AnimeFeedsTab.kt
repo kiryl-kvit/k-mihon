@@ -69,7 +69,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.paging.LoadState
 import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.core.screen.ScreenKey
@@ -81,7 +80,6 @@ import eu.kanade.domain.source.model.SourceFeed
 import eu.kanade.domain.source.model.SourceFeedPreset
 import eu.kanade.domain.source.model.applySnapshot
 import eu.kanade.domain.source.model.snapshot
-import eu.kanade.presentation.anime.AnimeBrowseSourceContent
 import eu.kanade.presentation.anime.AnimeMergeTargetPickerDialog
 import eu.kanade.presentation.anime.DuplicateAnimeDialog
 import eu.kanade.presentation.browse.components.BaseSourceItem
@@ -105,7 +103,6 @@ import eu.kanade.tachiyomi.source.sourceItemOrientation
 import eu.kanade.tachiyomi.ui.anime.AnimeScreen
 import eu.kanade.tachiyomi.ui.anime.browse.AnimeBrowseSourceScreenModel
 import eu.kanade.tachiyomi.ui.anime.browse.AnimeSourcePreferencesScreen
-import eu.kanade.tachiyomi.ui.anime.browse.BrowseFilterUiState
 import eu.kanade.tachiyomi.ui.anime.pushSourceAnimeScreen
 import eu.kanade.tachiyomi.ui.browse.source.SourceCatalogKind
 import eu.kanade.tachiyomi.ui.category.CategoryScreen
@@ -117,7 +114,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import mihon.feature.migration.dialog.MigrateAnimeDialog
 import mihon.feature.profiles.core.ProfileManager
-import mihon.presentation.core.util.collectAsLazyPagingItems
 import sh.calvin.reorderable.ReorderableCollectionItemScope
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
@@ -301,32 +297,16 @@ private fun AnimeFeedsTabContent(
                     initialFilterSnapshot = activePreset.filters,
                 )
                 val browseModelState by browseModel.state.collectAsState()
-                val chronologicalFeedModel = if (activePreset.chronological) {
-                    rememberAnimeChronologicalFeedScreenModel(
-                        activeProfileId = activeProfileId,
-                        activeFeedId = activeFeed.id,
-                        presetBehaviorKey = presetBehaviorKey,
-                        sourceId = activeSource.id,
-                        listingQuery = SourceCatalogKind.ANIME.requestQuery(activePreset),
-                        initialFilterSnapshot = activePreset.filters,
-                    )
-                } else {
-                    null
-                }
-                val chronologicalFeedState = chronologicalFeedModel?.state?.collectAsState()?.value
-                val playbackTimelineModel = if (feedViewMode == AnimeFeedViewMode.Playback) {
-                    rememberAnimeFeedPlaybackTimelineModel(
-                        activeProfileId = activeProfileId,
-                        activeFeedId = activeFeed.id,
-                        presetBehaviorKey = presetBehaviorKey,
-                        sourceId = activeSource.id,
-                        listingQuery = SourceCatalogKind.ANIME.requestQuery(activePreset),
-                        initialFilterSnapshot = activePreset.filters,
-                    )
-                } else {
-                    null
-                }
-                val playbackTimelineState = playbackTimelineModel?.state?.collectAsState()?.value
+                val timelineModel = rememberAnimeChronologicalFeedScreenModel(
+                    activeProfileId = activeProfileId,
+                    activeFeedId = activeFeed.id,
+                    presetBehaviorKey = presetBehaviorKey,
+                    sourceId = activeSource.id,
+                    listingQuery = SourceCatalogKind.ANIME.requestQuery(activePreset),
+                    initialFilterSnapshot = activePreset.filters,
+                    chronological = activePreset.chronological,
+                )
+                val timelineState = timelineModel.state.collectAsState().value
                 val playbackModel = if (feedViewMode == AnimeFeedViewMode.Playback) {
                     rememberAnimeFeedPlaybackModel(
                         activeProfileId = activeProfileId,
@@ -397,14 +377,11 @@ private fun AnimeFeedsTabContent(
                             },
                         ),
                 ) {
-                    if (feedViewMode == AnimeFeedViewMode.Playback &&
-                        playbackTimelineModel != null &&
-                        playbackModel != null
-                    ) {
+                    if (feedViewMode == AnimeFeedViewMode.Playback && playbackModel != null) {
                         PullRefresh(
-                            refreshing = playbackTimelineState?.isRefreshing == true,
+                            refreshing = timelineState.isRefreshing,
                             enabled = true,
-                            onRefresh = { playbackTimelineModel.refresh(manual = true) },
+                            onRefresh = { timelineModel.refresh(manual = true) },
                             modifier = Modifier.fillMaxSize(),
                         ) {
                             AnimeFeedPlaybackContent(
@@ -414,7 +391,7 @@ private fun AnimeFeedsTabContent(
                                 presetBehaviorKey = presetBehaviorKey,
                             ) {
                                 AnimeVideoFeedBrowseContent(
-                                    timelineModel = playbackTimelineModel,
+                                    timelineModel = timelineModel,
                                     playbackModel = playbackModel,
                                     snackbarHostState = snackbarHostState,
                                     contentPadding = if (playbackUiMode == AnimeVideoFeedUiMode.Immersive) {
@@ -473,130 +450,51 @@ private fun AnimeFeedsTabContent(
                             val sourceItemOrientation = browseModel.source?.sourceItemOrientation()
                                 ?: SourceItemOrientation.VERTICAL
 
-                            if (chronologicalFeedModel != null) {
-                                PullRefresh(
-                                    refreshing = chronologicalFeedState?.isRefreshing == true,
-                                    enabled = true,
-                                    onRefresh = { chronologicalFeedModel.refresh(manual = true) },
-                                    modifier = Modifier.fillMaxSize(),
-                                ) {
-                                    AnimeChronologicalFeedBrowseContent(
-                                        screenModel = chronologicalFeedModel,
-                                        columns = browseModel.getColumnsPreference(
-                                            LocalConfiguration.current.orientation,
-                                            sourceItemOrientation,
-                                        ),
-                                        displayMode = activeDisplayMode,
-                                        sourceItemOrientation = sourceItemOrientation,
-                                        snackbarHostState = snackbarHostState,
-                                        contentPadding = feedContentPadding,
-                                        onAnimeClick = { openSourceAnime(it.id) },
-                                        onAnimeLongClick = { anime ->
-                                            scope.launch {
-                                                if (browseModel.onAnimeLongClick(anime)) {
-                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                }
+                            PullRefresh(
+                                refreshing = timelineState.isRefreshing,
+                                enabled = true,
+                                onRefresh = { timelineModel.refresh(manual = true) },
+                                modifier = Modifier.fillMaxSize(),
+                            ) {
+                                AnimeChronologicalFeedBrowseContent(
+                                    screenModel = timelineModel,
+                                    columns = browseModel.getColumnsPreference(
+                                        LocalConfiguration.current.orientation,
+                                        sourceItemOrientation,
+                                    ),
+                                    displayMode = activeDisplayMode,
+                                    sourceItemOrientation = sourceItemOrientation,
+                                    snackbarHostState = snackbarHostState,
+                                    contentPadding = feedContentPadding,
+                                    onAnimeClick = { openSourceAnime(it.id) },
+                                    onAnimeLongClick = { anime ->
+                                        scope.launch {
+                                            if (browseModel.onAnimeLongClick(anime)) {
+                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                             }
-                                        },
-                                        hoverPreviewEnabled = browseModel.isAnimeVideoPreviewEnabled &&
-                                            browseModel.source is AnimeHoverPreviewSource,
-                                        activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
-                                        onAnimeHover = { anime ->
-                                            val nextIds = activeHoverPreviewAnimeIds - anime.id + anime.id
-                                            activeHoverPreviewAnimeIds = nextIds
-                                                .takeLast(MAX_ACTIVE_HOVER_PREVIEWS)
-                                        },
-                                        onAnimeHoverExit = { anime ->
-                                            activeHoverPreviewAnimeIds =
-                                                activeHoverPreviewAnimeIds - anime.id
-                                        },
-                                        onHoverPreviewReset = { animeId ->
-                                            activeHoverPreviewAnimeIds =
-                                                activeHoverPreviewAnimeIds - animeId
-                                        },
-                                        onHoverPreviewEnded = { anime ->
-                                            activeHoverPreviewAnimeIds =
-                                                activeHoverPreviewAnimeIds - anime.id
-                                        },
-                                        onAnimeHoverPreviewRequest = browseModel::getAnimeHoverPreview,
-                                        onWebViewClick = onWebViewClick,
-                                        onSettingsClick = onSettingsClick,
-                                    )
-                                }
-                            } else {
-                                val animeList = browseModel.animePagerFlow.collectAsLazyPagingItems()
-                                val isRefreshing = when {
-                                    browseModelState.isWaitingForInitialFilterLoad -> {
-                                        browseModelState.filterState is BrowseFilterUiState.Loading
-                                    }
-                                    else -> animeList.itemCount > 0 && animeList.loadState.refresh is LoadState.Loading
-                                }
-
-                                PullRefresh(
-                                    refreshing = isRefreshing,
-                                    enabled = true,
-                                    onRefresh = {
-                                        if (browseModelState.isWaitingForInitialFilterLoad) {
-                                            browseModel.retryFilterLoad()
-                                        } else {
-                                            animeList.refresh()
                                         }
                                     },
-                                    modifier = Modifier.fillMaxSize(),
-                                ) {
-                                    if (browseModelState.isWaitingForInitialFilterLoad) {
-                                        when (val filterState = browseModelState.filterState) {
-                                            is BrowseFilterUiState.Error -> {
-                                                EmptyScreen(
-                                                    message = filterState.throwable.message
-                                                        ?: stringResource(MR.strings.unknown_error),
-                                                    modifier = Modifier.padding(feedContentPadding),
-                                                )
-                                            }
-                                            else -> LoadingScreen(Modifier.padding(feedContentPadding))
-                                        }
-                                    } else {
-                                        AnimeBrowseSourceContent(
-                                            animeList = animeList,
-                                            columns = browseModel.getColumnsPreference(
-                                                LocalConfiguration.current.orientation,
-                                                sourceItemOrientation,
-                                            ),
-                                            displayMode = activeDisplayMode,
-                                            sourceItemOrientation = sourceItemOrientation,
-                                            snackbarHostState = snackbarHostState,
-                                            contentPadding = feedContentPadding,
-                                            onAnimeClick = { openSourceAnime(it.id) },
-                                            onAnimeLongClick = { anime ->
-                                                scope.launch {
-                                                    if (browseModel.onAnimeLongClick(anime)) {
-                                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                    }
-                                                }
-                                            },
-                                            hoverPreviewEnabled = browseModel.isAnimeVideoPreviewEnabled &&
-                                                browseModel.source is AnimeHoverPreviewSource,
-                                            activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
-                                            onAnimeHover = { anime ->
-                                                activeHoverPreviewAnimeIds =
-                                                    (activeHoverPreviewAnimeIds - anime.id + anime.id)
-                                                        .takeLast(MAX_ACTIVE_HOVER_PREVIEWS)
-                                            },
-                                            onAnimeHoverExit = { anime ->
-                                                activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds - anime.id
-                                            },
-                                            onHoverPreviewReset = { animeId ->
-                                                activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds - animeId
-                                            },
-                                            onHoverPreviewEnded = { anime ->
-                                                activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds - anime.id
-                                            },
-                                            onAnimeHoverPreviewRequest = browseModel::getAnimeHoverPreview,
-                                            onWebViewClick = onWebViewClick,
-                                            onSettingsClick = onSettingsClick,
-                                        )
-                                    }
-                                }
+                                    hoverPreviewEnabled = browseModel.isAnimeVideoPreviewEnabled &&
+                                        browseModel.source is AnimeHoverPreviewSource,
+                                    activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds,
+                                    onAnimeHover = { anime ->
+                                        val nextIds = activeHoverPreviewAnimeIds - anime.id + anime.id
+                                        activeHoverPreviewAnimeIds = nextIds
+                                            .takeLast(MAX_ACTIVE_HOVER_PREVIEWS)
+                                    },
+                                    onAnimeHoverExit = { anime ->
+                                        activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds - anime.id
+                                    },
+                                    onHoverPreviewReset = { animeId ->
+                                        activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds - animeId
+                                    },
+                                    onHoverPreviewEnded = { anime ->
+                                        activeHoverPreviewAnimeIds = activeHoverPreviewAnimeIds - anime.id
+                                    },
+                                    onAnimeHoverPreviewRequest = browseModel::getAnimeHoverPreview,
+                                    onWebViewClick = onWebViewClick,
+                                    onSettingsClick = onSettingsClick,
+                                )
                             }
                         }
                     }
@@ -958,6 +856,7 @@ private fun rememberAnimeChronologicalFeedScreenModel(
     sourceId: Long,
     listingQuery: String?,
     initialFilterSnapshot: List<eu.kanade.domain.source.model.FilterStateNode>,
+    chronological: Boolean,
 ): AnimeChronologicalFeedScreenModel {
     val profileKey = activeProfileId?.toString() ?: "none"
     return object : Screen {
@@ -974,33 +873,7 @@ private fun rememberAnimeChronologicalFeedScreenModel(
             sourceId = sourceId,
             listingQuery = listingQuery,
             initialFilterSnapshot = initialFilterSnapshot,
-        )
-    }
-}
-
-@Composable
-private fun rememberAnimeFeedPlaybackTimelineModel(
-    activeProfileId: Long?,
-    activeFeedId: String,
-    presetBehaviorKey: String,
-    sourceId: Long,
-    listingQuery: String?,
-    initialFilterSnapshot: List<eu.kanade.domain.source.model.FilterStateNode>,
-): AnimeChronologicalFeedScreenModel {
-    val profileKey = activeProfileId?.toString() ?: "none"
-    return object : Screen {
-        override val key: ScreenKey = "anime-feed-playback-timeline-model-$profileKey-$activeFeedId-$presetBehaviorKey"
-
-        @Composable
-        override fun Content() {
-            error("Not used")
-        }
-    }.rememberScreenModel(tag = "anime-feed-playback-timeline:$profileKey:$activeFeedId:$presetBehaviorKey") {
-        AnimeChronologicalFeedScreenModel(
-            feedId = activeFeedId,
-            sourceId = sourceId,
-            listingQuery = listingQuery,
-            initialFilterSnapshot = initialFilterSnapshot,
+            chronological = chronological,
         )
     }
 }
