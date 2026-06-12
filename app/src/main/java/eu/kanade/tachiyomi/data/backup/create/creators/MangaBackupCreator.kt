@@ -13,8 +13,8 @@ import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.history.interactor.GetHistory
 import tachiyomi.domain.history.model.History
-import tachiyomi.domain.manga.interactor.GetMergedManga
 import tachiyomi.domain.manga.model.Manga
+import tachiyomi.domain.manga.model.MangaMerge
 import tachiyomi.domain.manga.repository.MangaRepository
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -24,7 +24,6 @@ class MangaBackupCreator(
     private val profileProvider: ActiveProfileProvider = Injekt.get(),
     private val getCategories: GetCategories = Injekt.get(),
     private val getHistory: GetHistory = Injekt.get(),
-    private val getMergedManga: GetMergedManga = Injekt.get(),
     private val mangaRepository: MangaRepository = Injekt.get(),
 ) {
 
@@ -128,7 +127,7 @@ class MangaBackupCreator(
             }
         }
 
-        val mergeGroup = getMergedManga.awaitGroupByMangaId(manga.id)
+        val mergeGroup = getMergeGroupForBackup(profileId, manga.id)
         if (mergeGroup.isNotEmpty()) {
             val targetId = mergeGroup.first().targetId
             val targetManga = allMangaById[targetId]
@@ -141,6 +140,14 @@ class MangaBackupCreator(
         }
 
         return mangaObject
+    }
+
+    private suspend fun getMergeGroupForBackup(profileId: Long, mangaId: Long): List<MangaMerge> {
+        return handler.awaitList {
+            merged_mangasQueries.getEntriesByMangaId(profileId, mangaId) { targetMangaId, memberMangaId, position ->
+                MangaMerge(targetId = targetMangaId, mangaId = memberMangaId, position = position)
+            }
+        }
     }
 }
 

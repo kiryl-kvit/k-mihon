@@ -10,7 +10,6 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 import tachiyomi.data.ActiveProfileProvider
 import tachiyomi.data.DatabaseHandler
-import tachiyomi.domain.anime.interactor.GetMergedAnime
 import tachiyomi.domain.anime.model.AnimeEpisode
 import tachiyomi.domain.anime.model.AnimeHistory
 import tachiyomi.domain.anime.model.AnimeMerge
@@ -31,7 +30,6 @@ class AnimeBackupCreatorTest {
     private val handler = mockk<DatabaseHandler>()
     private val profileProvider = mockk<ActiveProfileProvider>()
     private val getAnimeCategories = mockk<GetAnimeCategories>()
-    private val getMergedAnime = mockk<GetMergedAnime>()
     private val animeRepository = mockk<AnimeRepository>()
     private val animeEpisodeRepository = mockk<AnimeEpisodeRepository>()
     private val animeHistoryRepository = mockk<AnimeHistoryRepository>()
@@ -42,7 +40,6 @@ class AnimeBackupCreatorTest {
         handler = handler,
         profileProvider = profileProvider,
         getAnimeCategories = getAnimeCategories,
-        getMergedAnime = getMergedAnime,
         animeRepository = animeRepository,
         animeEpisodeRepository = animeEpisodeRepository,
         animeHistoryRepository = animeHistoryRepository,
@@ -52,7 +49,6 @@ class AnimeBackupCreatorTest {
 
     init {
         every { profileProvider.activeProfileId } returns 1L
-        coEvery { getMergedAnime.awaitGroupByAnimeId(any()) } returns emptyList()
         coEvery { animeRepository.getAllAnimeByProfile(any()) } returns emptyList()
     }
 
@@ -112,6 +108,7 @@ class AnimeBackupCreatorTest {
         coEvery { handler.awaitList<Any>(false, any()) } returnsMany listOf(
             listOf(episode),
             listOf(history),
+            emptyList<AnimeMerge>(),
         )
         coEvery { handler.awaitOneOrNull<Any>(false, any()) } returnsMany listOf(
             playbackPreferences,
@@ -146,7 +143,7 @@ class AnimeBackupCreatorTest {
         backup.single().history.single().lastWatched shouldBe history.watchedAt?.time
         backup.single().history.single().watchedDuration shouldBe history.watchedDuration
 
-        coVerify(exactly = 2) { handler.awaitList<Any>(false, any()) }
+        coVerify(exactly = 3) { handler.awaitList<Any>(false, any()) }
         coVerify(exactly = 4) { handler.awaitOneOrNull<Any>(false, any()) }
 
         coVerify(exactly = 0) { animeEpisodeRepository.getEpisodesByAnimeId(any()) }
@@ -157,7 +154,7 @@ class AnimeBackupCreatorTest {
     }
 
     @Test
-    fun `backup stores anime merge metadata`() = runTest {
+    fun `non-active profile backup stores anime merge metadata from requested profile`() = runTest {
         val targetAnime = AnimeTitle.create().copy(
             id = 10L,
             source = 100L,
@@ -171,14 +168,15 @@ class AnimeBackupCreatorTest {
             title = "Member",
         )
 
-        coEvery { animeRepository.getAllAnimeByProfile(1L) } returns listOf(targetAnime, memberAnime)
-        coEvery { getMergedAnime.awaitGroupByAnimeId(memberAnime.id) } returns listOf(
+        coEvery { animeRepository.getAllAnimeByProfile(2L) } returns listOf(targetAnime, memberAnime)
+        coEvery { handler.awaitOneOrNull<Any>(false, any()) } returns null
+        coEvery { handler.awaitList<Any>(false, any()) } returns listOf(
             AnimeMerge(targetId = targetAnime.id, animeId = targetAnime.id, position = 0L),
             AnimeMerge(targetId = targetAnime.id, animeId = memberAnime.id, position = 1L),
         )
-        coEvery { animePlaybackPreferencesRepository.getByAnimeId(memberAnime.id) } returns null
 
         val backup = creator.invoke(
+            profileId = 2L,
             animes = listOf(memberAnime),
             options = BackupOptions(categories = false, chapters = false, history = false),
         )

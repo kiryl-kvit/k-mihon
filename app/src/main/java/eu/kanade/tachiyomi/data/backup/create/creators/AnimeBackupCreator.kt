@@ -12,9 +12,9 @@ import tachiyomi.data.anime.AnimeEpisodeMapper
 import tachiyomi.data.anime.AnimeHistoryMapper
 import tachiyomi.data.anime.AnimePlaybackPreferencesMapper
 import tachiyomi.data.anime.AnimePlaybackStateMapper
-import tachiyomi.domain.anime.interactor.GetMergedAnime
 import tachiyomi.domain.anime.model.AnimeEpisode
 import tachiyomi.domain.anime.model.AnimeHistory
+import tachiyomi.domain.anime.model.AnimeMerge
 import tachiyomi.domain.anime.model.AnimePlaybackPreferences
 import tachiyomi.domain.anime.model.AnimePlaybackState
 import tachiyomi.domain.anime.model.AnimeTitle
@@ -32,7 +32,6 @@ class AnimeBackupCreator(
     private val handler: DatabaseHandler = Injekt.get(),
     private val profileProvider: ActiveProfileProvider = Injekt.get(),
     private val getAnimeCategories: GetAnimeCategories = Injekt.get(),
-    private val getMergedAnime: GetMergedAnime = Injekt.get(),
     private val animeRepository: AnimeRepository = Injekt.get(),
     private val animeEpisodeRepository: AnimeEpisodeRepository = Injekt.get(),
     private val animeHistoryRepository: AnimeHistoryRepository = Injekt.get(),
@@ -138,7 +137,7 @@ class AnimeBackupCreator(
             }
         }
 
-        val mergeGroup = getMergedAnime.awaitGroupByAnimeId(anime.id)
+        val mergeGroup = getMergeGroupForBackup(profileId, anime.id)
         if (mergeGroup.isNotEmpty()) {
             val targetId = mergeGroup.first().targetId
             val targetAnime = allAnimeById[targetId]
@@ -151,6 +150,14 @@ class AnimeBackupCreator(
         }
 
         return animeObject
+    }
+
+    private suspend fun getMergeGroupForBackup(profileId: Long, animeId: Long): List<AnimeMerge> {
+        return handler.awaitList {
+            merged_animesQueries.getEntriesByAnimeId(profileId, animeId) { targetAnimeId, memberAnimeId, position ->
+                AnimeMerge(targetId = targetAnimeId, animeId = memberAnimeId, position = position)
+            }
+        }
     }
 
     private suspend fun getEpisodesForBackup(profileId: Long, animeId: Long): List<AnimeEpisode> {
