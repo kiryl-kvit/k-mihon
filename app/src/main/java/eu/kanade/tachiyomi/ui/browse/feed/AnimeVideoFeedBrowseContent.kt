@@ -148,7 +148,7 @@ internal fun AnimeVideoFeedBrowseContent(
         playbackModel.retainActiveLoads(activeLoadIds)
     }
 
-    LaunchedEffect(state.animeIds) {
+    LaunchedEffect(state.isRefreshing, state.isAppending, state.nextPageKey, state.animeIds.size) {
         snapshotFlow { pagerState.currentPage }
             .distinctUntilChanged()
             .collectLatest { page ->
