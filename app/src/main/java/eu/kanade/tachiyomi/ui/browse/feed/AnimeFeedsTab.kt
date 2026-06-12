@@ -288,15 +288,6 @@ private fun AnimeFeedsTabContent(
 
         Column {
             key(activeProfileId, activeFeed.id, presetBehaviorKey) {
-                val browseModel = rememberActiveAnimeFeedScreenModel(
-                    activeProfileId = activeProfileId,
-                    activeFeedId = activeFeed.id,
-                    presetBehaviorKey = presetBehaviorKey,
-                    sourceId = activeSource.id,
-                    listingQuery = SourceCatalogKind.ANIME.requestQuery(activePreset),
-                    initialFilterSnapshot = activePreset.filters,
-                )
-                val browseModelState by browseModel.state.collectAsState()
                 val timelineModel = rememberAnimeChronologicalFeedScreenModel(
                     activeProfileId = activeProfileId,
                     activeFeedId = activeFeed.id,
@@ -307,22 +298,48 @@ private fun AnimeFeedsTabContent(
                     chronological = activePreset.chronological,
                 )
                 val timelineState = timelineModel.state.collectAsState().value
-                val playbackModel = if (feedViewMode == AnimeFeedViewMode.Playback) {
-                    rememberAnimeFeedPlaybackModel(
-                        activeProfileId = activeProfileId,
-                        activeFeedId = activeFeed.id,
-                        presetBehaviorKey = presetBehaviorKey,
-                    )
-                } else {
-                    null
+                val playbackModel = key("playback-model") {
+                    if (feedViewMode == AnimeFeedViewMode.Playback) {
+                        rememberAnimeFeedPlaybackModel(
+                            activeProfileId = activeProfileId,
+                            activeFeedId = activeFeed.id,
+                            presetBehaviorKey = presetBehaviorKey,
+                        )
+                    } else {
+                        null
+                    }
                 }
+                val browseModel = key("regular-browse-model") {
+                    if (feedViewMode == AnimeFeedViewMode.Regular) {
+                        rememberActiveAnimeFeedScreenModel(
+                            activeProfileId = activeProfileId,
+                            activeFeedId = activeFeed.id,
+                            presetBehaviorKey = presetBehaviorKey,
+                            sourceId = activeSource.id,
+                            listingQuery = SourceCatalogKind.ANIME.requestQuery(activePreset),
+                            initialFilterSnapshot = activePreset.filters,
+                        )
+                    } else {
+                        null
+                    }
+                }
+                val browseModelState = browseModel?.state?.collectAsState()?.value
 
-                LaunchedEffect(activeProfileId) {
+                LaunchedEffect(activeProfileId, browseModel) {
                     screenModel.closeDialog()
-                    browseModel.dismissDialog()
+                    browseModel?.dismissDialog()
                 }
 
-                LaunchedEffect(activeFeed.id, activePreset.id, presetBehaviorKey) {
+                LaunchedEffect(
+                    activeFeed.id,
+                    activePreset.id,
+                    presetBehaviorKey,
+                    browseModelState?.listing,
+                    browseModelState?.filters,
+                    browseModelState?.isWaitingForInitialFilterLoad,
+                ) {
+                    val browseModel = browseModel ?: return@LaunchedEffect
+                    val browseModelState = browseModelState ?: return@LaunchedEffect
                     if (browseModelState.isWaitingForInitialFilterLoad) return@LaunchedEffect
 
                     val currentFilters = browseModelState.filters.snapshot()
@@ -429,6 +446,7 @@ private fun AnimeFeedsTabContent(
                             activeFeedId = activeFeed.id,
                             presetBehaviorKey = presetBehaviorKey,
                         ) {
+                            val browseModel = browseModel ?: return@AnimeFeedBrowseContent
                             val httpSource = browseModel.source as? AnimeHttpSource
                             val configurableSource = browseModel.source as? ConfigurableAnimeSource
                             val onWebViewClick = httpSource?.let {
@@ -500,7 +518,7 @@ private fun AnimeFeedsTabContent(
                     }
                 }
 
-                if (feedViewMode == AnimeFeedViewMode.Regular) {
+                if (feedViewMode == AnimeFeedViewMode.Regular && browseModel != null && browseModelState != null) {
                     when (val dialog = browseModelState.dialog) {
                         is AnimeBrowseSourceScreenModel.Dialog.ChangeAnimeCategory -> {
                             ChangeCategoryDialog(

@@ -139,6 +139,15 @@ internal fun AnimeVideoFeedBrowseContent(
         restoredAnchorKey = anchorRestoreKey
     }
 
+    LaunchedEffect(state.animeIds, pagerState.currentPage) {
+        val firstLoadPage = pagerState.currentPage - PRELOAD_PAGE_RADIUS
+        val lastLoadPage = pagerState.currentPage + PRELOAD_PAGE_RADIUS
+        val activeLoadIds = (firstLoadPage..lastLoadPage)
+            .mapNotNull(state.animeIds::getOrNull)
+            .toSet()
+        playbackModel.retainActiveLoads(activeLoadIds)
+    }
+
     LaunchedEffect(state.animeIds) {
         snapshotFlow { pagerState.currentPage }
             .distinctUntilChanged()

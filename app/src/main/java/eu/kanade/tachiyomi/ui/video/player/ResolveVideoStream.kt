@@ -13,10 +13,13 @@ import eu.kanade.tachiyomi.source.model.VideoStream
 import eu.kanade.tachiyomi.source.model.VideoStreamType
 import eu.kanade.tachiyomi.source.model.VideoSubtitle
 import eu.kanade.tachiyomi.util.system.isOnline
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
+import logcat.LogPriority
+import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.anime.model.AnimeEpisode
 import tachiyomi.domain.anime.model.AnimePlaybackPreferences
 import tachiyomi.domain.anime.model.AnimeTitle
@@ -46,9 +49,9 @@ class ResolveVideoStream(
         ownerAnimeId: Long,
         selection: VideoPlaybackSelection?,
     ): Result {
-        val visibleAnime = runCatching { videoRepository.getAnimeById(animeId) }
+        val visibleAnime = runCatchingCancellable { videoRepository.getAnimeById(animeId) }
             .getOrElse { return Result.Error(Reason.VideoNotFound) }
-        val ownerAnime = runCatching { videoRepository.getAnimeById(ownerAnimeId) }
+        val ownerAnime = runCatchingCancellable { videoRepository.getAnimeById(ownerAnimeId) }
             .getOrElse { return Result.Error(Reason.VideoNotFound) }
         val episode = videoEpisodeRepository.getEpisodeById(episodeId)
             ?: return Result.Error(Reason.EpisodeNotFound)
@@ -88,16 +91,25 @@ class ResolveVideoStream(
         )
         val sourceEpisode = episode.toSEpisode()
 
-        val playbackData = runCatching {
+        logcat(LogPriority.DEBUG) {
+            "ResolveVideoStream: start animeId=$animeId episodeId=$episodeId source=${ownerAnime.source}"
+        }
+        val playbackData = runCatchingCancellable {
             withTimeoutOrNull(streamFetchTimeoutMs) {
                 source.getPlaybackData(sourceEpisode, requestedSelection)
             } ?: return Result.Error(Reason.StreamFetchTimeout)
         }.getOrElse {
+            logcat(LogPriority.DEBUG, it) {
+                "ResolveVideoStream: source.getPlaybackData threw for animeId=$animeId episodeId=$episodeId"
+            }
             return Result.Error(Reason.StreamFetchFailed(it))
         }
+        logcat(LogPriority.DEBUG) {
+            "ResolveVideoStream: source.getPlaybackData returned ${playbackData.streams.size} streams for animeId=$animeId episodeId=$episodeId"
+        }
 
-        val subtitles = runCatching {
-            val subtitleSource = source as? AnimeSubtitleSource ?: return@runCatching emptyList()
+        val subtitles = runCatchingCancellable {
+            val subtitleSource = source as? AnimeSubtitleSource ?: return@runCatchingCancellable emptyList()
             withTimeoutOrNull(streamFetchTimeoutMs) {
                 subtitleSource.getSubtitles(sourceEpisode, playbackData.selection)
             } ?: emptyList()
@@ -237,7 +249,7 @@ class ResolveVideoStream(
         ) ?: return null
 
         val manifestFile = episodeDir.findFile(AnimeDownloader.MANIFEST_FILE_NAME)
-        val manifest = runCatching {
+        val manifest = runCatchingCancellable {
             manifestFile?.openInputStream()?.bufferedReader()?.use { reader ->
                 json.decodeFromString<AnimeDownloadManifest>(reader.readText())
             }
@@ -362,3 +374,13 @@ private data class OfflinePlaybackData(
     val stream: VideoStream,
     val subtitles: List<VideoSubtitle>,
 )
+
+private inline fun <T> runCatchingCancellable(block: () -> T): Result<T> {
+    return try {
+        Result.success(block())
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Throwable) {
+        Result.failure(e)
+    }
+}
