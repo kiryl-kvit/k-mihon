@@ -290,6 +290,24 @@ class VideoPlayerViewModel @JvmOverloads constructor(
 
     fun selectSubtitle(selection: VideoPlayerSubtitleSelection) {
         val current = mutableState.value as? State.Ready ?: return
+        if (current.playback.currentSubtitle != selection) {
+            mutableState.value = current.copy(
+                playback = current.playback.copy(currentSubtitle = selection),
+            )
+        }
+        viewModelScope.launch {
+            persistPlaybackPreferences(
+                animeId = current.ownerAnimeId,
+                sourceSelection = current.playback.persistedSourceSelection,
+                adaptiveQuality = current.playback.currentAdaptiveQuality,
+                subtitleKey = subtitlePreferenceKey(selection),
+                updateSubtitleKey = true,
+            )
+        }
+    }
+
+    fun updateResolvedSubtitle(selection: VideoPlayerSubtitleSelection) {
+        val current = mutableState.value as? State.Ready ?: return
         if (current.playback.currentSubtitle == selection) return
         mutableState.value = current.copy(
             playback = current.playback.copy(currentSubtitle = selection),
@@ -552,7 +570,9 @@ class VideoPlayerViewModel @JvmOverloads constructor(
         val playback = buildPlaybackUiState(result.playbackData, result.stream, result.savedPreferences)
             .copy(
                 subtitles = result.subtitles,
-                currentSubtitle = resolveSourceSubtitleSelection(requestedSubtitle, result.subtitles),
+                currentSubtitle = requestedSubtitle
+                    ?.let { resolveSourceSubtitleSelection(it, result.subtitles) }
+                    ?: resolvePersistedSubtitleSelection(result.savedPreferences.subtitleKey, result.subtitles),
             )
             .copy(preview = preview)
         return State.Ready(
@@ -668,6 +688,8 @@ class VideoPlayerViewModel @JvmOverloads constructor(
         sourceSelection: VideoPlaybackSelection? = null,
         adaptiveQuality: VideoAdaptiveQualityPreference? = null,
         subtitleAppearance: VideoSubtitleAppearance? = null,
+        subtitleKey: String? = null,
+        updateSubtitleKey: Boolean = false,
     ) {
         val existingPreferences = animePlaybackPreferencesRepository.getByAnimeId(animeId)
             ?: defaultPlaybackPreferences(animeId)
@@ -678,12 +700,14 @@ class VideoPlayerViewModel @JvmOverloads constructor(
         )
         val resolvedAdaptiveQuality = adaptiveQuality ?: existingPreferences.toAdaptiveQualityPreference()
         val resolvedSubtitleAppearance = (subtitleAppearance ?: existingPreferences.toSubtitleAppearance()).normalized()
+        val resolvedSubtitleKey = if (updateSubtitleKey) subtitleKey else existingPreferences.subtitleKey
         animePlaybackPreferencesRepository.upsert(
             AnimePlaybackPreferences(
                 animeId = animeId,
                 dubKey = resolvedSourceSelection.dubKey,
                 streamKey = resolvedSourceSelection.streamKey,
                 sourceQualityKey = resolvedSourceSelection.sourceQualityKey,
+                subtitleKey = resolvedSubtitleKey,
                 playerQualityMode = resolvedAdaptiveQuality.toPlayerQualityMode(),
                 playerQualityHeight = resolvedAdaptiveQuality.heightOrNull(),
                 subtitleOffsetX = resolvedSubtitleAppearance.toPersistedOffsetX(),
@@ -703,6 +727,7 @@ class VideoPlayerViewModel @JvmOverloads constructor(
             dubKey = null,
             streamKey = null,
             sourceQualityKey = null,
+            subtitleKey = null,
             playerQualityMode = PlayerQualityMode.AUTO,
             playerQualityHeight = null,
             updatedAt = 0L,

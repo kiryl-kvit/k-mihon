@@ -321,6 +321,7 @@ class ResolveVideoStream(
             dubKey = null,
             streamKey = null,
             sourceQualityKey = null,
+            subtitleKey = null,
             playerQualityMode = PlayerQualityMode.AUTO,
             playerQualityHeight = null,
             subtitleOffsetX = null,

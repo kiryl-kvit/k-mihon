@@ -208,6 +208,7 @@ class AnimeRestorer(
                 dubKey = preferences.dubKey,
                 streamKey = preferences.streamKey,
                 sourceQualityKey = preferences.sourceQualityKey,
+                subtitleKey = preferences.subtitleKey,
                 playerQualityMode = preferences.playerQualityMode,
                 playerQualityHeight = preferences.playerQualityHeight,
                 subtitleOffsetX = preferences.subtitleOffsetX,

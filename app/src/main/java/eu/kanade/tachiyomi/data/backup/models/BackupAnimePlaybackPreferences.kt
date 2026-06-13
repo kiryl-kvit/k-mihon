@@ -19,6 +19,7 @@ data class BackupAnimePlaybackPreferences(
     @ProtoNumber(10) var subtitleTextColor: Int? = null,
     @ProtoNumber(11) var subtitleBackgroundColor: Int? = null,
     @ProtoNumber(12) var subtitleBackgroundOpacity: Double? = null,
+    @ProtoNumber(13) var subtitleKey: String? = null,
 ) {
     fun toPlaybackPreferences(): AnimePlaybackPreferences {
         return AnimePlaybackPreferences(
@@ -26,6 +27,7 @@ data class BackupAnimePlaybackPreferences(
             dubKey = dubKey,
             streamKey = streamKey,
             sourceQualityKey = sourceQualityKey,
+            subtitleKey = subtitleKey,
             playerQualityMode = when (playerQualityMode) {
                 "specific_height" -> PlayerQualityMode.SPECIFIC_HEIGHT
                 else -> PlayerQualityMode.AUTO
