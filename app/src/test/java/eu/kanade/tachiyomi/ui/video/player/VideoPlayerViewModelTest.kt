@@ -574,7 +574,7 @@ class VideoPlayerViewModelTest {
     }
 
     @Test
-    fun `apply reuses cached preview result for same selection`() = runTest(dispatcher) {
+    fun `apply resolves fresh playback after cached preview`() = runTest(dispatcher) {
         val playbackRepository = FakeAnimePlaybackStateRepository(existingState = null)
         val historyRepository = FakeAnimeHistoryRepository()
         val preferencesRepository = RecordingAnimePlaybackPreferencesRepository()
@@ -601,6 +601,7 @@ class VideoPlayerViewModelTest {
         resolver.selections shouldBe listOf(
             null,
             VideoPlaybackSelection(dubKey = "dub-2", sourceQualityKey = "720p"),
+            VideoPlaybackSelection(dubKey = "dub-2", sourceQualityKey = "720p"),
         )
         preferencesRepository.upserts.last().sourceQualityKey shouldBe "720p"
         val state = viewModel.state.value as VideoPlayerViewModel.State.Ready
@@ -609,7 +610,40 @@ class VideoPlayerViewModelTest {
     }
 
     @Test
-    fun `cached apply source selection uses latest persisted position`() = runTest(dispatcher) {
+    fun `apply source selection resolves again when returning to previous quality`() = runTest(dispatcher) {
+        val playbackRepository = FakeAnimePlaybackStateRepository(existingState = null)
+        val historyRepository = FakeAnimeHistoryRepository()
+        val resolver = PreviewAwareRecordingVideoStreamResolver()
+        val viewModel = VideoPlayerViewModel(
+            savedState = SavedStateHandle(),
+            resolveVideoStream = resolver,
+            animePlaybackPreferencesRepository = RecordingAnimePlaybackPreferencesRepository(),
+            animeEpisodeRepository = FakeAnimeEpisodeRepository(episodes = emptyList()),
+            videoPlaybackStateRepository = playbackRepository,
+            videoHistoryRepository = historyRepository,
+            resolveDispatcher = dispatcher,
+            persistenceDispatcher = dispatcher,
+        )
+
+        viewModel.init(animeId = 1L, episodeId = 2L)
+        advanceUntilIdle()
+        viewModel.applySourceSelection(VideoPlaybackSelection(sourceQualityKey = "720p"))
+        advanceUntilIdle()
+        viewModel.applySourceSelection(VideoPlaybackSelection(sourceQualityKey = "480p"))
+        advanceUntilIdle()
+        viewModel.applySourceSelection(VideoPlaybackSelection(sourceQualityKey = "720p"))
+        advanceUntilIdle()
+
+        resolver.selections shouldBe listOf(
+            null,
+            VideoPlaybackSelection(sourceQualityKey = "720p"),
+            VideoPlaybackSelection(sourceQualityKey = "480p"),
+            VideoPlaybackSelection(sourceQualityKey = "720p"),
+        )
+    }
+
+    @Test
+    fun `apply source selection after preview uses latest persisted position`() = runTest(dispatcher) {
         val playbackRepository = FakeAnimePlaybackStateRepository(
             existingState = AnimePlaybackState(
                 episodeId = 2L,

@@ -117,32 +117,12 @@ class VideoPlayerViewModel @JvmOverloads constructor(
                 adaptiveQuality = current.playback.currentAdaptiveQuality,
             )
             if (!isActive) return@launch
-            val cachedResult = cachedSelectionResult(current.episodeId, selection)
-            if (cachedResult != null) {
-                val requestedStreamKey = selection.streamKey
-                val stream = if (requestedStreamKey != null) {
-                    cachedResult.playbackData.streams.firstOrNull { s ->
-                        val key = s.key.ifBlank { s.label.ifBlank { s.request.url } }
-                        key == requestedStreamKey
-                    } ?: cachedResult.stream
-                } else {
-                    cachedResult.stream
-                }
-                mutableState.value = buildReadyState(
-                    result = cachedResult.copy(stream = stream),
-                    preservePositionMs = current.resumePositionMs,
-                    preview = VideoPlaybackPreviewState(),
-                    isSourceSwitching = false,
-                    requestedSubtitle = preservedSubtitle,
-                )
-            } else {
-                resolvePlayback(
-                    selection = selection,
-                    preservePositionMs = current.resumePositionMs,
-                    showLoading = false,
-                    requestedSubtitle = preservedSubtitle,
-                )
-            }
+            resolvePlayback(
+                selection = selection,
+                preservePositionMs = current.resumePositionMs,
+                showLoading = false,
+                requestedSubtitle = preservedSubtitle,
+            )
         }
     }
 
