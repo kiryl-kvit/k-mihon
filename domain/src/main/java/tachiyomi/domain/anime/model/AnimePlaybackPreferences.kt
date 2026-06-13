@@ -5,6 +5,7 @@ data class AnimePlaybackPreferences(
     val dubKey: String?,
     val streamKey: String?,
     val sourceQualityKey: String?,
+    val subtitleKey: String?,
     val playerQualityMode: PlayerQualityMode,
     val playerQualityHeight: Int?,
     val subtitleOffsetX: Double? = null,

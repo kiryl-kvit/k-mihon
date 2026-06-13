@@ -193,6 +193,40 @@ internal fun resolveSourceSubtitleSelection(
     }
 }
 
+internal fun resolvePersistedSubtitleSelection(
+    subtitleKey: String?,
+    subtitles: List<VideoSubtitle>,
+): VideoPlayerSubtitleSelection {
+    return when (subtitleKey) {
+        null -> defaultSubtitleSelection(subtitles)
+        OFF_SUBTITLE_KEY -> VideoPlayerSubtitleSelection.None
+        else -> subtitles.firstOrNull { subtitle ->
+            subtitlePreferenceKey(subtitle) == subtitleKey || subtitleChoiceKey(subtitle) == subtitleKey
+        }
+            ?.let(VideoPlayerSubtitleSelection::External)
+            ?: defaultSubtitleSelection(subtitles)
+    }
+}
+
+internal fun subtitlePreferenceKey(selection: VideoPlayerSubtitleSelection): String? {
+    return when (selection) {
+        VideoPlayerSubtitleSelection.None -> OFF_SUBTITLE_KEY
+        VideoPlayerSubtitleSelection.Default -> null
+        is VideoPlayerSubtitleSelection.External -> subtitlePreferenceKey(selection.subtitle)
+        is VideoPlayerSubtitleSelection.Embedded -> null
+    }
+}
+
+internal fun subtitlePreferenceKey(subtitle: VideoSubtitle): String {
+    val stableKey = listOfNotNull(
+        subtitle.label.trim().takeIf(String::isNotBlank),
+        subtitle.language?.trim()?.takeIf(String::isNotBlank),
+    ).joinToString("|").ifBlank {
+        subtitle.key.ifBlank { subtitleChoiceKey(subtitle) }
+    }
+    return "$EXTERNAL_SUBTITLE_PREFERENCE_PREFIX$stableKey"
+}
+
 internal fun resolvePreviewSubtitleSelection(
     requested: VideoPlayerSubtitleSelection,
     subtitles: List<VideoSubtitle>,
@@ -317,6 +351,8 @@ internal const val MIN_SUBTITLE_OFFSET_Y = -0.78f
 internal const val MAX_SUBTITLE_OFFSET_Y = 0.25f
 internal const val DEFAULT_SUBTITLE_TEXT_COLOR = Color.WHITE
 internal const val DEFAULT_SUBTITLE_BACKGROUND_COLOR = Color.BLACK
+
+private const val EXTERNAL_SUBTITLE_PREFERENCE_PREFIX = "external:"
 
 internal fun subtitleBaselineTop(containerHeight: Int, subtitleHeight: Int): Float {
     return (containerHeight - subtitleHeight - (containerHeight * DEFAULT_SUBTITLE_BOTTOM_PADDING_FRACTION))

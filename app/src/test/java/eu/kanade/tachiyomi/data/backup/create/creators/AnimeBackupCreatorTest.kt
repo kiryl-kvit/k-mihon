@@ -100,6 +100,7 @@ class AnimeBackupCreatorTest {
             dubKey = "dub-1",
             streamKey = "stream-1",
             sourceQualityKey = "720p",
+            subtitleKey = "external:English|en",
             playerQualityMode = PlayerQualityMode.AUTO,
             playerQualityHeight = null,
             updatedAt = 1_234L,
@@ -136,6 +137,7 @@ class AnimeBackupCreatorTest {
         backup.single().playbackPreferences?.dubKey shouldBe playbackPreferences.dubKey
         backup.single().playbackPreferences?.streamKey shouldBe playbackPreferences.streamKey
         backup.single().playbackPreferences?.sourceQualityKey shouldBe playbackPreferences.sourceQualityKey
+        backup.single().playbackPreferences?.subtitleKey shouldBe playbackPreferences.subtitleKey
         backup.single().episodes.single().url shouldBe episode.url
         backup.single().playbackStates.single().url shouldBe episode.url
         backup.single().playbackStates.single().positionMs shouldBe playbackState.positionMs

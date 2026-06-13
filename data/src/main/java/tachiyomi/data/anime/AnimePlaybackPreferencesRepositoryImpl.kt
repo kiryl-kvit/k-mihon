@@ -42,6 +42,7 @@ class AnimePlaybackPreferencesRepositoryImpl(
                 dubKey = preferences.dubKey,
                 streamKey = preferences.streamKey,
                 sourceQualityKey = preferences.sourceQualityKey,
+                subtitleKey = preferences.subtitleKey,
                 playerQualityMode = AnimePlaybackPreferencesMapper.encodePlayerQualityMode(
                     preferences.playerQualityMode,
                 ),
@@ -62,6 +63,7 @@ class AnimePlaybackPreferencesRepositoryImpl(
                 dubKey = preferences.dubKey,
                 streamKey = preferences.streamKey,
                 sourceQualityKey = preferences.sourceQualityKey,
+                subtitleKey = preferences.subtitleKey,
                 playerQualityMode = AnimePlaybackPreferencesMapper.encodePlayerQualityMode(
                     preferences.playerQualityMode,
                 ),

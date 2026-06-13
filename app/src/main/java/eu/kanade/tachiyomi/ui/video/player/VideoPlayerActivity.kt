@@ -493,7 +493,7 @@ class VideoPlayerActivity : BaseActivity() {
                                             latestPlaybackState.subtitles,
                                         )
                                         if (resolvedSubtitleSelection != latestPlaybackState.currentSubtitle) {
-                                            viewModel.selectSubtitle(resolvedSubtitleSelection)
+                                            viewModel.updateResolvedSubtitle(resolvedSubtitleSelection)
                                         }
                                         playbackSnapshot = exoPlayer.capturePlaybackSnapshot()
                                         latestPlaybackSnapshot = playbackSnapshot

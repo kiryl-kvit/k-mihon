@@ -346,6 +346,7 @@ private fun playbackPreferences(animeId: Long): AnimePlaybackPreferences {
         dubKey = null,
         streamKey = null,
         sourceQualityKey = null,
+        subtitleKey = null,
         playerQualityMode = PlayerQualityMode.AUTO,
         playerQualityHeight = null,
         updatedAt = 0L,
